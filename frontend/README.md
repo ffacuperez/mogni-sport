@@ -1,1 +1,0 @@
-# Frontend — Mogni Sport PWA

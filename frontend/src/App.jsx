@@ -1,280 +1,224 @@
-import React, { useState } from 'react';
-import { Mail, Lock, Eye, EyeOff, LogIn, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { useState } from 'react';
 
-export default function App() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [toast, setToast] = useState(null);
+import Login from './pages/Login/Login';
+import AlumnosList from './pages/Alumnos/AlumnosList';
+import AlumnoForm from './pages/Alumnos/AlumnoForm';
+import MembresiasList from './pages/Membresias/MembresiasList';
+import MembresiaForm from './pages/Membresias/MembresiaForm';
+import ConfirmModal from './components/ConfirmModal';
+import Toast from './components/Toast';
+import { initialAlumnos, initialMembresias } from './data/mockData';
 
-  const showNotification = (message, type = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
+// --- ICONS (Main App) ---
+const IconHome = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+const IconUsers = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
+const IconCard = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>;
+const IconLogout = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>;
+
+// --- MAIN APP COMPONENT ---
+function MainApp({ onLogout }) {
+  const [view, setView] = useState('alumnos_list'); 
+  const [alumnos, setAlumnos] = useState(initialAlumnos);
+  const [membresias, setMembresias] = useState(initialMembresias);
+  
+  const [selectedAlumnoId, setSelectedAlumnoId] = useState(null);
+  const [selectedMembresiaId, setSelectedMembresiaId] = useState(null);
+  const [searchDNI, setSearchDNI] = useState('');
+
+  const [modalConfig, setModalConfig] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
+  const [toastConfig, setToastConfig] = useState({ isVisible: false, message: '', isError: false });
+
+  const displayToast = (msg, isError = false) => {
+    setToastConfig({ isVisible: true, message: msg, isError });
+    setTimeout(() => setToastConfig({ isVisible: false, message: '', isError: false }), 4000);
   };
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    if (!email || !password) {
-      showNotification('Por favor complete todos los campos', 'error');
-      return;
-    }
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      showNotification('¡Inicio de sesión exitoso! Bienvenido a MOGNI SPORT.');
-    }, 1500);
+  const showModal = (title, message, onConfirm) => {
+    setModalConfig({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: () => {
+        onConfirm();
+        setModalConfig({ ...modalConfig, isOpen: false });
+      }
+    });
   };
 
-  const handleGoogleLogin = () => {
-    showNotification('Conectando con el servicio de autenticación de Google...');
+  const handleToggleEstadoAlumno = () => {
+    const alumno = alumnos.find(a => a.id === selectedAlumnoId);
+    if (!alumno) return;
+
+    const isActivo = alumno.estado === 'Activo';
+    const actionText = isActivo ? 'dar de baja' : 'activar';
+    const newEstado = isActivo ? 'Inactivo' : 'Activo';
+
+    showModal(
+      'Confirmar Acción',
+      `¿Estás seguro de que deseas ${actionText} al alumno ${alumno.nombre} ${alumno.apellido}?`,
+      () => {
+        setAlumnos(alumnos.map(a => a.id === selectedAlumnoId ? { ...a, estado: newEstado } : a));
+        setSelectedAlumnoId(null);
+        displayToast(`El alumno ha sido ${newEstado === 'Activo' ? 'activado' : 'dado de baja'} correctamente.`);
+      }
+    );
   };
 
-  const handleForgotSubmit = (e) => {
-    e.preventDefault();
-    if (!forgotEmail) {
-      showNotification('Ingrese su correo para recuperar la contraseña', 'error');
-      return;
-    }
-    setIsForgotModalOpen(false);
-    showNotification(`Se han enviado las instrucciones de recuperación a ${forgotEmail}`);
-    setForgotEmail('');
+  const handleSaveAlumno = (formData, isEdit) => {
+    showModal(
+      isEdit ? 'Confirmar Cambios' : 'Confirmar Alta',
+      isEdit ? '¿Desea confirmar los cambios en el alumno?' : '¿Desea confirmar el alta del nuevo alumno?',
+      () => {
+        if (isEdit) {
+          setAlumnos(alumnos.map(a => a.id === formData.id ? formData : a));
+          displayToast('Los cambios fueron guardados correctamente.');
+        } else {
+          setAlumnos([...alumnos, formData]);
+          displayToast('El alumno ha sido creado correctamente.');
+        }
+        setView('alumnos_list');
+        setSelectedAlumnoId(null);
+      }
+    );
+  };
+
+  const handleSaveMembresia = (formData, isEdit) => {
+    showModal(
+      isEdit ? 'Confirmar Cambios' : 'Confirmar Creación',
+      isEdit ? '¿Desea confirmar los cambios en la membresía?' : '¿Desea confirmar la creación de la nueva membresía?',
+      () => {
+        if (isEdit) {
+          setMembresias(membresias.map(m => m.id === formData.id ? formData : m));
+          displayToast('Membresía modificada correctamente.');
+        } else {
+          setMembresias([...membresias, formData]);
+          displayToast('Membresía creada correctamente.');
+        }
+        setView('membresias_list');
+        setSelectedMembresiaId(null);
+      }
+    );
   };
 
   return (
-    <div className="min-h-screen bg-[#111822] text-white flex flex-col justify-center items-center p-4 relative overflow-hidden font-sans">
-      {/* Glow / Resplandor de fondo en tono rojo */}
-      <div className="absolute w-96 h-96 bg-[#e52335]/15 rounded-full blur-3xl pointer-events-none top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
-
-      {/* Toast Notification */}
-      {toast && (
-        <div className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-xl border backdrop-blur-md transition-all duration-300 animate-bounce ${
-          toast.type === 'error' 
-            ? 'bg-red-950/80 border-red-500 text-red-200' 
-            : 'bg-emerald-950/80 border-emerald-500 text-emerald-200'
-        }`}>
-          {toast.type === 'error' ? <AlertCircle className="w-5 h-5 text-red-400" /> : <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
-          <span className="text-sm font-medium">{toast.message}</span>
-          <button onClick={() => setToast(null)} className="ml-2 hover:opacity-75">
-            <X className="w-4 h-4" />
-          </button>
+    <div className="min-h-screen bg-slate-900 text-slate-200 font-sans flex flex-col md:flex-row selection:bg-red-500/30">
+      
+      <aside className="w-full md:w-64 bg-slate-950 border-r border-slate-800 flex flex-col flex-shrink-0">
+        <div className="p-6 flex justify-center items-center border-b border-slate-800/50">
+          <div className="w-32 h-32 rounded-full border-2 border-red-600 flex items-center justify-center bg-slate-900 shadow-[0_0_15px_rgba(220,38,38,0.3)]">
+            <div className="text-center">
+              <span className="block text-red-500 font-black text-2xl tracking-tighter leading-none">MOGNI</span>
+              <span className="block text-slate-300 text-xs tracking-widest mt-1">SPORT</span>
+            </div>
+          </div>
         </div>
-      )}
-
-      {/* Main Container */}
-      <div className="w-full max-w-md z-10">
         
-        {/* Logo SVG Interactivo Integrado */}
-        <div className="flex flex-col items-center mb-6 group cursor-pointer">
-          <div className="relative transform group-hover:scale-105 transition-transform duration-300">
-            <svg 
-              className="w-40 h-40 sm:w-48 sm:h-48 drop-shadow-[0_0_20px_rgba(229,35,53,0.35)]" 
-              viewBox="0 0 500 500" 
-              fill="none" 
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              {/* Círculo Borde Exterior */}
-              <circle cx="250" cy="250" r="230" stroke="#e52335" strokeWidth="10" />
-              
-              {/* Garra Izquierda */}
-              <path d="M 120 230 C 100 210, 110 180, 130 180 C 145 180, 150 200, 155 220" stroke="#e52335" strokeWidth="8" strokeLinecap="round" fill="#e52335" />
-              <path d="M 150 210 C 135 180, 150 150, 170 155 C 185 160, 185 185, 185 210" stroke="#e52335" strokeWidth="8" strokeLinecap="round" fill="#e52335" />
-              <path d="M 185 200 C 180 160, 200 135, 220 145 C 230 150, 225 180, 215 210" stroke="#e52335" strokeWidth="8" strokeLinecap="round" fill="#e52335" />
+        <nav className="flex-1 py-4">
+          <ul className="space-y-1 text-sm font-medium">
+            <li>
+              <button className="w-full flex items-center gap-3 px-6 py-3 text-slate-400 hover:text-slate-100 hover:bg-slate-900 transition-colors">
+                <IconHome /> Inicio
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => { setView('alumnos_list'); setSelectedAlumnoId(null); }}
+                className={`w-full flex items-center gap-3 px-6 py-3 transition-colors ${view.startsWith('alumnos') ? 'text-slate-100 bg-slate-900 border-l-4 border-red-600' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900 border-l-4 border-transparent'}`}
+              >
+                <IconUsers /> Alumnos
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => { setView('membresias_list'); setSelectedMembresiaId(null); }}
+                className={`w-full flex items-center gap-3 px-6 py-3 transition-colors ${view.startsWith('membresias') ? 'text-slate-100 bg-slate-900 border-l-4 border-red-600' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900 border-l-4 border-transparent'}`}
+              >
+                <IconCard /> Membresías
+              </button>
+            </li>
+            <li>
+              <button onClick={onLogout} className="w-full flex items-center gap-3 px-6 py-3 text-slate-400 hover:text-slate-100 hover:bg-slate-900 transition-colors mt-8">
+                <IconLogout /> Cerrar Sesión
+              </button>
+            </li>
+          </ul>
+        </nav>
+      </aside>
 
-              {/* Garra Derecha */}
-              <path d="M 380 230 C 400 210, 390 180, 370 180 C 355 180, 350 200, 345 220" stroke="#e52335" strokeWidth="8" strokeLinecap="round" fill="#e52335" />
-              <path d="M 350 210 C 365 180, 350 150, 330 155 C 315 160, 315 185, 315 210" stroke="#e52335" strokeWidth="8" strokeLinecap="round" fill="#e52335" />
-              <path d="M 315 200 C 320 160, 300 135, 280 145 C 270 150, 275 180, 285 210" stroke="#e52335" strokeWidth="8" strokeLinecap="round" fill="#e52335" />
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjMGYxNzJhIj48L3JlY3Q+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMxZTI5M2IiPjwvcmVjdD4KPC9zdmc+')]">
+        
+        {view === 'alumnos_list' && (
+          <AlumnosList 
+            alumnos={alumnos} 
+            selectedId={selectedAlumnoId}
+            setSelectedId={setSelectedAlumnoId}
+            onAdd={() => setView('alumnos_form')}
+            onEdit={() => setView('alumnos_form')}
+            onToggleStatus={handleToggleEstadoAlumno}
+            searchDNI={searchDNI}
+            setSearchDNI={setSearchDNI}
+          />
+        )}
 
-              {/* Cabeza Pantera */}
-              <path d="M 200 180 C 200 130, 230 100, 250 100 C 270 100, 300 130, 300 180 C 300 210, 285 240, 250 260 C 215 240, 200 210, 200 180 Z" stroke="#e52335" strokeWidth="8" fill="#111822" />
-              
-              {/* Ojos y Hocico */}
-              <polygon points="225,155 240,165 220,165" fill="#e52335" />
-              <polygon points="275,155 260,165 280,165" fill="#e52335" />
-              <path d="M 240 200 L 260 200 L 250 215 Z" fill="#e52335" />
-              <path d="M 235 225 Q 250 235 265 225" stroke="#e52335" strokeWidth="5" strokeLinecap="round" />
+        {view === 'alumnos_form' && (
+          <AlumnoForm
+            alumnoToEdit={alumnos.find(a => a.id === selectedAlumnoId)}
+            membresias={membresias}
+            onSave={handleSaveAlumno}
+            onCancel={() => { setView('alumnos_list'); setSelectedAlumnoId(null); }}
+            onError={(msg) => displayToast(msg, true)}
+            nextId={`MS2400${alumnos.length + 1}`}
+          />
+        )}
 
-              {/* Texto MOGNI SPORT */}
-              <text x="250" y="325" textAnchor="middle" fill="#e52335" fontSize="48" fontWeight="900" fontFamily="sans-serif" letterSpacing="2">MOGNI</text>
-              <line x1="160" y1="345" x2="340" y2="345" stroke="#e52335" strokeWidth="4" />
-              <text x="250" y="380" textAnchor="middle" fill="#e52335" fontSize="30" fontWeight="700" fontFamily="sans-serif" letterSpacing="8">SPORT</text>
-            </svg>
-          </div>
-        </div>
+        {view === 'membresias_list' && (
+          <MembresiasList
+            membresias={membresias}
+            selectedId={selectedMembresiaId}
+            setSelectedId={setSelectedMembresiaId}
+            onAdd={() => setView('membresias_form')}
+            onEdit={() => setView('membresias_form')}
+          />
+        )}
 
-        {/* Card Formulario */}
-        <div className="bg-[#18222d] border border-[#e52335]/40 rounded-2xl shadow-2xl p-6 sm:p-8 backdrop-blur-sm relative">
-          
-          <div className="text-center mb-6">
-            <h2 className="text-xl sm:text-2xl font-bold tracking-wide uppercase text-[#e52335] flex items-center justify-center gap-2">
-              Iniciar Sesión
-            </h2>
-            <p className="text-xs text-gray-400 mt-1">Accede a tu panel de afiliado de MOGNI SPORT</p>
-          </div>
+        {view === 'membresias_form' && (
+          <MembresiaForm
+            membresiaToEdit={membresias.find(m => m.id === selectedMembresiaId)}
+            onSave={handleSaveMembresia}
+            onCancel={() => { setView('membresias_list'); setSelectedMembresiaId(null); }}
+            nextId={`MB100${membresias.length + 1}`}
+          />
+        )}
 
-          <form onSubmit={handleLogin} className="space-y-5">
-            {/* Campo Correo */}
-            <div>
-              <label className="block text-sm font-semibold text-white mb-1.5">
-                Correo Electrónico:
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                  <Mail className="w-5 h-5" />
-                </div>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="ejemplo@correo.com"
-                  className="w-full pl-10 pr-4 py-2.5 bg-[#111822] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-[#e52335] focus:ring-1 focus:ring-[#e52335] transition-all"
-                  required
-                />
-              </div>
-            </div>
+      </main>
 
-            {/* Campo Contraseña */}
-            <div>
-              <label className="block text-sm font-semibold text-white mb-1.5">
-                Contraseña:
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                  <Lock className="w-5 h-5" />
-                </div>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-10 py-2.5 bg-[#111822] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-[#e52335] focus:ring-1 focus:ring-[#e52335] transition-all"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-
-            {/* Botón 1: Iniciar Sesión */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3 px-4 bg-[#e52335] hover:bg-[#c91c2c] text-white font-bold rounded-lg shadow-lg hover:shadow-red-900/40 transition-all duration-200 flex items-center justify-center gap-2 transform active:scale-[0.99] disabled:opacity-50"
-            >
-              {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <>
-                  <LogIn className="w-5 h-5" />
-                  <span>INICIAR SESIÓN</span>
-                </>
-              )}
-            </button>
-          </form>
-
-          {/* Divisor */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-700"></div>
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-[#18222d] px-3 text-gray-400">O ingresa con</span>
-            </div>
-          </div>
-
-          {/* Botón 2: Iniciar Sesión con Google */}
-          <button
-            type="button"
-            onClick={handleGoogleLogin}
-            className="w-full py-2.5 px-4 bg-[#111822] hover:bg-[#1a2432] border border-gray-700 hover:border-gray-500 text-white font-medium rounded-lg transition-all duration-200 flex items-center justify-center gap-3 transform active:scale-[0.99]"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
-              <path
-                fill="#4285F4"
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-              />
-            </svg>
-            <span>Iniciar sesión con Google</span>
-          </button>
-
-          {/* Botón 3: Olvidó su contraseña */}
-          <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={() => setIsForgotModalOpen(true)}
-              className="text-sm text-[#e52335] hover:text-[#f35261] hover:underline font-medium transition-colors"
-            >
-              ¿Olvidó su contraseña?
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Modal de Recuperación */}
-      {isForgotModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#18222d] border border-gray-700 rounded-xl p-6 w-full max-w-md shadow-2xl relative animate-in fade-in zoom-in duration-200">
-            <button
-              onClick={() => setIsForgotModalOpen(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <h3 className="text-lg font-bold text-white mb-2">Recuperar Contraseña</h3>
-            <p className="text-sm text-gray-300 mb-4">
-              Ingrese su correo electrónico y le enviaremos un enlace para restablecer su clave.
-            </p>
-            <form onSubmit={handleForgotSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-white mb-1">Correo Electrónico:</label>
-                <input
-                  type="email"
-                  value={forgotEmail}
-                  onChange={(e) => setForgotEmail(e.target.value)}
-                  placeholder="ejemplo@correo.com"
-                  className="w-full px-3 py-2 bg-[#111822] border border-gray-700 rounded-lg text-white focus:outline-none focus:border-[#e52335]"
-                  required
-                />
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsForgotModalOpen(false)}
-                  className="px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-sm bg-[#e52335] hover:bg-[#c91c2c] text-white font-semibold rounded-lg transition-colors"
-                >
-                  Enviar enlace
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <ConfirmModal 
+        isOpen={modalConfig.isOpen}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        onConfirm={modalConfig.onConfirm}
+        onCancel={() => setModalConfig({ ...modalConfig, isOpen: false })}
+      />
+      <Toast 
+        message={toastConfig.message} 
+        isVisible={toastConfig.isVisible} 
+        isError={toastConfig.isError} 
+      />
+      
     </div>
+  );
+}
+
+export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  return (
+    <>
+      {!isAuthenticated ? (
+        <Login onLogin={() => setIsAuthenticated(true)} />
+      ) : (
+        <MainApp onLogout={() => setIsAuthenticated(false)} />
+      )}
+    </>
   );
 }

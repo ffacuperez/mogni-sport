@@ -16,6 +16,8 @@ import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
+import mogni.system_backend.membresia.entity.Membresia;
+import mogni.system_backend.membresia.repository.MembresiaRepository;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.auth.repository.CuentaRepository;
 
@@ -26,13 +28,16 @@ public class AlumnoService {
 
     private final AlumnoRepository alumnoRepository;
     private final CuentaRepository cuentaRepository;
+    private final MembresiaRepository membresiaRepository;
     private final PasswordEncoder passwordEncoder;
 
     public AlumnoService(AlumnoRepository alumnoRepository,
                           CuentaRepository cuentaRepository,
+                          MembresiaRepository membresiaRepository,
                           PasswordEncoder passwordEncoder) {
         this.alumnoRepository = alumnoRepository;
         this.cuentaRepository = cuentaRepository;
+        this.membresiaRepository = membresiaRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -67,8 +72,11 @@ public class AlumnoService {
         alumno.setApellido(request.getApellido());
         alumno.setDni(dniNormalizado);
         alumno.setFechaNacimiento(request.getFechaNacimiento());
+        alumno.setCelular(request.getCelular());
+        alumno.setFechaIngreso(request.getFechaIngreso() != null ? request.getFechaIngreso() : LocalDate.now());
         alumno.setObjetivo(request.getObjetivo());
         alumno.setCuestionarioSalud(request.getCuestionarioSalud());
+        alumno.setMembresia(buscarMembresiaOLanzarError(request.getMembresiaId()));
         alumno.setCuenta(cuenta);
 
         Alumno alumnoGuardado = alumnoRepository.save(alumno);
@@ -115,8 +123,10 @@ public class AlumnoService {
         alumno.setApellido(request.getApellido());
         alumno.setDni(dniNormalizado);
         alumno.setFechaNacimiento(request.getFechaNacimiento());
+        alumno.setCelular(request.getCelular());
         alumno.setObjetivo(request.getObjetivo());
         alumno.setCuestionarioSalud(request.getCuestionarioSalud());
+        alumno.setMembresia(buscarMembresiaOLanzarError(request.getMembresiaId()));
         alumno.getCuenta().setEmail(request.getEmail());
 
         if (dniCambio && alumno.getCuenta().isDebeCambiarPassword()) {
@@ -127,12 +137,40 @@ public class AlumnoService {
         return mapearAResponse(alumnoActualizado);
     }
 
+    /**
+     * Baja lógica: el alumno no se borra, su cuenta pasa a inactiva (y por lo tanto no puede iniciar sesión).
+     */
+    @Transactional
+    public AlumnoResponse darDeBajaAlumno(Long id) {
+        return cambiarEstado(id, false);
+    }
+
+    @Transactional
+    public AlumnoResponse reactivarAlumno(Long id) {
+        return cambiarEstado(id, true);
+    }
+
+    private AlumnoResponse cambiarEstado(Long id, boolean activo) {
+        Alumno alumno = buscarAlumnoOLanzarError(id);
+        alumno.getCuenta().setActiva(activo);
+        return mapearAResponse(alumnoRepository.save(alumno));
+    }
+
     private Alumno buscarAlumnoOLanzarError(Long id) {
         return alumnoRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No existe un alumno con id " + id));
     }
 
+    private Membresia buscarMembresiaOLanzarError(Long membresiaId) {
+        if (membresiaId == null) {
+            return null;
+        }
+        return membresiaRepository.findById(membresiaId)
+                .orElseThrow(() -> new RegistroInvalidoException("La membresía indicada no existe"));
+    }
+
     private AlumnoResponse mapearAResponse(Alumno alumno) {
+        Membresia membresia = alumno.getMembresia();
         return new AlumnoResponse(
             alumno.getId(),
             alumno.getNombre(),
@@ -140,9 +178,14 @@ public class AlumnoService {
             alumno.getDni(),
             alumno.getCuenta().getEmail(),
             alumno.getFechaNacimiento(),
+            alumno.getCelular(),
+            alumno.getFechaIngreso(),
             alumno.getObjetivo(),
             alumno.getCuestionarioSalud(),
-            alumno.getCuenta().getRol()
+            alumno.getCuenta().getRol(),
+            alumno.getCuenta().isActiva(),
+            membresia != null ? membresia.getId() : null,
+            membresia != null ? membresia.getNombre() : null
         );
     }
 }

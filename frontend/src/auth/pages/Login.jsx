@@ -13,6 +13,8 @@ import {
   Smartphone
 } from 'lucide-react';
 
+import { login } from '../services/authService';
+
 export default function Login({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,25 +32,25 @@ export default function Login({ onLogin }) {
     }, 4000);
   };
 
-  const handleLoginSubmit = (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     if (!email || !password) {
       triggerToast('error', 'Por favor, complete todos los campos.');
       return;
     }
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await login(email, password);
       onLogin(); // Redirige a la aplicación principal
-    }, 800);
+    } catch (error) {
+      triggerToast('error', error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleGoogleLogin = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      onLogin(); // Redirige a la aplicación principal
-    }, 800);
+    triggerToast('error', 'El inicio de sesión con Google todavía no está disponible.');
   };
 
   const handleResetPassword = (e) => {

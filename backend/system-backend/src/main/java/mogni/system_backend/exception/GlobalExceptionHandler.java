@@ -1,16 +1,27 @@
 package mogni.system_backend.exception;
 
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, String>> handleValidacion(MethodArgumentNotValidException ex) {
+        String mensaje = ex.getBindingResult().getFieldErrors().stream()
+                .map(error -> error.getDefaultMessage())
+                .distinct()
+                .collect(Collectors.joining(". "));
+        return ResponseEntity.badRequest().body(Map.of("error", mensaje));
+    }
 
     @ExceptionHandler(RegistroInvalidoException.class)
     public ResponseEntity<Map<String, String>> handleRegistroInvalido(RegistroInvalidoException ex) {

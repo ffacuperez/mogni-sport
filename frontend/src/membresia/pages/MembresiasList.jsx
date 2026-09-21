@@ -1,4 +1,4 @@
-export default function MembresiasList({ membresias, selectedId, setSelectedId, onAdd, onEdit }) {
+export default function MembresiasList({ membresias, selectedId, setSelectedId, onAdd, onEdit, onDelete }) {
   const selectedMembresia = membresias.find(m => m.id === selectedId);
 
   return (
@@ -14,6 +14,12 @@ export default function MembresiasList({ membresias, selectedId, setSelectedId, 
           {selectedMembresia && (
             <button onClick={onEdit} className="flex items-center gap-2 bg-[#1b5e3a] hover:bg-[#14492d] text-white px-4 py-2 rounded-md font-medium transition-colors">
               Modificar Membresía
+            </button>
+          )}
+
+          {selectedMembresia && (
+            <button onClick={onDelete} className="flex items-center gap-2 bg-red-800 hover:bg-red-900 text-white px-4 py-2 rounded-md font-medium transition-colors">
+              Eliminar Membresía
             </button>
           )}
         </div>
@@ -44,9 +50,9 @@ export default function MembresiasList({ membresias, selectedId, setSelectedId, 
                       className="w-4 h-4 rounded border-slate-600 text-red-600 bg-slate-800 focus:ring-red-600 focus:ring-offset-slate-900 cursor-pointer accent-red-600"
                     />
                   </td>
-                  <td className="px-4 py-3 text-slate-300">{membresia.id}</td>
+                  <td className="px-4 py-3 text-slate-300">{membresia.codigo}</td>
                   <td className="px-4 py-3">{membresia.nombre}</td>
-                  <td className="px-4 py-3">{membresia.dias} {isNaN(membresia.dias) ? '' : 'días'}</td>
+                  <td className="px-4 py-3">{membresia.dias === '' ? '—' : `${membresia.dias} días`}</td>
                   <td className="px-4 py-3">${Number(membresia.precio).toLocaleString('es-AR')}</td>
                 </tr>
               ))}

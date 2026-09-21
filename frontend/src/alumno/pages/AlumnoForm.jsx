@@ -1,11 +1,10 @@
 import { useState } from 'react';
 
-export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel, onError, nextId }) {
+export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel, onError }) {
   const isEdit = !!alumnoToEdit;
   
   const [formData, setFormData] = useState(
     alumnoToEdit || {
-      id: nextId,
       nombre: '',
       apellido: '',
       dni: '',
@@ -13,10 +12,9 @@ export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel,
       fechaNacimiento: '',
       celular: '',
       fechaIngreso: new Date().toISOString().split('T')[0],
-      membresia: membresias.length > 0 ? membresias[0].nombre : '',
+      membresiaId: membresias.length > 0 ? membresias[0].id : '',
       objetivo: '',
-      antecedentes: '',
-      estado: 'Activo'
+      antecedentes: ''
     }
   );
 
@@ -66,14 +64,15 @@ export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel,
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div>
             <label className={labelClass}>ID</label>
-            <input type="text" name="id" value={formData.id} disabled className={inputClass} />
+            <input type="text" name="codigo" value={formData.codigo ?? 'Se asigna al guardar'} disabled className={inputClass} />
           </div>
 
           <div>
             <label className={labelClass}>Membresía</label>
-            <select name="membresia" value={formData.membresia} onChange={handleChange} className={inputClass}>
+            <select name="membresiaId" value={formData.membresiaId} onChange={handleChange} className={inputClass}>
+              <option value="">Sin membresía</option>
               {membresias.map(m => (
-                <option key={m.id} value={m.nombre}>{m.nombre}</option>
+                <option key={m.id} value={m.id}>{m.nombre}</option>
               ))}
             </select>
           </div>

@@ -15,7 +15,12 @@ public class AlumnoResponse {
     private String dni;
     private String email;
     private LocalDate fechaNacimiento;
+    private String celular;
+    private LocalDate fechaIngreso;
     private String objetivo;
     private String cuestionarioSalud;
     private Rol rol;
+    private boolean activo;
+    private Long membresiaId;
+    private String membresiaNombre;
 }

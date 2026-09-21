@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import Login from './auth/pages/Login';
 import AlumnosList from './alumno/pages/AlumnosList';
@@ -7,7 +7,21 @@ import MembresiasList from './membresia/pages/MembresiasList';
 import MembresiaForm from './membresia/pages/MembresiaForm';
 import ConfirmModal from './shared/components/ConfirmModal';
 import Toast from './shared/components/Toast';
-import { initialAlumnos, initialMembresias } from './shared/data/mockData';
+import { hasSession, logout } from './auth/services/authService';
+import { setUnauthorizedHandler } from './shared/services/httpClient';
+import {
+  actualizarAlumno,
+  crearAlumno,
+  darDeBajaAlumno,
+  listarAlumnos,
+  reactivarAlumno,
+} from './alumno/services/alumnosService';
+import {
+  actualizarMembresia,
+  crearMembresia,
+  eliminarMembresia,
+  listarMembresias,
+} from './membresia/services/membresiasService';
 
 // --- ICONS (Main App) ---
 const IconHome = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
@@ -18,8 +32,8 @@ const IconLogout = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" heig
 // --- MAIN APP COMPONENT ---
 function MainApp({ onLogout }) {
   const [view, setView] = useState('alumnos_list'); 
-  const [alumnos, setAlumnos] = useState(initialAlumnos);
-  const [membresias, setMembresias] = useState(initialMembresias);
+  const [alumnos, setAlumnos] = useState([]);
+  const [membresias, setMembresias] = useState([]);
   
   const [selectedAlumnoId, setSelectedAlumnoId] = useState(null);
   const [selectedMembresiaId, setSelectedMembresiaId] = useState(null);
@@ -31,6 +45,27 @@ function MainApp({ onLogout }) {
   const displayToast = (msg, isError = false) => {
     setToastConfig({ isVisible: true, message: msg, isError });
     setTimeout(() => setToastConfig({ isVisible: false, message: '', isError: false }), 4000);
+  };
+
+  useEffect(() => {
+    Promise.all([listarAlumnos(), listarMembresias()])
+      .then(([alumnosData, membresiasData]) => {
+        setAlumnos(alumnosData);
+        setMembresias(membresiasData);
+      })
+      .catch((error) => displayToast(error.message, true));
+  }, []);
+
+  // Ejecuta una llamada al backend mostrando el resultado en el toast. Devuelve true si salió bien.
+  const ejecutar = async (accion, mensajeExito) => {
+    try {
+      await accion();
+      displayToast(mensajeExito);
+      return true;
+    } catch (error) {
+      displayToast(error.message, true);
+      return false;
+    }
   };
 
   const showModal = (title, message, onConfirm) => {
@@ -56,10 +91,12 @@ function MainApp({ onLogout }) {
     showModal(
       'Confirmar Acción',
       `¿Estás seguro de que deseas ${actionText} al alumno ${alumno.nombre} ${alumno.apellido}?`,
-      () => {
-        setAlumnos(alumnos.map(a => a.id === selectedAlumnoId ? { ...a, estado: newEstado } : a));
-        setSelectedAlumnoId(null);
-        displayToast(`El alumno ha sido ${newEstado === 'Activo' ? 'activado' : 'dado de baja'} correctamente.`);
+      async () => {
+        const ok = await ejecutar(async () => {
+          const actualizado = isActivo ? await darDeBajaAlumno(alumno.id) : await reactivarAlumno(alumno.id);
+          setAlumnos(prev => prev.map(a => a.id === actualizado.id ? actualizado : a));
+        }, `El alumno ha sido ${newEstado === 'Activo' ? 'activado' : 'dado de baja'} correctamente.`);
+        if (ok) setSelectedAlumnoId(null);
       }
     );
   };
@@ -68,16 +105,15 @@ function MainApp({ onLogout }) {
     showModal(
       isEdit ? 'Confirmar Cambios' : 'Confirmar Alta',
       isEdit ? '¿Desea confirmar los cambios en el alumno?' : '¿Desea confirmar el alta del nuevo alumno?',
-      () => {
-        if (isEdit) {
-          setAlumnos(alumnos.map(a => a.id === formData.id ? formData : a));
-          displayToast('Los cambios fueron guardados correctamente.');
-        } else {
-          setAlumnos([...alumnos, formData]);
-          displayToast('El alumno ha sido creado correctamente.');
+      async () => {
+        const ok = await ejecutar(async () => {
+          const guardado = isEdit ? await actualizarAlumno(formData.id, formData) : await crearAlumno(formData);
+          setAlumnos(prev => isEdit ? prev.map(a => a.id === guardado.id ? guardado : a) : [...prev, guardado]);
+        }, isEdit ? 'Los cambios fueron guardados correctamente.' : 'El alumno ha sido creado correctamente.');
+        if (ok) {
+          setView('alumnos_list');
+          setSelectedAlumnoId(null);
         }
-        setView('alumnos_list');
-        setSelectedAlumnoId(null);
       }
     );
   };
@@ -86,16 +122,36 @@ function MainApp({ onLogout }) {
     showModal(
       isEdit ? 'Confirmar Cambios' : 'Confirmar Creación',
       isEdit ? '¿Desea confirmar los cambios en la membresía?' : '¿Desea confirmar la creación de la nueva membresía?',
-      () => {
-        if (isEdit) {
-          setMembresias(membresias.map(m => m.id === formData.id ? formData : m));
-          displayToast('Membresía modificada correctamente.');
-        } else {
-          setMembresias([...membresias, formData]);
-          displayToast('Membresía creada correctamente.');
+      async () => {
+        const ok = await ejecutar(async () => {
+          const guardada = isEdit ? await actualizarMembresia(formData.id, formData) : await crearMembresia(formData);
+          setMembresias(prev => isEdit ? prev.map(m => m.id === guardada.id ? guardada : m) : [...prev, guardada]);
+          if (isEdit) {
+            // Los alumnos guardan el nombre de su membresía solo para mostrarlo: lo mantenemos al día
+            setAlumnos(prev => prev.map(a => a.membresiaId === guardada.id ? { ...a, membresia: guardada.nombre } : a));
+          }
+        }, isEdit ? 'Membresía modificada correctamente.' : 'Membresía creada correctamente.');
+        if (ok) {
+          setView('membresias_list');
+          setSelectedMembresiaId(null);
         }
-        setView('membresias_list');
-        setSelectedMembresiaId(null);
+      }
+    );
+  };
+
+  const handleDeleteMembresia = () => {
+    const membresia = membresias.find(m => m.id === selectedMembresiaId);
+    if (!membresia) return;
+
+    showModal(
+      'Confirmar Eliminación',
+      `¿Está seguro de que desea eliminar la membresía ${membresia.nombre}?`,
+      async () => {
+        const ok = await ejecutar(async () => {
+          await eliminarMembresia(membresia.id);
+          setMembresias(prev => prev.filter(m => m.id !== membresia.id));
+        }, 'Membresía eliminada correctamente.');
+        if (ok) setSelectedMembresiaId(null);
       }
     );
   };
@@ -167,7 +223,6 @@ function MainApp({ onLogout }) {
             onSave={handleSaveAlumno}
             onCancel={() => { setView('alumnos_list'); setSelectedAlumnoId(null); }}
             onError={(msg) => displayToast(msg, true)}
-            nextId={`MS2400${alumnos.length + 1}`}
           />
         )}
 
@@ -178,6 +233,7 @@ function MainApp({ onLogout }) {
             setSelectedId={setSelectedMembresiaId}
             onAdd={() => setView('membresias_form')}
             onEdit={() => setView('membresias_form')}
+            onDelete={handleDeleteMembresia}
           />
         )}
 
@@ -186,7 +242,6 @@ function MainApp({ onLogout }) {
             membresiaToEdit={membresias.find(m => m.id === selectedMembresiaId)}
             onSave={handleSaveMembresia}
             onCancel={() => { setView('membresias_list'); setSelectedMembresiaId(null); }}
-            nextId={`MB100${membresias.length + 1}`}
           />
         )}
 
@@ -210,14 +265,24 @@ function MainApp({ onLogout }) {
 }
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(hasSession);
+
+  const handleLogout = () => {
+    logout();
+    setIsAuthenticated(false);
+  };
+
+  // Si el backend rechaza el token (vencido o inválido), volvemos al login
+  useEffect(() => {
+    setUnauthorizedHandler(handleLogout);
+  }, []);
 
   return (
     <>
       {!isAuthenticated ? (
         <Login onLogin={() => setIsAuthenticated(true)} />
       ) : (
-        <MainApp onLogout={() => setIsAuthenticated(false)} />
+        <MainApp onLogout={handleLogout} />
       )}
     </>
   );

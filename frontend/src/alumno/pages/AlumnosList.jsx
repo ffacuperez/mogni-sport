@@ -73,7 +73,7 @@ export default function AlumnosList({ alumnos, selectedId, setSelectedId, onAdd,
                       className="w-4 h-4 rounded border-slate-600 text-red-600 bg-slate-800 focus:ring-red-600 focus:ring-offset-slate-900 cursor-pointer accent-red-600"
                     />
                   </td>
-                  <td className="px-4 py-3 text-slate-300">{alumno.id}</td>
+                  <td className="px-4 py-3 text-slate-300">{alumno.codigo}</td>
                   <td className="px-4 py-3">{alumno.dni}</td>
                   <td className="px-4 py-3">{alumno.apellido}</td>
                   <td className="px-4 py-3">{alumno.nombre}</td>

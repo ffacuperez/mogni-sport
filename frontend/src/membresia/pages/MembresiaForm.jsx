@@ -1,11 +1,10 @@
 import { useState } from 'react';
 
-export default function MembresiaForm({ membresiaToEdit, onSave, onCancel, nextId }) {
+export default function MembresiaForm({ membresiaToEdit, onSave, onCancel }) {
   const isEdit = !!membresiaToEdit;
   
   const [formData, setFormData] = useState(
     membresiaToEdit || {
-      id: nextId,
       nombre: '',
       dias: '',
       precio: ''
@@ -40,7 +39,7 @@ export default function MembresiaForm({ membresiaToEdit, onSave, onCancel, nextI
         <div className="grid grid-cols-1 gap-6 mb-6">
           <div>
             <label className={labelClass}>Código ID</label>
-            <input type="text" name="id" value={formData.id} disabled className={inputClass} />
+            <input type="text" name="codigo" value={formData.codigo ?? 'Se asigna al guardar'} disabled className={inputClass} />
           </div>
 
           <div>

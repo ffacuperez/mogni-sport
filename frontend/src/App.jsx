@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import Home from './home/pages/Home';
 import Login from './auth/pages/Login';
 import AlumnosList from './alumno/pages/AlumnosList';
 import AlumnoForm from './alumno/pages/AlumnoForm';
@@ -30,7 +31,7 @@ const IconCard = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height
 const IconLogout = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>;
 
 // --- MAIN APP COMPONENT ---
-function MainApp({ onLogout }) {
+function MainApp({ onLogout, onGoHome }) {
   const [view, setView] = useState('alumnos_list'); 
   const [alumnos, setAlumnos] = useState([]);
   const [membresias, setMembresias] = useState([]);
@@ -172,7 +173,7 @@ function MainApp({ onLogout }) {
         <nav className="flex-1 py-4">
           <ul className="space-y-1 text-sm font-medium">
             <li>
-              <button className="w-full flex items-center gap-3 px-6 py-3 text-slate-400 hover:text-slate-100 hover:bg-slate-900 transition-colors">
+              <button onClick={onGoHome} className="w-full flex items-center gap-3 px-6 py-3 text-slate-400 hover:text-slate-100 hover:bg-slate-900 transition-colors">
                 <IconHome /> Inicio
               </button>
             </li>
@@ -266,10 +267,13 @@ function MainApp({ onLogout }) {
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(hasSession);
+  // Pantalla visible: 'home' (pública), 'login' o 'panel'. Con sesión guardada se abre el panel.
+  const [screen, setScreen] = useState(() => (hasSession() ? 'panel' : 'home'));
 
   const handleLogout = () => {
     logout();
     setIsAuthenticated(false);
+    setScreen('login');
   };
 
   // Si el backend rechaza el token (vencido o inválido), volvemos al login
@@ -277,12 +281,16 @@ export default function App() {
     setUnauthorizedHandler(handleLogout);
   }, []);
 
+  if (screen === 'home') {
+    return <Home isAuthenticated={isAuthenticated} onLogin={() => setScreen(isAuthenticated ? 'panel' : 'login')} />;
+  }
+
   return (
     <>
       {!isAuthenticated ? (
-        <Login onLogin={() => setIsAuthenticated(true)} />
+        <Login onLogin={() => { setIsAuthenticated(true); setScreen('panel'); }} onBack={() => setScreen('home')} />
       ) : (
-        <MainApp onLogout={handleLogout} />
+        <MainApp onLogout={handleLogout} onGoHome={() => setScreen('home')} />
       )}
     </>
   );

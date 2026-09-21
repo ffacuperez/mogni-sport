@@ -1,4 +1,4 @@
-package mogni.system_backend.entidades;
+package mogni.system_backend.auth.entity;
 
 public enum Rol {
     PROPIETARIO,

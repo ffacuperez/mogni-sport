@@ -1,4 +1,4 @@
-package mogni.system_backend.service;
+package mogni.system_backend.alumno.service;
 
 import java.time.LocalDate;
 import java.time.Period;
@@ -8,16 +8,16 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import mogni.system_backend.dto.ActualizarAlumnoRequest;
-import mogni.system_backend.dto.AlumnoResponse;
-import mogni.system_backend.dto.RegistrarAlumnoRequest;
-import mogni.system_backend.entidades.Alumno;
-import mogni.system_backend.entidades.Cuenta;
-import mogni.system_backend.entidades.Rol;
+import mogni.system_backend.alumno.dto.ActualizarAlumnoRequest;
+import mogni.system_backend.alumno.dto.AlumnoResponse;
+import mogni.system_backend.alumno.dto.RegistrarAlumnoRequest;
+import mogni.system_backend.alumno.entity.Alumno;
+import mogni.system_backend.auth.entity.Cuenta;
+import mogni.system_backend.auth.entity.Rol;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
-import mogni.system_backend.repository.AlumnoRepository;
-import mogni.system_backend.repository.CuentaRepository;
+import mogni.system_backend.alumno.repository.AlumnoRepository;
+import mogni.system_backend.auth.repository.CuentaRepository;
 
 @Service
 public class AlumnoService {

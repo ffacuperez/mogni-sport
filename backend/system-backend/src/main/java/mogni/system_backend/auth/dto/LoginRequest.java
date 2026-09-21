@@ -1,4 +1,4 @@
-package mogni.system_backend.dto;
+package mogni.system_backend.auth.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;

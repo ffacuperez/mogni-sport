@@ -1,4 +1,4 @@
-package mogni.system_backend.controller;
+package mogni.system_backend.auth.controller;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -9,11 +9,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
-import mogni.system_backend.dto.LoginRequest;
-import mogni.system_backend.dto.LoginResponse;
-import mogni.system_backend.entidades.Cuenta;
+import mogni.system_backend.auth.dto.LoginRequest;
+import mogni.system_backend.auth.dto.LoginResponse;
+import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
-import mogni.system_backend.repository.CuentaRepository;
+import mogni.system_backend.auth.repository.CuentaRepository;
 import mogni.system_backend.security.JwtService;
 
 @RestController

@@ -6,8 +6,8 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-import mogni.system_backend.entidades.Cuenta;
-import mogni.system_backend.repository.CuentaRepository;
+import mogni.system_backend.auth.entity.Cuenta;
+import mogni.system_backend.auth.repository.CuentaRepository;
 
 @Service
 public class CustomUserDetailsService implements UserDetailsService {

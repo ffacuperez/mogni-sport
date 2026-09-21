@@ -1,4 +1,4 @@
-package mogni.system_backend.controller;
+package mogni.system_backend.alumno.controller;
 
 import java.util.List;
 
@@ -13,10 +13,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
-import mogni.system_backend.dto.ActualizarAlumnoRequest;
-import mogni.system_backend.dto.AlumnoResponse;
-import mogni.system_backend.dto.RegistrarAlumnoRequest;
-import mogni.system_backend.service.AlumnoService;
+import mogni.system_backend.alumno.dto.ActualizarAlumnoRequest;
+import mogni.system_backend.alumno.dto.AlumnoResponse;
+import mogni.system_backend.alumno.dto.RegistrarAlumnoRequest;
+import mogni.system_backend.alumno.service.AlumnoService;
 
 @RestController
 @RequestMapping("/alumnos")

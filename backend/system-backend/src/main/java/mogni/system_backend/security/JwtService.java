@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import mogni.system_backend.entidades.Cuenta;
+import mogni.system_backend.auth.entity.Cuenta;
 
 @Service
 public class JwtService {

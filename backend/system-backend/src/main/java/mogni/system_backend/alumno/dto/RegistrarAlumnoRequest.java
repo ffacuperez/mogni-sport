@@ -1,4 +1,4 @@
-package mogni.system_backend.dto;
+package mogni.system_backend.alumno.dto;
 
 import java.time.LocalDate;
 
@@ -11,7 +11,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class ActualizarAlumnoRequest {
+public class RegistrarAlumnoRequest {
 
     @NotBlank(message = "El nombre es obligatorio")
     private String nombre;

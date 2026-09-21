@@ -1,4 +1,4 @@
-package mogni.system_backend.entidades;
+package mogni.system_backend.alumno.entity;
 
 import java.time.LocalDate;
 
@@ -15,6 +15,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import mogni.system_backend.auth.entity.Cuenta;
 
 @Entity
 @Table(name = "alumnos")

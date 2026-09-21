@@ -1,8 +1,8 @@
-package mogni.system_backend.dto;
+package mogni.system_backend.auth.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import mogni.system_backend.entidades.Rol;
+import mogni.system_backend.auth.entity.Rol;
 
 @Getter
 @AllArgsConstructor

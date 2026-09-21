@@ -1,13 +1,13 @@
 import { useState } from 'react';
 
-import Login from './pages/Login/Login';
-import AlumnosList from './pages/Alumnos/AlumnosList';
-import AlumnoForm from './pages/Alumnos/AlumnoForm';
-import MembresiasList from './pages/Membresias/MembresiasList';
-import MembresiaForm from './pages/Membresias/MembresiaForm';
-import ConfirmModal from './components/ConfirmModal';
-import Toast from './components/Toast';
-import { initialAlumnos, initialMembresias } from './data/mockData';
+import Login from './auth/pages/Login';
+import AlumnosList from './alumno/pages/AlumnosList';
+import AlumnoForm from './alumno/pages/AlumnoForm';
+import MembresiasList from './membresia/pages/MembresiasList';
+import MembresiaForm from './membresia/pages/MembresiaForm';
+import ConfirmModal from './shared/components/ConfirmModal';
+import Toast from './shared/components/Toast';
+import { initialAlumnos, initialMembresias } from './shared/data/mockData';
 
 // --- ICONS (Main App) ---
 const IconHome = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;

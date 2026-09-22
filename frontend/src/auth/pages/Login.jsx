@@ -39,9 +39,20 @@ export default function Login({ onLogin, onBack }) {
       return;
     }
     setIsLoading(true);
+
+    // SI EL CORREO ES EL DEL ALUMNO, ENTRA AUTOMÁTICAMENTE
+    if (email.trim().toLowerCase() === 'alumno@mognisport.com') {
+      setTimeout(() => {
+        setIsLoading(false);
+        onLogin('alumno'); // Entra directo al dashboard del alumno
+      }, 500);
+      return;
+    }
+
+    // PARA LOS DEMÁS (PROFESORES), SÍ USA EL LOGIN DEL BACKEND
     try {
       await login(email, password);
-      onLogin(); // Redirige a la aplicación principal
+      onLogin('profesor');
     } catch (error) {
       triggerToast('error', error.message);
     } finally {

@@ -4,6 +4,7 @@ import Home from './home/pages/Home';
 import Login from './auth/pages/Login';
 import AlumnosList from './alumno/pages/AlumnosList';
 import AlumnoForm from './alumno/pages/AlumnoForm';
+import AlumnoDashboard from './alumno/pages/AlumnoDashboard'; // <--- AQUÍ USAMOS TU ARCHIVO REAL
 import MembresiasList from './membresia/pages/MembresiasList';
 import MembresiaForm from './membresia/pages/MembresiaForm';
 import ConfirmModal from './shared/components/ConfirmModal';
@@ -57,7 +58,6 @@ function MainApp({ onLogout, onGoHome }) {
       .catch((error) => displayToast(error.message, true));
   }, []);
 
-  // Ejecuta una llamada al backend mostrando el resultado en el toast. Devuelve true si salió bien.
   const ejecutar = async (accion, mensajeExito) => {
     try {
       await accion();
@@ -128,7 +128,6 @@ function MainApp({ onLogout, onGoHome }) {
           const guardada = isEdit ? await actualizarMembresia(formData.id, formData) : await crearMembresia(formData);
           setMembresias(prev => isEdit ? prev.map(m => m.id === guardada.id ? guardada : m) : [...prev, guardada]);
           if (isEdit) {
-            // Los alumnos guardan el nombre de su membresía solo para mostrarlo: lo mantenemos al día
             setAlumnos(prev => prev.map(a => a.membresiaId === guardada.id ? { ...a, membresia: guardada.nombre } : a));
           }
         }, isEdit ? 'Membresía modificada correctamente.' : 'Membresía creada correctamente.');
@@ -266,31 +265,65 @@ function MainApp({ onLogout, onGoHome }) {
 }
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(hasSession);
-  // Pantalla visible: 'home' (pública), 'login' o 'panel'. Con sesión guardada se abre el panel.
+  const [authSession, setAuthSession] = useState(() => {
+    return {
+      isAuthenticated: hasSession(),
+      rol: localStorage.getItem('user_rol') || 'profesor'
+    };
+  });
+
   const [screen, setScreen] = useState(() => (hasSession() ? 'panel' : 'home'));
+
+  const handleLoginSuccess = (rolElegido = 'profesor') => {
+    setIsAuthenticatedState(true, rolElegido);
+  };
+
+  const setIsAuthenticatedState = (status, rol) => {
+    setAuthSession({ isAuthenticated: status, rol: rol });
+    localStorage.setItem('user_rol', rol);
+    setScreen('panel');
+  };
 
   const handleLogout = () => {
     logout();
-    setIsAuthenticated(false);
+    localStorage.removeItem('user_rol');
+    setAuthSession({ isAuthenticated: false, rol: null });
     setScreen('login');
   };
 
-  // Si el backend rechaza el token (vencido o inválido), volvemos al login
   useEffect(() => {
     setUnauthorizedHandler(handleLogout);
   }, []);
 
   if (screen === 'home') {
-    return <Home isAuthenticated={isAuthenticated} onLogin={() => setScreen(isAuthenticated ? 'panel' : 'login')} />;
+    return <Home isAuthenticated={authSession.isAuthenticated} onLogin={() => setScreen(authSession.isAuthenticated ? 'panel' : 'login')} />;
   }
 
   return (
     <>
-      {!isAuthenticated ? (
-        <Login onLogin={() => { setIsAuthenticated(true); setScreen('panel'); }} onBack={() => setScreen('home')} />
+      {!authSession.isAuthenticated ? (
+        <Login onLogin={handleLoginSuccess} onBack={() => setScreen('home')} />
       ) : (
-        <MainApp onLogout={handleLogout} onGoHome={() => setScreen('home')} />
+        authSession.rol === 'alumno' ? (
+          // VISTA EXCLUSIVA DEL ALUMNO
+          <div className="min-h-screen bg-slate-950 text-slate-200 p-6 relative">
+            <div className="absolute top-4 right-4 z-20">
+              <button 
+                onClick={handleLogout}
+                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition shadow-lg cursor-pointer flex items-center gap-2"
+              >
+                Cerrar Sesión Alumno
+              </button>
+            </div>
+            
+            <div className="pt-10">
+              <AlumnoDashboard /> {/* <--- USAMOS EL COMPONENTE IMPORTADO */}
+            </div>
+          </div>
+        ) : (
+          // VISTA DEL PROFESOR (SISTEMA PRINCIPAL)
+          <MainApp onLogout={handleLogout} onGoHome={() => setScreen('home')} />
+        )
       )}
     </>
   );

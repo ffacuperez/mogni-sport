@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function MembresiaForm({ membresiaToEdit, onSave, onCancel }) {
+export default function MembresiaForm({ membresiaToEdit, onSave, onCancel, onError }) {
   const isEdit = !!membresiaToEdit;
   
   const [formData, setFormData] = useState(
@@ -21,7 +21,19 @@ export default function MembresiaForm({ membresiaToEdit, onSave, onCancel }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if(!formData.nombre || !formData.dias || !formData.precio) return;
+    if (!formData.nombre || !formData.dias || !formData.precio) return;
+
+    // HU-75/HU-77: "días por semana, dentro de un rango 1-5" y "precio numérico y mayor a 0".
+    const dias = Number(formData.dias);
+    if (dias < 1 || dias > 5) {
+      onError?.('Los días por semana deben estar entre 1 y 5.');
+      return;
+    }
+    if (Number(formData.precio) <= 0) {
+      onError?.('El precio debe ser mayor a 0.');
+      return;
+    }
+
     onSave(formData, isEdit);
   };
 
@@ -48,13 +60,18 @@ export default function MembresiaForm({ membresiaToEdit, onSave, onCancel }) {
           </div>
           
           <div>
-            <label className={labelClass}>Días por semana (ej: 3)</label>
-            <input type="text" name="dias" value={formData.dias} onChange={handleChange} required className={inputClass} />
+            <label className={labelClass}>Días por semana</label>
+            <select name="dias" value={formData.dias} onChange={handleChange} required className={inputClass}>
+              <option value="">Seleccionar...</option>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <option key={n} value={n}>{n} día{n > 1 ? 's' : ''} por semana</option>
+              ))}
+            </select>
           </div>
 
           <div>
             <label className={labelClass}>Precio en ARS (ej: 25000)</label>
-            <input type="text" name="precio" value={formData.precio} onChange={handleChange} required className={inputClass} />
+            <input type="text" name="precio" value={formData.precio} onChange={handleChange} required placeholder="Mayor a 0" className={inputClass} />
           </div>
         </div>
 

@@ -19,4 +19,7 @@ public interface AlumnoRepository extends JpaRepository<Alumno, Long> {
     @Override
     @EntityGraph(attributePaths = {"cuenta", "inscripciones", "inscripciones.membresia"})
     Optional<Alumno> findById(Long id);
+
+    @EntityGraph(attributePaths = {"cuenta", "inscripciones", "inscripciones.membresia"})
+    Optional<Alumno> findByCuentaEmailIgnoreCase(String email);
 }

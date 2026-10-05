@@ -15,6 +15,7 @@ const fromApi = (a) => ({
   fechaNacimiento: a.fechaNacimiento ?? '',
   // Fecha de alta = inicio de la inscripción activa (la usa el cálculo de cuotas)
   fechaIngreso: a.fechaInicioInscripcion ?? '',
+  fechaVencimiento: a.fechaFinInscripcion ?? '',
   objetivo: a.objetivo ?? '',
   antecedentes: a.cuestionarioSalud ?? '',
   membresiaId: a.membresiaId ?? '',
@@ -39,6 +40,11 @@ const toApi = (form) => ({
 export async function listarAlumnos() {
   const data = await request(BASE_PATH);
   return data.map(fromApi);
+}
+
+/** Datos del alumno logueado (solo para cuentas con rol ALUMNO). */
+export async function obtenerMiPerfil() {
+  return fromApi(await request(`${BASE_PATH}/me`));
 }
 
 export async function obtenerAlumno(id) {

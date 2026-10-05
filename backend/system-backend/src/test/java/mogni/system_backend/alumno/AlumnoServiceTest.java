@@ -32,6 +32,7 @@ import mogni.system_backend.alumno.service.AlumnoService;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
 import mogni.system_backend.auth.repository.CuentaRepository;
+import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
 import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
 import mogni.system_backend.inscripcion.entity.Inscripcion;
@@ -294,6 +295,28 @@ class AlumnoServiceTest {
 
         assertEquals(EstadoInscripcion.CANCELADA, actual.getEstado());
         assertNull(response.getMembresiaId());
+    }
+
+    @Test
+    void obtenerAlumnoPorEmail_devuelveLosDatosConLaInscripcionActiva() {
+        Alumno alumno = alumnoExistente();
+        LocalDate inicio = LocalDate.now().minusDays(5);
+        alumno.agregarInscripcion(new Inscripcion(1L, inicio, inicio.plusDays(30), EstadoInscripcion.ACTIVA, null, membresia));
+        when(alumnoRepository.findByCuentaEmailIgnoreCase("juan@email.com")).thenReturn(Optional.of(alumno));
+
+        AlumnoResponse response = alumnoService.obtenerAlumnoPorEmail("juan@email.com");
+
+        assertEquals("Juan", response.getNombre());
+        assertEquals("Pro", response.getMembresiaNombre());
+        assertEquals(inicio, response.getFechaInicioInscripcion());
+        assertEquals(inicio.plusDays(30), response.getFechaFinInscripcion());
+    }
+
+    @Test
+    void obtenerAlumnoPorEmail_fallaSiLaCuentaNoEsDeUnAlumno() {
+        when(alumnoRepository.findByCuentaEmailIgnoreCase("admin@mogni.com")).thenReturn(Optional.empty());
+
+        assertThrows(RecursoNoEncontradoException.class, () -> alumnoService.obtenerAlumnoPorEmail("admin@mogni.com"));
     }
 
     @Test

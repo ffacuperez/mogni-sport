@@ -40,19 +40,10 @@ export default function Login({ onLogin, onBack }) {
     }
     setIsLoading(true);
 
-    // SI EL CORREO ES EL DEL ALUMNO, ENTRA AUTOMÁTICAMENTE
-    if (email.trim().toLowerCase() === 'alumno@mognisport.com') {
-      setTimeout(() => {
-        setIsLoading(false);
-        onLogin('alumno'); // Entra directo al dashboard del alumno
-      }, 500);
-      return;
-    }
-
-    // PARA LOS DEMÁS (PROFESORES), SÍ USA EL LOGIN DEL BACKEND
+    // Todos los usuarios (personal y alumnos) se autentican contra el backend
     try {
-      await login(email, password);
-      onLogin('profesor');
+      const data = await login(email, password);
+      onLogin(data.rol);
     } catch (error) {
       triggerToast('error', error.message);
     } finally {

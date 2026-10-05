@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,6 +39,12 @@ public class AlumnoController {
     @GetMapping
     public ResponseEntity<List<AlumnoResponse>> listarAlumnos() {
         return ResponseEntity.ok(alumnoService.listarAlumnos());
+    }
+
+    /** Datos del alumno logueado. Solo para el rol ALUMNO (ver SecurityConfig). */
+    @GetMapping("/me")
+    public ResponseEntity<AlumnoResponse> obtenerMiPerfil(Authentication authentication) {
+        return ResponseEntity.ok(alumnoService.obtenerAlumnoPorEmail(authentication.getName()));
     }
 
     @GetMapping("/{id}")

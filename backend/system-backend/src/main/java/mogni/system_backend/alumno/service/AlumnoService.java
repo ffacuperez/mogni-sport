@@ -109,6 +109,14 @@ public class AlumnoService {
         return mapearAResponse(alumno);
     }
 
+    /** Datos del alumno dueño de la cuenta con ese email (el usuario logueado). */
+    @Transactional(readOnly = true)
+    public AlumnoResponse obtenerAlumnoPorEmail(String email) {
+        Alumno alumno = alumnoRepository.findByCuentaEmailIgnoreCase(email)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No hay un alumno asociado a esta cuenta"));
+        return mapearAResponse(alumno);
+    }
+
     @Transactional
     public AlumnoResponse actualizarAlumno(Long id, ActualizarAlumnoRequest request) {
         Alumno alumno = buscarAlumnoOLanzarError(id);
@@ -243,7 +251,8 @@ public class AlumnoService {
             alumno.getCuenta().isActiva(),
             membresia != null ? membresia.getId() : null,
             membresia != null ? membresia.getNombre() : null,
-            activa.map(Inscripcion::getFechaInicio).orElse(null)
+            activa.map(Inscripcion::getFechaInicio).orElse(null),
+            activa.map(Inscripcion::getFechaFin).orElse(null)
         );
     }
 }

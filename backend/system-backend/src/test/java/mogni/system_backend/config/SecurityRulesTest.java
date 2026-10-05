@@ -32,6 +32,14 @@ class SecurityRulesTest {
     }
 
     @Test
+    void soloElAlumnoPuedeVerSuPerfil() throws Exception {
+        mockMvc.perform(get("/alumnos/me").with(user("e@x.com").roles("ENTRENADOR"))).andExpect(status().isForbidden());
+        mockMvc.perform(get("/alumnos/me").with(user("p@x.com").roles("PROPIETARIO"))).andExpect(status().isForbidden());
+        // Un ALUMNO pasa la regla de seguridad (404 porque esta cuenta de prueba no tiene alumno asociado)
+        mockMvc.perform(get("/alumnos/me").with(user("a@x.com").roles("ALUMNO"))).andExpect(status().isNotFound());
+    }
+
+    @Test
     void personalDelGimnasioPuedeListar() throws Exception {
         mockMvc.perform(get("/alumnos").with(user("e@x.com").roles("ENTRENADOR"))).andExpect(status().isOk());
         mockMvc.perform(get("/membresias").with(user("e@x.com").roles("ENTRENADOR"))).andExpect(status().isOk());

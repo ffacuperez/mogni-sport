@@ -4,7 +4,7 @@ import Home from './home/pages/Home';
 import Login from './auth/pages/Login';
 import AlumnosList from './alumno/pages/AlumnosList';
 import AlumnoForm from './alumno/pages/AlumnoForm';
-import AlumnoDashboard from './alumno/pages/AlumnoDashboard'; // <--- AQUÍ USAMOS TU ARCHIVO REAL
+import AlumnoDashboard from './alumno/pages/AlumnoDashboard';
 import MembresiasList from './membresia/pages/MembresiasList';
 import MembresiaForm from './membresia/pages/MembresiaForm';
 import CuotasList from './cuota/pages/CuotasList';
@@ -12,7 +12,7 @@ import RegistrarPagoModal from './cuota/pages/RegistrarPagoModal';
 import HistorialPagosModal from './cuota/pages/HistorialPagosModal';
 import ConfirmModal from './shared/components/ConfirmModal';
 import Toast from './shared/components/Toast';
-import { hasSession, logout } from './auth/services/authService';
+import { getRol, hasSession, logout, ROL_ALUMNO, ROLES_GESTION } from './auth/services/authService';
 import { setUnauthorizedHandler } from './shared/services/httpClient';
 import {
   actualizarAlumno,
@@ -331,67 +331,66 @@ function MainApp({ onLogout, onGoHome }) {
   );
 }
 
+const esRolValido = (rol) => rol === ROL_ALUMNO || ROLES_GESTION.includes(rol);
+
 export default function App() {
+  // El rol sale del token firmado por el backend, no de algo que elija el frontend
   const [authSession, setAuthSession] = useState(() => {
-    return {
-      isAuthenticated: hasSession(),
-      rol: localStorage.getItem('user_rol') || 'profesor'
-    };
+    const rol = getRol();
+    // Una sesión con un rol desconocido no puede ver ninguna vista: se descarta
+    if (hasSession() && !esRolValido(rol)) logout();
+    return { isAuthenticated: hasSession(), rol };
   });
 
   const [screen, setScreen] = useState(() => (hasSession() ? 'panel' : 'home'));
 
-  const handleLoginSuccess = (rolElegido = 'profesor') => {
-    setIsAuthenticatedState(true, rolElegido);
-  };
-
-  const setIsAuthenticatedState = (status, rol) => {
-    setAuthSession({ isAuthenticated: status, rol: rol });
-    localStorage.setItem('user_rol', rol);
+  const handleLoginSuccess = (rol) => {
+    setAuthSession({ isAuthenticated: true, rol });
     setScreen('panel');
   };
 
   const handleLogout = () => {
     logout();
-    localStorage.removeItem('user_rol');
     setAuthSession({ isAuthenticated: false, rol: null });
     setScreen('login');
   };
 
+  const esAlumno = authSession.rol === ROL_ALUMNO;
+  const esPersonal = ROLES_GESTION.includes(authSession.rol);
+
   useEffect(() => {
     setUnauthorizedHandler(handleLogout);
+    localStorage.removeItem('user_rol'); // clave de la versión anterior, ya no se usa
   }, []);
 
   if (screen === 'home') {
     return <Home isAuthenticated={authSession.isAuthenticated} onLogin={() => setScreen(authSession.isAuthenticated ? 'panel' : 'login')} />;
   }
 
-  return (
-    <>
-      {!authSession.isAuthenticated ? (
-        <Login onLogin={handleLoginSuccess} onBack={() => setScreen('home')} />
-      ) : (
-        authSession.rol === 'alumno' ? (
-          // VISTA EXCLUSIVA DEL ALUMNO
-          <div className="min-h-screen bg-slate-950 text-slate-200 p-6 relative">
-            <div className="absolute top-4 right-4 z-20">
-              <button 
-                onClick={handleLogout}
-                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition shadow-lg cursor-pointer flex items-center gap-2"
-              >
-                Cerrar Sesión Alumno
-              </button>
-            </div>
-            
-            <div className="pt-10">
-              <AlumnoDashboard /> {/* <--- USAMOS EL COMPONENTE IMPORTADO */}
-            </div>
-          </div>
-        ) : (
-          // VISTA DEL PROFESOR (SISTEMA PRINCIPAL)
-          <MainApp onLogout={handleLogout} onGoHome={() => setScreen('home')} />
-        )
-      )}
-    </>
-  );
+  if (!authSession.isAuthenticated || (!esAlumno && !esPersonal)) {
+    return <Login onLogin={handleLoginSuccess} onBack={() => setScreen('home')} />;
+  }
+
+  // Dashboard: solo rol ALUMNO
+  if (esAlumno) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-200 p-6 relative">
+        <div className="absolute top-4 right-4 z-20">
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition shadow-lg cursor-pointer flex items-center gap-2"
+          >
+            Cerrar Sesión
+          </button>
+        </div>
+
+        <div className="pt-10">
+          <AlumnoDashboard />
+        </div>
+      </div>
+    );
+  }
+
+  // Panel de gestión: solo PROPIETARIO, ENTRENADOR y NUTRICIONISTA
+  return <MainApp onLogout={handleLogout} onGoHome={() => setScreen('home')} />;
 }

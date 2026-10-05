@@ -1,9 +1,13 @@
 const TOKEN_KEY = 'mogni.token';
 
+function leerPayload(token) {
+  const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+  return JSON.parse(atob(payload));
+}
+
 function isExpired(token) {
   try {
-    const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    const { exp } = JSON.parse(atob(payload));
+    const { exp } = leerPayload(token);
     return !exp || exp * 1000 <= Date.now();
   } catch {
     return true;
@@ -27,4 +31,15 @@ export function getToken() {
     return null;
   }
   return token;
+}
+
+/** Rol que el backend firmó en el token (PROPIETARIO, ENTRENADOR, NUTRICIONISTA o ALUMNO), o null. */
+export function getRolFromToken() {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    return leerPayload(token).rol ?? null;
+  } catch {
+    return null;
+  }
 }

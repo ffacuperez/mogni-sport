@@ -26,4 +26,6 @@ public class AlumnoResponse {
     private String membresiaNombre;
     /** Inicio de la inscripción activa (null si no tiene). */
     private LocalDate fechaInicioInscripcion;
+    /** Vencimiento de la inscripción activa (null si no tiene). */
+    private LocalDate fechaFinInscripcion;
 }

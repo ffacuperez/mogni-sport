@@ -2,6 +2,7 @@ package mogni.system_backend.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -50,6 +51,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/auth/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                // El alumno solo puede ver sus propios datos; va antes de /alumnos/** para que tenga prioridad
+                .requestMatchers(HttpMethod.GET, "/alumnos/me").hasRole("ALUMNO")
                 .requestMatchers("/alumnos/**", "/membresias/**")
                     .hasAnyRole("PROPIETARIO", "ENTRENADOR", "NUTRICIONISTA")
                 .anyRequest().authenticated()

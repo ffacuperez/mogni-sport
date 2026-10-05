@@ -133,7 +133,7 @@ public class AlumnoService {
         int edad = Period.between(request.getFechaNacimiento(), LocalDate.now()).getYears();
         if (edad < EDAD_MINIMA) {
             throw new RegistroInvalidoException(
-                "El alumno debe tener al menos " + EDAD_MINIMA + " años para registrarse");
+                "El alumno debe tener al menos " + EDAD_MINIMA + " años");
         }
 
         String emailActual = alumno.getCuenta().getEmail();
@@ -155,6 +155,8 @@ public class AlumnoService {
         alumno.getCuenta().setEmail(email);
         cambiarMembresia(alumno, request.getMembresiaId());
 
+        // Si el alumno todavía no cambió la contraseña inicial (que es su DNI), pasa a ser el DNI nuevo.
+        // Si ya la cambió, solo se actualiza el DNI.
         if (dniCambio && alumno.getCuenta().isDebeCambiarPassword()) {
             alumno.getCuenta().setPassword(passwordEncoder.encode(dniNormalizado));
         }

@@ -237,6 +237,51 @@ class AlumnoServiceTest {
     }
 
     @Test
+    void actualizarAlumno_cambiarDniActualizaLaContraseniaSiTodaviaEsLaInicial() {
+        Alumno alumno = alumnoExistente(); // debeCambiarPassword = true
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(passwordEncoder.encode("99888777")).thenReturn("hash-nuevo-dni");
+        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ActualizarAlumnoRequest request = actualizacion(alumno, null);
+        request.setDni("99.888.777");
+        AlumnoResponse response = alumnoService.actualizarAlumno(10L, request);
+
+        assertEquals("99888777", response.getDni());
+        assertEquals("hash-nuevo-dni", alumno.getCuenta().getPassword());
+    }
+
+    @Test
+    void actualizarAlumno_cambiarDniNoTocaLaContraseniaSiYaLaCambio() {
+        Alumno alumno = alumnoExistente();
+        alumno.getCuenta().setDebeCambiarPassword(false);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ActualizarAlumnoRequest request = actualizacion(alumno, null);
+        request.setDni("99888777");
+        AlumnoResponse response = alumnoService.actualizarAlumno(10L, request);
+
+        assertEquals("99888777", response.getDni());
+        assertEquals("hash", alumno.getCuenta().getPassword());
+        verify(passwordEncoder, never()).encode(any());
+    }
+
+    @Test
+    void actualizarAlumno_rechazaMenorDe16ConMensajeDeEdicion() {
+        Alumno alumno = alumnoExistente();
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+
+        ActualizarAlumnoRequest request = actualizacion(alumno, null);
+        request.setFechaNacimiento(LocalDate.now().minusYears(15));
+        RegistroInvalidoException ex = assertThrows(RegistroInvalidoException.class,
+                () -> alumnoService.actualizarAlumno(10L, request));
+
+        assertEquals("El alumno debe tener al menos 16 años", ex.getMessage());
+        verify(alumnoRepository, never()).save(any());
+    }
+
+    @Test
     void actualizarAlumno_asignaMembresiaCreandoInscripcion() {
         Alumno alumno = alumnoExistente();
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));

@@ -60,7 +60,7 @@ export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel,
       }
       
       if (age < 16) {
-        onError('El alumno debe tener al menos 16 años para registrarse.');
+        onError(isEdit ? 'El alumno debe tener al menos 16 años.' : 'El alumno debe tener al menos 16 años para registrarse.');
         return;
       }
     }

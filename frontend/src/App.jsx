@@ -135,9 +135,18 @@ function MainApp({ onLogout, onGoHome }) {
   };
 
   const handleSaveAlumno = (formData, isEdit) => {
+    // HU-247: si cambia el DNI se avisa que también cambia la contraseña inicial. Cancelar no guarda nada.
+    const original = isEdit ? alumnos.find(a => a.id === formData.id) : null;
+    const dniCambio = Boolean(original) && original.dni !== formData.dni;
+    let mensaje = '¿Desea confirmar el alta del nuevo alumno?';
+    if (isEdit) {
+      mensaje = dniCambio
+        ? 'Cambiar el DNI también cambiará la contraseña inicial del alumno si aún no la modificó. ¿Estás seguro?'
+        : '¿Desea confirmar los cambios en el alumno?';
+    }
     showModal(
-      isEdit ? 'Confirmar Cambios' : 'Confirmar Alta',
-      isEdit ? '¿Desea confirmar los cambios en el alumno?' : '¿Desea confirmar el alta del nuevo alumno?',
+      isEdit ? (dniCambio ? 'Confirmar cambio de DNI' : 'Confirmar Cambios') : 'Confirmar Alta',
+      mensaje,
       async () => {
         const ok = await ejecutar(async () => {
           const guardado = isEdit ? await actualizarAlumno(formData.id, formData) : await crearAlumno(formData);

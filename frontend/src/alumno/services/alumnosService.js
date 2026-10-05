@@ -37,8 +37,10 @@ const toApi = (form) => ({
   cuestionarioSalud: form.antecedentes || null,
 });
 
-export async function listarAlumnos() {
-  const data = await request(BASE_PATH);
+/** Sin parámetro el backend devuelve solo activos; { activo: false } trae los dados de baja. */
+export async function listarAlumnos({ activo } = {}) {
+  const path = activo === undefined ? BASE_PATH : `${BASE_PATH}?activo=${activo}`;
+  const data = await request(path);
   return data.map(fromApi);
 }
 

@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -317,6 +318,24 @@ class AlumnoServiceTest {
         when(alumnoRepository.findByCuentaEmailIgnoreCase("admin@mogni.com")).thenReturn(Optional.empty());
 
         assertThrows(RecursoNoEncontradoException.class, () -> alumnoService.obtenerAlumnoPorEmail("admin@mogni.com"));
+    }
+
+    @Test
+    void listarAlumnos_filtraPorEstadoDeLaCuenta() {
+        Alumno activo = alumnoExistente();
+        Alumno inactivo = alumnoExistente();
+        inactivo.setId(11L);
+        inactivo.getCuenta().setActiva(false);
+        when(alumnoRepository.findByCuentaActiva(true)).thenReturn(List.of(activo));
+        when(alumnoRepository.findByCuentaActiva(false)).thenReturn(List.of(inactivo));
+
+        List<AlumnoResponse> activos = alumnoService.listarAlumnos(true);
+        List<AlumnoResponse> inactivos = alumnoService.listarAlumnos(false);
+
+        assertEquals(1, activos.size());
+        assertTrue(activos.get(0).isActivo());
+        assertEquals(1, inactivos.size());
+        assertFalse(inactivos.get(0).isActivo());
     }
 
     @Test

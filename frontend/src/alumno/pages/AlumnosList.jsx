@@ -1,7 +1,10 @@
 const IconSearch = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
 
-export default function AlumnosList({ alumnos, selectedId, setSelectedId, onAdd, onEdit, onToggleStatus, searchDNI, setSearchDNI }) {
-  const filteredAlumnos = alumnos.filter(a => a.dni.includes(searchDNI));
+export default function AlumnosList({ alumnos, selectedId, setSelectedId, onAdd, onEdit, onToggleStatus, searchDNI, setSearchDNI, mostrarInactivos, onToggleMostrarInactivos }) {
+  // HU-246: por defecto solo activos; un alumno reactivado vuelve a verse sin activar el filtro
+  const filteredAlumnos = alumnos
+    .filter(a => mostrarInactivos || a.estado === 'Activo')
+    .filter(a => a.dni.includes(searchDNI));
   const selectedAlumno = alumnos.find(a => a.id === selectedId);
 
   return (
@@ -29,6 +32,16 @@ export default function AlumnosList({ alumnos, selectedId, setSelectedId, onAdd,
               </>
             )}
           </div>
+
+          <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={mostrarInactivos}
+              onChange={onToggleMostrarInactivos}
+              className="w-4 h-4 rounded border-slate-600 bg-slate-800 cursor-pointer accent-red-600"
+            />
+            Mostrar inactivos
+          </label>
 
           <div className="relative w-full sm:w-80">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
@@ -87,7 +100,7 @@ export default function AlumnosList({ alumnos, selectedId, setSelectedId, onAdd,
               {filteredAlumnos.length === 0 && (
                 <tr>
                   <td colSpan="7" className="px-4 py-8 text-center text-slate-500">
-                    No se encontraron alumnos con ese DNI.
+                    {searchDNI ? 'No se encontraron alumnos con ese DNI.' : 'No hay alumnos para mostrar.'}
                   </td>
                 </tr>
               )}

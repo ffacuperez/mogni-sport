@@ -96,8 +96,8 @@ public class AlumnoService {
     }
 
     @Transactional(readOnly = true)
-    public List<AlumnoResponse> listarAlumnos() {
-        return alumnoRepository.findAll()
+    public List<AlumnoResponse> listarAlumnos(boolean activos) {
+        return alumnoRepository.findByCuentaActiva(activos)
                 .stream()
                 .map(this::mapearAResponse)
                 .toList();

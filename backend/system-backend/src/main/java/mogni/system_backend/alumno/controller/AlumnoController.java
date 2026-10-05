@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
@@ -37,8 +38,10 @@ public class AlumnoController {
     }
 
     @GetMapping
-    public ResponseEntity<List<AlumnoResponse>> listarAlumnos() {
-        return ResponseEntity.ok(alumnoService.listarAlumnos());
+    /** Por defecto solo activos; ?activo=false devuelve los dados de baja. */
+    public ResponseEntity<List<AlumnoResponse>> listarAlumnos(
+            @RequestParam(defaultValue = "true") boolean activo) {
+        return ResponseEntity.ok(alumnoService.listarAlumnos(activo));
     }
 
     /** Datos del alumno logueado. Solo para el rol ALUMNO (ver SecurityConfig). */

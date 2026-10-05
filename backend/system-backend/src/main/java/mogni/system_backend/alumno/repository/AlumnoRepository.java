@@ -22,4 +22,8 @@ public interface AlumnoRepository extends JpaRepository<Alumno, Long> {
 
     @EntityGraph(attributePaths = {"cuenta", "inscripciones", "inscripciones.membresia"})
     Optional<Alumno> findByCuentaEmailIgnoreCase(String email);
+
+    /** Alumnos activos (true) o dados de baja (false), según el estado de su cuenta. */
+    @EntityGraph(attributePaths = {"cuenta", "inscripciones", "inscripciones.membresia"})
+    List<Alumno> findByCuentaActiva(boolean activa);
 }

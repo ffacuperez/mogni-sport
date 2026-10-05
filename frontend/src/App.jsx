@@ -45,6 +45,8 @@ function MainApp({ onLogout, onGoHome }) {
   const [selectedAlumnoId, setSelectedAlumnoId] = useState(null);
   const [selectedMembresiaId, setSelectedMembresiaId] = useState(null);
   const [searchDNI, setSearchDNI] = useState('');
+  const [mostrarInactivos, setMostrarInactivos] = useState(false);
+  const [inactivosCargados, setInactivosCargados] = useState(false);
 
   // --- Cuotas (HU-45/46/48): sin backend todavía, se mockea en memoria (ver cuotasService.js) ---
   const [pagos, setPagos] = useState({}); // { [alumnoId]: [{ fecha, monto, medioPago, recargo }] }
@@ -93,6 +95,21 @@ function MainApp({ onLogout, onGoHome }) {
         setModalConfig({ ...modalConfig, isOpen: false });
       }
     });
+  };
+
+  // HU-246: por defecto solo activos. Los dados de baja se piden al backend la primera vez que se activa el filtro.
+  const handleToggleMostrarInactivos = async () => {
+    const mostrar = !mostrarInactivos;
+    setMostrarInactivos(mostrar);
+    setSelectedAlumnoId(null);
+    if (!mostrar || inactivosCargados) return;
+    try {
+      const inactivos = await listarAlumnos({ activo: false });
+      setAlumnos(prev => [...prev, ...inactivos.filter(i => !prev.some(a => a.id === i.id))]);
+      setInactivosCargados(true);
+    } catch (error) {
+      displayToast(error.message, true);
+    }
   };
 
   const handleToggleEstadoAlumno = () => {
@@ -244,6 +261,8 @@ function MainApp({ onLogout, onGoHome }) {
             onEdit={() => setView('alumnos_form')}
             onToggleStatus={handleToggleEstadoAlumno}
             searchDNI={searchDNI}
+            mostrarInactivos={mostrarInactivos}
+            onToggleMostrarInactivos={handleToggleMostrarInactivos}
             setSearchDNI={setSearchDNI}
           />
         )}

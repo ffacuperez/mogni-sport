@@ -26,6 +26,7 @@ public class JwtService {
         return Jwts.builder()
                 .subject(cuenta.getEmail())
                 .claim("rol", cuenta.getRol().name())
+                .claim("debeCambiarPassword", cuenta.isDebeCambiarPassword())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expirationMs))
                 .signWith(obtenerClave())

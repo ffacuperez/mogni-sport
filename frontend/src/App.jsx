@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import Home from './home/pages/Home';
 import Login from './auth/pages/Login';
+import CambiarPassword from './auth/pages/CambiarPassword';
 import AlumnosList from './alumno/pages/AlumnosList';
 import AlumnoForm from './alumno/pages/AlumnoForm';
 import AlumnoDetalle from './alumno/pages/AlumnoDetalle';
@@ -13,7 +14,7 @@ import RegistrarPagoModal from './cuota/pages/RegistrarPagoModal';
 import HistorialPagosModal from './cuota/pages/HistorialPagosModal';
 import ConfirmModal from './shared/components/ConfirmModal';
 import Toast from './shared/components/Toast';
-import { getRol, hasSession, logout, ROL_ALUMNO, ROLES_GESTION } from './auth/services/authService';
+import { debeCambiarPassword, getRol, hasSession, logout, ROL_ALUMNO, ROLES_GESTION } from './auth/services/authService';
 import { setUnauthorizedHandler } from './shared/services/httpClient';
 import {
   actualizarAlumno,
@@ -382,19 +383,20 @@ export default function App() {
     const rol = getRol();
     // Una sesión con un rol desconocido no puede ver ninguna vista: se descarta
     if (hasSession() && !esRolValido(rol)) logout();
-    return { isAuthenticated: hasSession(), rol };
+    return { isAuthenticated: hasSession(), rol, debeCambiarPassword: debeCambiarPassword() };
   });
 
   const [screen, setScreen] = useState(() => (hasSession() ? 'panel' : 'home'));
 
-  const handleLoginSuccess = (rol) => {
-    setAuthSession({ isAuthenticated: true, rol });
+  // Rol y cambio de contraseña pendiente salen del token recién guardado
+  const actualizarSesionDesdeToken = () => {
+    setAuthSession({ isAuthenticated: hasSession(), rol: getRol(), debeCambiarPassword: debeCambiarPassword() });
     setScreen('panel');
   };
 
   const handleLogout = () => {
     logout();
-    setAuthSession({ isAuthenticated: false, rol: null });
+    setAuthSession({ isAuthenticated: false, rol: null, debeCambiarPassword: false });
     setScreen('login');
   };
 
@@ -406,12 +408,18 @@ export default function App() {
     localStorage.removeItem('user_rol'); // clave de la versión anterior, ya no se usa
   }, []);
 
+  // HU-248: con la contraseña inicial pendiente de cambio, esta pantalla va antes que cualquier otra
+  // (incluida la Home); solo se sale cambiándola o cerrando sesión.
+  if (authSession.isAuthenticated && (esAlumno || esPersonal) && authSession.debeCambiarPassword) {
+    return <CambiarPassword onSuccess={actualizarSesionDesdeToken} onLogout={handleLogout} />;
+  }
+
   if (screen === 'home') {
     return <Home isAuthenticated={authSession.isAuthenticated} onLogin={() => setScreen(authSession.isAuthenticated ? 'panel' : 'login')} />;
   }
 
   if (!authSession.isAuthenticated || (!esAlumno && !esPersonal)) {
-    return <Login onLogin={handleLoginSuccess} onBack={() => setScreen('home')} />;
+    return <Login onLogin={actualizarSesionDesdeToken} onBack={() => setScreen('home')} />;
   }
 
   // Dashboard: solo rol ALUMNO

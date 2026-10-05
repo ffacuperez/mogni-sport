@@ -49,6 +49,8 @@ public class SecurityConfig {
             // Sin token válido respondemos 401 (no el 403 por defecto) para que el frontend pueda redirigir al login
             .exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             .authorizeHttpRequests(auth -> auth
+                // Cambiar la contraseña requiere estar logueado; va antes del permitAll de /auth/**
+                .requestMatchers("/auth/cambiar-password").authenticated()
                 .requestMatchers("/auth/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 // El alumno solo puede ver sus propios datos; va antes de /alumnos/** para que tenga prioridad

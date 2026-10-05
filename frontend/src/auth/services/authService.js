@@ -1,5 +1,5 @@
 import { request } from '../../shared/services/httpClient';
-import { clearToken, getRolFromToken, getToken, saveToken } from '../../shared/services/tokenStorage';
+import { clearToken, getDebeCambiarPasswordFromToken, getRolFromToken, getToken, saveToken } from '../../shared/services/tokenStorage';
 
 export const ROL_ALUMNO = 'ALUMNO';
 export const ROLES_GESTION = ['PROPIETARIO', 'ENTRENADOR', 'NUTRICIONISTA'];
@@ -26,4 +26,18 @@ export function hasSession() {
 
 export function getRol() {
   return getRolFromToken();
+}
+
+export function debeCambiarPassword() {
+  return getDebeCambiarPasswordFromToken();
+}
+
+/** HU-248: el backend devuelve un token nuevo sin la marca de cambio pendiente. */
+export async function cambiarPassword(passwordActual, passwordNueva) {
+  const data = await request('/auth/cambiar-password', {
+    method: 'POST',
+    body: { passwordActual, passwordNueva },
+  });
+  saveToken(data.token);
+  return data;
 }

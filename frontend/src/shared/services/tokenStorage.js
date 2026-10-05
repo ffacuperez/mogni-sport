@@ -43,3 +43,14 @@ export function getRolFromToken() {
     return null;
   }
 }
+
+/** true si el usuario todavía tiene que cambiar la contraseña inicial (HU-248). */
+export function getDebeCambiarPasswordFromToken() {
+  const token = getToken();
+  if (!token) return false;
+  try {
+    return leerPayload(token).debeCambiarPassword === true;
+  } catch {
+    return false;
+  }
+}

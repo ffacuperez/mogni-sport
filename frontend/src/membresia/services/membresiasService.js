@@ -5,24 +5,22 @@ const BASE_PATH = '/membresias';
 const formatCodigo = (id) => `MB${String(id).padStart(4, '0')}`;
 
 // Backend -> forma que usan las pantallas (dias y precio se manejan como texto en los inputs).
-// descripcion y duracionDias no se editan en pantalla, pero se conservan para devolverlos al guardar.
+// descripcion no se edita en pantalla, pero se conserva para devolverla al guardar.
 const fromApi = (m) => ({
   id: m.id,
   codigo: formatCodigo(m.id),
   nombre: m.nombre,
-  dias: m.diasPorSemana != null ? String(m.diasPorSemana) : '',
-  precio: String(m.precio),
+  dias: String(m.frecuenciaSemanal),
+  precio: String(m.precioActual),
   descripcion: m.descripcion ?? null,
-  duracionDias: m.duracionDias ?? null,
 });
 
 // Formulario -> body que espera el backend (MembresiaRequest)
 const toApi = (form) => ({
   nombre: form.nombre,
-  diasPorSemana: Number(form.dias),
-  precio: Number(form.precio),
+  frecuenciaSemanal: Number(form.dias),
+  precioActual: Number(String(form.precio).replace(',', '.')),
   descripcion: form.descripcion ?? null,
-  duracionDias: form.duracionDias ?? null,
 });
 
 export async function listarMembresias() {

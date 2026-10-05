@@ -10,11 +10,12 @@ const fromApi = (a) => ({
   codigo: formatCodigo(a.id),
   nombre: a.nombre,
   apellido: a.apellido,
+  edad: a.edad,
+  telefono: a.telefono ?? '',
+  sexo: a.sexo ?? '',
   dni: a.dni,
   email: a.email,
   fechaNacimiento: a.fechaNacimiento ?? '',
-  celular: a.celular ?? '',
-  fechaIngreso: a.fechaIngreso ?? '',
   objetivo: a.objetivo ?? '',
   antecedentes: a.cuestionarioSalud ?? '',
   membresiaId: a.membresiaId ?? '',
@@ -29,7 +30,8 @@ const toApi = (form) => ({
   dni: form.dni,
   email: form.email,
   fechaNacimiento: form.fechaNacimiento,
-  celular: form.celular || null,
+  telefono: form.telefono || null,
+  sexo: form.sexo || null,
   membresiaId: form.membresiaId ? Number(form.membresiaId) : null,
   objetivo: form.objetivo || null,
   cuestionarioSalud: form.antecedentes || null,
@@ -45,8 +47,7 @@ export async function obtenerAlumno(id) {
 }
 
 export async function crearAlumno(form) {
-  const body = { ...toApi(form), fechaIngreso: form.fechaIngreso || null };
-  return fromApi(await request(BASE_PATH, { method: 'POST', body }));
+  return fromApi(await request(BASE_PATH, { method: 'POST', body: toApi(form) }));
 }
 
 export async function actualizarAlumno(id, form) {

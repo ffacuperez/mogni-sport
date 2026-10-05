@@ -38,7 +38,7 @@ public class AuthController {
                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
         );
 
-        Cuenta cuenta = cuentaRepository.findByEmail(request.getEmail())
+        Cuenta cuenta = cuentaRepository.findByEmailIgnoreCase(request.getEmail().trim())
                 .orElseThrow(() -> new RecursoNoEncontradoException("Cuenta no encontrada"));
 
         String token = jwtService.generarToken(cuenta);

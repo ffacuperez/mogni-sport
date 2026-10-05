@@ -1,6 +1,9 @@
 import { useState } from 'react';
 
-export default function MembresiaForm({ membresiaToEdit, onSave, onCancel }) {
+const DIAS_MIN = 1;
+const DIAS_MAX = 5;
+
+export default function MembresiaForm({ membresiaToEdit, onSave, onCancel, onError }) {
   const isEdit = !!membresiaToEdit;
   
   const [formData, setFormData] = useState(
@@ -13,7 +16,11 @@ export default function MembresiaForm({ membresiaToEdit, onSave, onCancel }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    if ((name === 'dias' || name === 'precio') && value !== '' && !/^\d+$/.test(value)) {
+    if (name === 'dias' && value !== '' && !/^\d+$/.test(value)) {
+      return;
+    }
+    // Precio: enteros o hasta 2 decimales, con punto o coma
+    if (name === 'precio' && value !== '' && !/^\d+([.,]\d{0,2})?$/.test(value)) {
       return;
     }
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -21,7 +28,23 @@ export default function MembresiaForm({ membresiaToEdit, onSave, onCancel }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if(!formData.nombre || !formData.dias || !formData.precio) return;
+    if (!formData.nombre.trim()) {
+      onError('El nombre de la membresía es obligatorio.');
+      return;
+    }
+
+    const dias = Number(formData.dias);
+    if (!formData.dias || dias < DIAS_MIN || dias > DIAS_MAX) {
+      onError(`Los días por semana deben estar entre ${DIAS_MIN} y ${DIAS_MAX}.`);
+      return;
+    }
+
+    const precio = Number(String(formData.precio).replace(',', '.'));
+    if (!formData.precio || !(precio > 0)) {
+      onError('El precio debe ser mayor a 0.');
+      return;
+    }
+
     onSave(formData, isEdit);
   };
 
@@ -48,13 +71,13 @@ export default function MembresiaForm({ membresiaToEdit, onSave, onCancel }) {
           </div>
           
           <div>
-            <label className={labelClass}>Días por semana (ej: 3)</label>
-            <input type="text" name="dias" value={formData.dias} onChange={handleChange} required className={inputClass} />
+            <label className={labelClass}>Días por semana (de {DIAS_MIN} a {DIAS_MAX})</label>
+            <input type="text" inputMode="numeric" maxLength={1} name="dias" value={formData.dias} onChange={handleChange} required className={inputClass} />
           </div>
 
           <div>
             <label className={labelClass}>Precio en ARS (ej: 25000)</label>
-            <input type="text" name="precio" value={formData.precio} onChange={handleChange} required className={inputClass} />
+            <input type="text" inputMode="decimal" name="precio" value={formData.precio} onChange={handleChange} required className={inputClass} />
           </div>
         </div>
 

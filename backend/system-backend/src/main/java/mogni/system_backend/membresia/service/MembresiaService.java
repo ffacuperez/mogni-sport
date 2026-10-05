@@ -6,9 +6,10 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
+import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
+import mogni.system_backend.inscripcion.repository.InscripcionRepository;
 import mogni.system_backend.membresia.dto.MembresiaRequest;
 import mogni.system_backend.membresia.dto.MembresiaResponse;
 import mogni.system_backend.membresia.entity.Membresia;
@@ -18,11 +19,11 @@ import mogni.system_backend.membresia.repository.MembresiaRepository;
 public class MembresiaService {
 
     private final MembresiaRepository membresiaRepository;
-    private final AlumnoRepository alumnoRepository;
+    private final InscripcionRepository inscripcionRepository;
 
-    public MembresiaService(MembresiaRepository membresiaRepository, AlumnoRepository alumnoRepository) {
+    public MembresiaService(MembresiaRepository membresiaRepository, InscripcionRepository inscripcionRepository) {
         this.membresiaRepository = membresiaRepository;
-        this.alumnoRepository = alumnoRepository;
+        this.inscripcionRepository = inscripcionRepository;
     }
 
     @Transactional
@@ -68,24 +69,21 @@ public class MembresiaService {
     public void eliminarMembresia(Long id) {
         Membresia membresia = buscarMembresiaOLanzarError(id);
 
-        if (alumnoRepository.existsByMembresiaId(id)) {
+        if (inscripcionRepository.existsByMembresiaIdAndEstado(id, EstadoInscripcion.ACTIVA)) {
             throw new RegistroInvalidoException(
-                "No se puede eliminar la membresía porque tiene alumnos asociados");
+                "No se puede eliminar la membresía porque tiene alumnos con inscripciones activas");
         }
 
+        // Las inscripciones vencidas o canceladas no impiden el borrado, pero referencian a la membresía
+        inscripcionRepository.deleteByMembresiaId(id);
         membresiaRepository.delete(membresia);
     }
 
     private void aplicarDatos(Membresia membresia, MembresiaRequest request, String nombre) {
         membresia.setNombre(nombre);
+        membresia.setPrecioActual(request.getPrecioActual());
+        membresia.setFrecuenciaSemanal(request.getFrecuenciaSemanal());
         membresia.setDescripcion(request.getDescripcion());
-        membresia.setDiasPorSemana(request.getDiasPorSemana());
-        if (request.getDuracionDias() != null) {
-            membresia.setDuracionDias(request.getDuracionDias());
-        } else if (membresia.getDuracionDias() == null) {
-            membresia.setDuracionDias(MembresiaRequest.DURACION_POR_DEFECTO);
-        }
-        membresia.setPrecio(request.getPrecio());
     }
 
     private Membresia buscarMembresiaOLanzarError(Long id) {
@@ -97,10 +95,9 @@ public class MembresiaService {
         return new MembresiaResponse(
             membresia.getId(),
             membresia.getNombre(),
-            membresia.getDescripcion(),
-            membresia.getDuracionDias(),
-            membresia.getDiasPorSemana(),
-            membresia.getPrecio()
+            membresia.getPrecioActual(),
+            membresia.getFrecuenciaSemanal(),
+            membresia.getDescripcion()
         );
     }
 }

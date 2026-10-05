@@ -242,6 +242,7 @@ function MainApp({ onLogout, onGoHome }) {
             membresiaToEdit={membresias.find(m => m.id === selectedMembresiaId)}
             onSave={handleSaveMembresia}
             onCancel={() => { setView('membresias_list'); setSelectedMembresiaId(null); }}
+            onError={(msg) => displayToast(msg, true)}
           />
         )}
 

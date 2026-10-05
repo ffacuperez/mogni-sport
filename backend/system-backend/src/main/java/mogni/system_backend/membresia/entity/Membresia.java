@@ -1,7 +1,5 @@
 package mogni.system_backend.membresia.entity;
 
-import java.math.BigDecimal;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -28,16 +26,12 @@ public class Membresia {
     @Column(unique = true, nullable = false)
     private String nombre;
 
+    @Column(nullable = false)
+    private double precioActual;
+
+    @Column(nullable = false)
+    private int frecuenciaSemanal;
+
     @Column(columnDefinition = "TEXT")
     private String descripcion;
-
-    /** Vigencia de la membresía en días (columna preexistente en la base). */
-    @Column(nullable = false)
-    private Integer duracionDias;
-
-    /** Frecuencia de entrenamiento permitida. Nullable porque hay membresías cargadas antes de este campo. */
-    private Integer diasPorSemana;
-
-    @Column(nullable = false, precision = 12, scale = 2)
-    private BigDecimal precio;
 }

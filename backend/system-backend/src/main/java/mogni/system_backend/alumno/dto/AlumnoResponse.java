@@ -12,11 +12,12 @@ public class AlumnoResponse {
     private Long id;
     private String nombre;
     private String apellido;
+    private int edad;
+    private String telefono;
+    private String sexo;
     private String dni;
     private String email;
     private LocalDate fechaNacimiento;
-    private String celular;
-    private LocalDate fechaIngreso;
     private String objetivo;
     private String cuestionarioSalud;
     private Rol rol;

@@ -80,15 +80,18 @@ export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel,
       <form onSubmit={handleSubmit} className="bg-slate-900 border border-slate-800 rounded-xl p-6 md:p-8 shadow-xl">
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div>
-            <label className={labelClass}>Membresía</label>
-            <select name="membresiaId" value={formData.membresiaId} onChange={handleChange} required={!isEdit} className={inputClass}>
-              <option value="" disabled={!isEdit}>{isEdit ? 'Sin membresía' : 'Seleccione una membresía'}</option>
-              {membresias.map(m => (
-                <option key={m.id} value={m.id}>{m.nombre}</option>
-              ))}
-            </select>
-          </div>
+          {/* Al editar, la membresía se cambia desde su propio formulario (AlumnoMembresiaForm) */}
+          {!isEdit && (
+            <div>
+              <label className={labelClass}>Membresía</label>
+              <select name="membresiaId" value={formData.membresiaId} onChange={handleChange} required className={inputClass}>
+                <option value="" disabled>Seleccione una membresía</option>
+                {membresias.map(m => (
+                  <option key={m.id} value={m.id}>{m.nombre}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className={labelClass}>Nombre</label>

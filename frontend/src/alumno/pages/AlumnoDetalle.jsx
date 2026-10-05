@@ -19,7 +19,7 @@ function Dato({ label, children, ancho = false }) {
   );
 }
 
-export default function AlumnoDetalle({ alumno, onBack, onEdit, onToggleStatus }) {
+export default function AlumnoDetalle({ alumno, onBack, onEdit, onEditMembresia, onToggleStatus }) {
   const isActivo = alumno.estado === 'Activo';
   const inscripcion = alumno.inscripcion;
 
@@ -35,9 +35,6 @@ export default function AlumnoDetalle({ alumno, onBack, onEdit, onToggleStatus }
           <p className="text-slate-400 mt-1">DNI {alumno.dni}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={onEdit} className="bg-[#1b5e3a] hover:bg-[#14492d] text-white px-4 py-2 rounded-md font-medium transition-colors">
-            Modificar
-          </button>
           <button
             onClick={onToggleStatus}
             className={`text-white px-4 py-2 rounded-md font-medium transition-colors ${isActivo ? 'bg-red-800 hover:bg-red-900' : 'bg-[#1b5e3a] hover:bg-[#14492d]'}`}
@@ -50,11 +47,16 @@ export default function AlumnoDetalle({ alumno, onBack, onEdit, onToggleStatus }
       <div className="grid grid-cols-1 gap-6">
         {/* Datos personales */}
         <section className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-lg font-semibold text-white">Datos personales</h2>
-            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${isActivo ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/40' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
-              Alumno {alumno.estado.toLowerCase()}
-            </span>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-lg font-semibold text-white">Datos personales</h2>
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${isActivo ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/40' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+                Alumno {alumno.estado.toLowerCase()}
+              </span>
+            </div>
+            <button onClick={onEdit} className="bg-[#1b5e3a] hover:bg-[#14492d] text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
+              Modificar alumno
+            </button>
           </div>
           <dl className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <Dato label="Nombre">{alumno.nombre}</Dato>
@@ -72,13 +74,18 @@ export default function AlumnoDetalle({ alumno, onBack, onEdit, onToggleStatus }
 
         {/* Inscripción / membresía */}
         <section className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-lg font-semibold text-white">Membresía</h2>
-            {inscripcion && (
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${CLASES_ESTADO_INSCRIPCION[inscripcion.estado] ?? 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
-                Inscripción {inscripcion.estado.toLowerCase()}
-              </span>
-            )}
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-lg font-semibold text-white">Membresía</h2>
+              {inscripcion && (
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${CLASES_ESTADO_INSCRIPCION[inscripcion.estado] ?? 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+                  Inscripción {inscripcion.estado.toLowerCase()}
+                </span>
+              )}
+            </div>
+            <button onClick={onEditMembresia} className="bg-[#1b5e3a] hover:bg-[#14492d] text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
+              Modificar membresía
+            </button>
           </div>
           {inscripcion ? (
             <dl className="grid grid-cols-1 md:grid-cols-2 gap-5">

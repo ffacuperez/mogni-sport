@@ -21,9 +21,6 @@ export default function Login({ onLogin, onBack }) {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [toast, setToast] = useState(null);
-  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
-  const [resetEmail, setResetEmail] = useState('');
-  const [resetSent, setResetSent] = useState(false);
 
   const triggerToast = (type, message) => {
     setToast({ type, message });
@@ -40,19 +37,10 @@ export default function Login({ onLogin, onBack }) {
     }
     setIsLoading(true);
 
-    // SI EL CORREO ES EL DEL ALUMNO, ENTRA AUTOMÁTICAMENTE
-    if (email.trim().toLowerCase() === 'alumno@mognisport.com') {
-      setTimeout(() => {
-        setIsLoading(false);
-        onLogin('alumno'); // Entra directo al dashboard del alumno
-      }, 500);
-      return;
-    }
-
-    // PARA LOS DEMÁS (PROFESORES), SÍ USA EL LOGIN DEL BACKEND
+    // Todos los usuarios (personal y alumnos) se autentican contra el backend
     try {
       await login(email, password);
-      onLogin('profesor');
+      onLogin(); // App lee el rol y si debe cambiar la contraseña desde el token
     } catch (error) {
       triggerToast('error', error.message);
     } finally {
@@ -62,22 +50,6 @@ export default function Login({ onLogin, onBack }) {
 
   const handleRegister = () => {
     triggerToast('success', 'La pantalla de registro está lista para ser implementada.');
-  };
-
-  const handleResetPassword = (e) => {
-    e.preventDefault();
-    if (!resetEmail) {
-      triggerToast('error', 'Ingrese su correo para restablecer la contraseña.');
-      return;
-    }
-
-    setResetSent(true);
-    setTimeout(() => {
-      setResetSent(false);
-      setIsForgotPasswordOpen(false);
-      setResetEmail('');
-      triggerToast('success', 'Se han enviado las instrucciones a su correo electrónico.');
-    }, 1500);
   };
 
   return (
@@ -157,11 +129,9 @@ export default function Login({ onLogin, onBack }) {
               <span>Registrarse</span>
             </button>
 
-            <div className="text-center pt-2">
-              <button type="button" onClick={() => setIsForgotPasswordOpen(true)} className="text-xs text-[#B32334] hover:text-[#c9374d] underline underline-offset-4 transition-colors font-medium tracking-wide focus:outline-none cursor-pointer">
-                ¿Olvidó su contraseña?
-              </button>
-            </div>
+            <p className="text-center pt-2 text-xs text-gray-400">
+              ¿Olvidó su contraseña? Contacte al administrador para restablecer su contraseña.
+            </p>
           </form>
         </div>
 
@@ -173,27 +143,6 @@ export default function Login({ onLogin, onBack }) {
           </div>
         )}
       </main>
-
-      {isForgotPasswordOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#151c24] border border-red-900/40 rounded-2xl p-6 w-full max-w-sm shadow-2xl relative">
-            <h3 className="text-lg font-bold text-white mb-2">Recuperar Contraseña</h3>
-            <p className="text-xs text-gray-400 mb-4">Ingrese su correo electrónico registrado para recibir un enlace de restablecimiento.</p>
-            <form onSubmit={handleResetPassword} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-white mb-1.5">Correo Electrónico:</label>
-                <input type="email" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} placeholder="ejemplo@gym.com" className="w-full px-3.5 py-2.5 bg-[#1d2630] border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-[#B32334]" required />
-              </div>
-              <div className="flex gap-2 justify-end pt-2">
-                <button type="button" onClick={() => setIsForgotPasswordOpen(false)} className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-xs text-gray-300 font-semibold rounded-lg transition-colors cursor-pointer">Cancelar</button>
-                <button type="submit" disabled={resetSent} className="px-4 py-2 bg-[#B32334] hover:bg-[#9d1f2d] text-xs text-white font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer">
-                  {resetSent ? 'Enviando...' : 'Enviar Instrucciones'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       <footer className="w-full max-w-md text-center py-2 text-xs text-gray-500 flex items-center justify-center gap-2">
         <Smartphone className="w-3.5 h-3.5 text-gray-500" />

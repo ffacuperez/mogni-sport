@@ -1,5 +1,8 @@
 import { useState } from 'react';
 
+// Mismo criterio que el backend: algo@dominio.ext, sin espacios
+const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
 export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel, onError }) {
   const isEdit = !!alumnoToEdit;
   
@@ -10,9 +13,9 @@ export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel,
       dni: '',
       email: '',
       fechaNacimiento: '',
-      celular: '',
-      fechaIngreso: new Date().toISOString().split('T')[0],
-      membresiaId: membresias.length > 0 ? membresias[0].id : '',
+      telefono: '',
+      sexo: '',
+      membresiaId: '',
       objetivo: '',
       antecedentes: ''
     }
@@ -20,7 +23,7 @@ export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel,
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    if ((name === 'dni' || name === 'celular') && value !== '' && !/^\d+$/.test(value)) {
+    if ((name === 'dni' || name === 'telefono') && value !== '' && !/^\d+$/.test(value)) {
       return;
     }
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -28,7 +31,22 @@ export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel,
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if(!formData.nombre || !formData.apellido || !formData.dni || !formData.email) return;
+    if (!formData.nombre.trim() || !formData.apellido.trim() || !formData.dni || !formData.email
+        || !formData.fechaNacimiento || !formData.telefono) {
+      onError('Nombre, apellido, DNI, email, fecha de nacimiento y teléfono son obligatorios.');
+      return;
+    }
+
+    if (!EMAIL_REGEX.test(formData.email.trim())) {
+      onError('El email no tiene un formato válido.');
+      return;
+    }
+
+    // Al inscribir siempre se crea una inscripción, así que la membresía es obligatoria
+    if (!isEdit && !formData.membresiaId) {
+      onError('Debe seleccionar una membresía para inscribir al alumno.');
+      return;
+    }
 
     if (formData.fechaNacimiento) {
       const [year, month, day] = formData.fechaNacimiento.split('-');
@@ -42,7 +60,7 @@ export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel,
       }
       
       if (age < 16) {
-        onError('El alumno debe tener al menos 16 años para registrarse.');
+        onError(isEdit ? 'El alumno debe tener al menos 16 años.' : 'El alumno debe tener al menos 16 años para registrarse.');
         return;
       }
     }
@@ -63,14 +81,9 @@ export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel,
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div>
-            <label className={labelClass}>ID</label>
-            <input type="text" name="codigo" value={formData.codigo ?? 'Se asigna al guardar'} disabled className={inputClass} />
-          </div>
-
-          <div>
             <label className={labelClass}>Membresía</label>
-            <select name="membresiaId" value={formData.membresiaId} onChange={handleChange} className={inputClass}>
-              <option value="">Sin membresía</option>
+            <select name="membresiaId" value={formData.membresiaId} onChange={handleChange} required={!isEdit} className={inputClass}>
+              <option value="" disabled={!isEdit}>{isEdit ? 'Sin membresía' : 'Seleccione una membresía'}</option>
               {membresias.map(m => (
                 <option key={m.id} value={m.id}>{m.nombre}</option>
               ))}
@@ -103,13 +116,18 @@ export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel,
           </div>
 
           <div>
-            <label className={labelClass}>Número de celular</label>
-            <input type="text" name="celular" value={formData.celular} onChange={handleChange} required className={inputClass} />
+            <label className={labelClass}>Teléfono (celular)</label>
+            <input type="text" name="telefono" value={formData.telefono} onChange={handleChange} required className={inputClass} />
           </div>
 
           <div>
-            <label className={labelClass}>Fecha de ingreso</label>
-            <input type="date" name="fechaIngreso" value={formData.fechaIngreso} onChange={handleChange} required disabled={isEdit} className={inputClass} />
+            <label className={labelClass}>Sexo</label>
+            <select name="sexo" value={formData.sexo} onChange={handleChange} className={inputClass}>
+              <option value="">Sin especificar</option>
+              <option value="Femenino">Femenino</option>
+              <option value="Masculino">Masculino</option>
+              <option value="Otro">Otro</option>
+            </select>
           </div>
 
           <div className="md:col-span-2">

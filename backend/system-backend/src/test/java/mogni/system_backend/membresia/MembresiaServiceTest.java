@@ -7,7 +7,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.math.BigDecimal;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -17,9 +16,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
+import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
+import mogni.system_backend.inscripcion.repository.InscripcionRepository;
 import mogni.system_backend.membresia.dto.MembresiaRequest;
 import mogni.system_backend.membresia.dto.MembresiaResponse;
 import mogni.system_backend.membresia.entity.Membresia;
@@ -33,7 +33,7 @@ class MembresiaServiceTest {
     private MembresiaRepository membresiaRepository;
 
     @Mock
-    private AlumnoRepository alumnoRepository;
+    private InscripcionRepository inscripcionRepository;
 
     @InjectMocks
     private MembresiaService membresiaService;
@@ -44,8 +44,8 @@ class MembresiaServiceTest {
     void setUp() {
         request = new MembresiaRequest();
         request.setNombre("  Pro ");
-        request.setDiasPorSemana(5);
-        request.setPrecio(new BigDecimal("40000"));
+        request.setFrecuenciaSemanal(5);
+        request.setPrecioActual(40000.0);
     }
 
     @Test
@@ -61,21 +61,22 @@ class MembresiaServiceTest {
 
         assertEquals(1L, response.getId());
         assertEquals("Pro", response.getNombre());
-        assertEquals(5, response.getDiasPorSemana());
-        assertEquals(30, response.getDuracionDias());
+        assertEquals(5, response.getFrecuenciaSemanal());
+        assertEquals(40000.0, response.getPrecioActual());
     }
 
     @Test
-    void actualizarMembresia_sinDuracionConservaLaActual() {
-        Membresia existente = new Membresia(2L, "Medio", "3 clases", 15, null, new BigDecimal("30000"));
+    void actualizarMembresia_actualizaNombreFrecuenciaYPrecio() {
+        Membresia existente = new Membresia(2L, "Medio", 30000.0, 3, "3 clases");
         when(membresiaRepository.findById(2L)).thenReturn(Optional.of(existente));
         when(membresiaRepository.existsByNombreIgnoreCaseAndIdNot("Pro", 2L)).thenReturn(false);
         when(membresiaRepository.save(any(Membresia.class))).thenAnswer(inv -> inv.getArgument(0));
 
         MembresiaResponse response = membresiaService.actualizarMembresia(2L, request);
 
-        assertEquals(15, response.getDuracionDias());
-        assertEquals(5, response.getDiasPorSemana());
+        assertEquals("Pro", response.getNombre());
+        assertEquals(5, response.getFrecuenciaSemanal());
+        assertEquals(40000.0, response.getPrecioActual());
     }
 
     @Test
@@ -102,20 +103,33 @@ class MembresiaServiceTest {
     }
 
     @Test
-    void eliminarMembresia_rechazaSiTieneAlumnosAsociados() {
+    void eliminarMembresia_rechazaSiTieneInscripcionesActivas() {
         Membresia membresia = new Membresia();
         when(membresiaRepository.findById(3L)).thenReturn(Optional.of(membresia));
-        when(alumnoRepository.existsByMembresiaId(3L)).thenReturn(true);
+        when(inscripcionRepository.existsByMembresiaIdAndEstado(3L, EstadoInscripcion.ACTIVA)).thenReturn(true);
 
         assertThrows(RegistroInvalidoException.class, () -> membresiaService.eliminarMembresia(3L));
         verify(membresiaRepository, never()).delete(any());
     }
 
     @Test
-    void eliminarMembresia_eliminaSiNoTieneAlumnos() {
+    void eliminarMembresia_rechazaSiTieneHistorialDeInscripciones() {
+        // Solo inscripciones VENCIDAS o CANCELADAS: el historial no se pierde, así que no se elimina
         Membresia membresia = new Membresia();
         when(membresiaRepository.findById(3L)).thenReturn(Optional.of(membresia));
-        when(alumnoRepository.existsByMembresiaId(3L)).thenReturn(false);
+        when(inscripcionRepository.existsByMembresiaIdAndEstado(3L, EstadoInscripcion.ACTIVA)).thenReturn(false);
+        when(inscripcionRepository.existsByMembresiaId(3L)).thenReturn(true);
+
+        assertThrows(RegistroInvalidoException.class, () -> membresiaService.eliminarMembresia(3L));
+        verify(membresiaRepository, never()).delete(any());
+    }
+
+    @Test
+    void eliminarMembresia_eliminaSiNuncaTuvoInscripciones() {
+        Membresia membresia = new Membresia();
+        when(membresiaRepository.findById(3L)).thenReturn(Optional.of(membresia));
+        when(inscripcionRepository.existsByMembresiaIdAndEstado(3L, EstadoInscripcion.ACTIVA)).thenReturn(false);
+        when(inscripcionRepository.existsByMembresiaId(3L)).thenReturn(false);
 
         membresiaService.eliminarMembresia(3L);
 

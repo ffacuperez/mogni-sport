@@ -24,21 +24,24 @@ public class RegistrarAlumnoRequest {
     private String dni;
 
     @NotBlank(message = "El email es obligatorio")
-    @Email(message = "El email no tiene un formato válido")
+    @Email(regexp = "^[^@ ]+@[^@ ]+[.][^@ ]+$", message = "El email no tiene un formato válido")
     private String email;
 
     @NotNull(message = "La fecha de nacimiento es obligatoria")
     @Past(message = "La fecha de nacimiento debe ser una fecha pasada")
     private LocalDate fechaNacimiento;
 
-    @Pattern(regexp = "^[-0-9+ ]{6,20}$", message = "El celular no tiene un formato válido")
-    private String celular;
+    @NotBlank(message = "El teléfono es obligatorio")
+    @Pattern(regexp = "^[-0-9+ ]{6,20}$", message = "El teléfono no tiene un formato válido")
+    private String telefono;
 
+    private String sexo;
+
+    @NotNull(message = "Debe asignarse una membresía al inscribir al alumno")
     private Long membresiaId;
 
     private String objetivo;
 
     private String cuestionarioSalud;
 
-    private LocalDate fechaIngreso;
 }

@@ -5,6 +5,7 @@ import java.io.IOException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -52,8 +53,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
             }
-        } catch (JwtException | IllegalArgumentException ex) {
-            // Token inválido o expirado: seguimos sin autenticar, Spring Security lo rechaza si el endpoint lo requiere
+        } catch (JwtException | IllegalArgumentException | UsernameNotFoundException ex) {
+            // Token inválido, expirado o de una cuenta que ya no existe (p. ej. después de correr el seed):
+            // seguimos sin autenticar, Spring Security responde 401 y el frontend vuelve al login
         }
 
         filterChain.doFilter(request, response);

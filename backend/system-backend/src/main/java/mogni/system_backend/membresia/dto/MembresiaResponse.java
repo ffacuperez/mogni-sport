@@ -1,7 +1,5 @@
 package mogni.system_backend.membresia.dto;
 
-import java.math.BigDecimal;
-
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -10,8 +8,7 @@ import lombok.Getter;
 public class MembresiaResponse {
     private Long id;
     private String nombre;
+    private double precioActual;
+    private int frecuenciaSemanal;
     private String descripcion;
-    private Integer duracionDias;
-    private Integer diasPorSemana;
-    private BigDecimal precio;
 }

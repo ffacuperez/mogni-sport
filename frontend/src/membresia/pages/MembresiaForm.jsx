@@ -61,11 +61,6 @@ export default function MembresiaForm({ membresiaToEdit, onSave, onCancel, onErr
         
         <div className="grid grid-cols-1 gap-6 mb-6">
           <div>
-            <label className={labelClass}>Código ID</label>
-            <input type="text" name="codigo" value={formData.codigo ?? 'Se asigna al guardar'} disabled className={inputClass} />
-          </div>
-
-          <div>
             <label className={labelClass}>Nombre de la membresía</label>
             <input type="text" name="nombre" value={formData.nombre} onChange={handleChange} required className={inputClass} />
           </div>

@@ -2,12 +2,9 @@ import { request } from '../../shared/services/httpClient';
 
 const BASE_PATH = '/alumnos';
 
-const formatCodigo = (id) => `MS${String(id).padStart(5, '0')}`;
-
 // Backend -> forma que usan las pantallas
 const fromApi = (a) => ({
   id: a.id,
-  codigo: formatCodigo(a.id),
   nombre: a.nombre,
   apellido: a.apellido,
   edad: a.edad,

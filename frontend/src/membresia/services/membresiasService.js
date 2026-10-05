@@ -2,13 +2,10 @@ import { request } from '../../shared/services/httpClient';
 
 const BASE_PATH = '/membresias';
 
-const formatCodigo = (id) => `MB${String(id).padStart(4, '0')}`;
-
 // Backend -> forma que usan las pantallas (dias y precio se manejan como texto en los inputs).
 // descripcion no se edita en pantalla, pero se conserva para devolverla al guardar.
 const fromApi = (m) => ({
   id: m.id,
-  codigo: formatCodigo(m.id),
   nombre: m.nombre,
   dias: String(m.frecuenciaSemanal),
   precio: String(m.precioActual),

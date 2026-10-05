@@ -29,8 +29,7 @@ export default function MembresiasList({ membresias, selectedId, setSelectedId, 
             <thead className="bg-slate-800/50 text-slate-300">
               <tr>
                 <th className="px-4 py-3 w-12 text-center"></th>
-                <th className="px-4 py-3 font-semibold bg-slate-800/80 rounded-l-md mx-1">Código</th>
-                <th className="px-4 py-3 font-semibold bg-slate-800/80 mx-1">Nombre</th>
+                <th className="px-4 py-3 font-semibold bg-slate-800/80 rounded-l-md mx-1">Nombre</th>
                 <th className="px-4 py-3 font-semibold bg-slate-800/80 mx-1">Días por semana</th>
                 <th className="px-4 py-3 font-semibold bg-slate-800/80 rounded-r-md mx-1">Precio (ARS)</th>
               </tr>
@@ -50,7 +49,6 @@ export default function MembresiasList({ membresias, selectedId, setSelectedId, 
                       className="w-4 h-4 rounded border-slate-600 text-red-600 bg-slate-800 focus:ring-red-600 focus:ring-offset-slate-900 cursor-pointer accent-red-600"
                     />
                   </td>
-                  <td className="px-4 py-3 text-slate-300">{membresia.codigo}</td>
                   <td className="px-4 py-3">{membresia.nombre}</td>
                   <td className="px-4 py-3">{membresia.dias === '' ? '—' : `${membresia.dias} días`}</td>
                   <td className="px-4 py-3">${Number(membresia.precio).toLocaleString('es-AR')}</td>
@@ -58,7 +56,7 @@ export default function MembresiasList({ membresias, selectedId, setSelectedId, 
               ))}
               {membresias.length === 0 && (
                 <tr>
-                  <td colSpan="5" className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan="4" className="px-4 py-8 text-center text-slate-500">
                     No hay membresías registradas.
                   </td>
                 </tr>

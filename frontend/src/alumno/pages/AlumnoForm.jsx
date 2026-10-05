@@ -81,11 +81,6 @@ export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel,
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div>
-            <label className={labelClass}>ID</label>
-            <input type="text" name="codigo" value={formData.codigo ?? 'Se asigna al guardar'} disabled className={inputClass} />
-          </div>
-
-          <div>
             <label className={labelClass}>Membresía</label>
             <select name="membresiaId" value={formData.membresiaId} onChange={handleChange} required={!isEdit} className={inputClass}>
               <option value="" disabled={!isEdit}>{isEdit ? 'Sin membresía' : 'Seleccione una membresía'}</option>

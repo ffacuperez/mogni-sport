@@ -49,8 +49,7 @@ export default function AlumnosList({ alumnos, selectedId, setSelectedId, onAdd,
             <thead className="bg-slate-800/50 text-slate-300">
               <tr>
                 <th className="px-4 py-3 w-12 text-center"></th>
-                <th className="px-4 py-3 font-semibold bg-slate-800/80 rounded-l-md mx-1">ID</th>
-                <th className="px-4 py-3 font-semibold bg-slate-800/80 mx-1">DNI</th>
+                <th className="px-4 py-3 font-semibold bg-slate-800/80 rounded-l-md mx-1">DNI</th>
                 <th className="px-4 py-3 font-semibold bg-slate-800/80 mx-1">Apellido</th>
                 <th className="px-4 py-3 font-semibold bg-slate-800/80 mx-1">Nombre</th>
                 <th className="px-4 py-3 font-semibold bg-slate-800/80 mx-1">Correo Electrónico</th>
@@ -73,7 +72,6 @@ export default function AlumnosList({ alumnos, selectedId, setSelectedId, onAdd,
                       className="w-4 h-4 rounded border-slate-600 text-red-600 bg-slate-800 focus:ring-red-600 focus:ring-offset-slate-900 cursor-pointer accent-red-600"
                     />
                   </td>
-                  <td className="px-4 py-3 text-slate-300">{alumno.codigo}</td>
                   <td className="px-4 py-3">{alumno.dni}</td>
                   <td className="px-4 py-3">{alumno.apellido}</td>
                   <td className="px-4 py-3">{alumno.nombre}</td>
@@ -88,7 +86,7 @@ export default function AlumnosList({ alumnos, selectedId, setSelectedId, onAdd,
               ))}
               {filteredAlumnos.length === 0 && (
                 <tr>
-                  <td colSpan="8" className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan="7" className="px-4 py-8 text-center text-slate-500">
                     No se encontraron alumnos con ese DNI.
                   </td>
                 </tr>

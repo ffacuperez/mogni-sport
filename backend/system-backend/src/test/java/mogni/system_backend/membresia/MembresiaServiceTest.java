@@ -109,20 +109,30 @@ class MembresiaServiceTest {
         when(inscripcionRepository.existsByMembresiaIdAndEstado(3L, EstadoInscripcion.ACTIVA)).thenReturn(true);
 
         assertThrows(RegistroInvalidoException.class, () -> membresiaService.eliminarMembresia(3L));
-        verify(inscripcionRepository, never()).deleteByMembresiaId(any());
         verify(membresiaRepository, never()).delete(any());
     }
 
     @Test
-    void eliminarMembresia_eliminaSiNoTieneInscripcionesActivas() {
-        // Sin inscripciones o solo con VENCIDAS/CANCELADAS: se borra el historial y la membresía
+    void eliminarMembresia_rechazaSiTieneHistorialDeInscripciones() {
+        // Solo inscripciones VENCIDAS o CANCELADAS: el historial no se pierde, así que no se elimina
         Membresia membresia = new Membresia();
         when(membresiaRepository.findById(3L)).thenReturn(Optional.of(membresia));
         when(inscripcionRepository.existsByMembresiaIdAndEstado(3L, EstadoInscripcion.ACTIVA)).thenReturn(false);
+        when(inscripcionRepository.existsByMembresiaId(3L)).thenReturn(true);
+
+        assertThrows(RegistroInvalidoException.class, () -> membresiaService.eliminarMembresia(3L));
+        verify(membresiaRepository, never()).delete(any());
+    }
+
+    @Test
+    void eliminarMembresia_eliminaSiNuncaTuvoInscripciones() {
+        Membresia membresia = new Membresia();
+        when(membresiaRepository.findById(3L)).thenReturn(Optional.of(membresia));
+        when(inscripcionRepository.existsByMembresiaIdAndEstado(3L, EstadoInscripcion.ACTIVA)).thenReturn(false);
+        when(inscripcionRepository.existsByMembresiaId(3L)).thenReturn(false);
 
         membresiaService.eliminarMembresia(3L);
 
-        verify(inscripcionRepository).deleteByMembresiaId(3L);
         verify(membresiaRepository).delete(membresia);
     }
 }

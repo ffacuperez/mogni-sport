@@ -74,8 +74,12 @@ public class MembresiaService {
                 "No se puede eliminar la membresía porque tiene alumnos con inscripciones activas");
         }
 
-        // Las inscripciones vencidas o canceladas no impiden el borrado, pero referencian a la membresía
-        inscripcionRepository.deleteByMembresiaId(id);
+        // Las inscripciones vencidas o canceladas son historial: no se borran, así que la membresía tampoco
+        if (inscripcionRepository.existsByMembresiaId(id)) {
+            throw new RegistroInvalidoException(
+                "No se puede eliminar la membresía porque tiene historial de inscripciones (vencidas o canceladas)");
+        }
+
         membresiaRepository.delete(membresia);
     }
 

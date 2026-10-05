@@ -19,6 +19,7 @@ import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
+import mogni.system_backend.inscripcion.dto.InscripcionResponse;
 import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
 import mogni.system_backend.inscripcion.entity.Inscripcion;
 import mogni.system_backend.membresia.entity.Membresia;
@@ -252,7 +253,18 @@ public class AlumnoService {
             membresia != null ? membresia.getId() : null,
             membresia != null ? membresia.getNombre() : null,
             activa.map(Inscripcion::getFechaInicio).orElse(null),
-            activa.map(Inscripcion::getFechaFin).orElse(null)
+            activa.map(Inscripcion::getFechaFin).orElse(null),
+            alumno.buscarInscripcionActual().map(this::mapearInscripcion).orElse(null)
+        );
+    }
+
+    private InscripcionResponse mapearInscripcion(Inscripcion inscripcion) {
+        return new InscripcionResponse(
+            inscripcion.getMembresia().getId(),
+            inscripcion.getMembresia().getNombre(),
+            inscripcion.getEstado(),
+            inscripcion.getFechaInicio(),
+            inscripcion.getFechaFin()
         );
     }
 }

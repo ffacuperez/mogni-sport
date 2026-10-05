@@ -79,4 +79,11 @@ public class Alumno {
                 .filter(i -> i.getEstado() == EstadoInscripcion.ACTIVA)
                 .max(Comparator.comparing(Inscripcion::getFechaInicio));
     }
+
+    /** La inscripción ACTIVA si tiene; si no, la más reciente (VENCIDA o CANCELADA). Vacío si nunca tuvo. */
+    public Optional<Inscripcion> buscarInscripcionActual() {
+        return buscarInscripcionActiva().or(() -> inscripciones.stream()
+                .max(Comparator.comparing(Inscripcion::getFechaInicio)
+                        .thenComparing(Inscripcion::getId, Comparator.nullsFirst(Comparator.naturalOrder()))));
+    }
 }

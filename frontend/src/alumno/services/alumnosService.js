@@ -2,6 +2,24 @@ import { request } from '../../shared/services/httpClient';
 
 const BASE_PATH = '/alumnos';
 
+const ESTADOS_INSCRIPCION = { ACTIVA: 'Activa', VENCIDA: 'Vencida', CANCELADA: 'Cancelada' };
+
+// Inscripción activa o, si no tiene, la última (vencida o cancelada). null si nunca tuvo.
+const inscripcionFromApi = (i) => (i ? {
+  membresiaId: i.membresiaId,
+  membresia: i.membresiaNombre,
+  estado: ESTADOS_INSCRIPCION[i.estado] ?? i.estado,
+  fechaInicio: i.fechaInicio ?? '',
+  fechaFin: i.fechaFin ?? '',
+} : null);
+
+/** Texto de la membresía para mostrar: el nombre, con el estado si la inscripción no está activa. */
+export function describirMembresia(alumno) {
+  const inscripcion = alumno.inscripcion;
+  if (!inscripcion) return 'Sin membresía';
+  return inscripcion.estado === 'Activa' ? inscripcion.membresia : `${inscripcion.membresia} (${inscripcion.estado})`;
+}
+
 // Backend -> forma que usan las pantallas
 const fromApi = (a) => ({
   id: a.id,
@@ -21,6 +39,7 @@ const fromApi = (a) => ({
   membresiaId: a.membresiaId ?? '',
   membresia: a.membresiaNombre ?? 'Sin membresía',
   estado: a.activo ? 'Activo' : 'Inactivo',
+  inscripcion: inscripcionFromApi(a.inscripcionActual),
 });
 
 // Formulario -> body que espera el backend (Registrar/ActualizarAlumnoRequest)

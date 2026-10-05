@@ -339,6 +339,47 @@ class AlumnoServiceTest {
     }
 
     @Test
+    void obtenerAlumno_inscripcionActualEsLaActivaSiTiene() {
+        Alumno alumno = alumnoExistente();
+        Membresia anterior = new Membresia(3L, "Basica", 20000.0, 2, null);
+        alumno.agregarInscripcion(new Inscripcion(1L, LocalDate.now().minusDays(60), LocalDate.now().minusDays(30), EstadoInscripcion.VENCIDA, null, anterior));
+        alumno.agregarInscripcion(new Inscripcion(2L, LocalDate.now(), LocalDate.now().plusDays(30), EstadoInscripcion.ACTIVA, null, membresia));
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+
+        AlumnoResponse response = alumnoService.obtenerAlumno(10L);
+
+        assertEquals("Pro", response.getInscripcionActual().getMembresiaNombre());
+        assertEquals(EstadoInscripcion.ACTIVA, response.getInscripcionActual().getEstado());
+    }
+
+    @Test
+    void obtenerAlumno_sinActivaMuestraLaUltimaConSuEstado() {
+        Alumno alumno = alumnoExistente();
+        Membresia anterior = new Membresia(3L, "Basica", 20000.0, 2, null);
+        LocalDate inicio = LocalDate.now().minusDays(40);
+        alumno.agregarInscripcion(new Inscripcion(1L, LocalDate.now().minusDays(100), LocalDate.now().minusDays(70), EstadoInscripcion.CANCELADA, null, anterior));
+        alumno.agregarInscripcion(new Inscripcion(2L, inicio, inicio.plusDays(30), EstadoInscripcion.VENCIDA, null, membresia));
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+
+        AlumnoResponse response = alumnoService.obtenerAlumno(10L);
+
+        // Los campos de la inscripción activa quedan vacíos (los usan la edición y cuotas)...
+        assertNull(response.getMembresiaId());
+        // ...y la última inscripción se informa con su estado
+        assertEquals("Pro", response.getInscripcionActual().getMembresiaNombre());
+        assertEquals(EstadoInscripcion.VENCIDA, response.getInscripcionActual().getEstado());
+        assertEquals(inicio, response.getInscripcionActual().getFechaInicio());
+        assertEquals(inicio.plusDays(30), response.getInscripcionActual().getFechaFin());
+    }
+
+    @Test
+    void obtenerAlumno_sinInscripcionesNoInformaInscripcionActual() {
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumnoExistente()));
+
+        assertNull(alumnoService.obtenerAlumno(10L).getInscripcionActual());
+    }
+
+    @Test
     void darDeBaja_desactivaLaCuentaYReactivarLaActiva() {
         Alumno alumno = alumnoExistente();
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));

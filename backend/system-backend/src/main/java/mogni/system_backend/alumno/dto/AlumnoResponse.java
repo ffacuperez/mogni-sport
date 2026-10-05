@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import mogni.system_backend.auth.entity.Rol;
+import mogni.system_backend.inscripcion.dto.InscripcionResponse;
 
 @Getter
 @AllArgsConstructor
@@ -28,4 +29,6 @@ public class AlumnoResponse {
     private LocalDate fechaInicioInscripcion;
     /** Vencimiento de la inscripción activa (null si no tiene). */
     private LocalDate fechaFinInscripcion;
+    /** Inscripción activa o, si no tiene, la última (con su estado). Null si nunca tuvo. */
+    private InscripcionResponse inscripcionActual;
 }

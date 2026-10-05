@@ -4,6 +4,7 @@ import Home from './home/pages/Home';
 import Login from './auth/pages/Login';
 import AlumnosList from './alumno/pages/AlumnosList';
 import AlumnoForm from './alumno/pages/AlumnoForm';
+import AlumnoDetalle from './alumno/pages/AlumnoDetalle';
 import AlumnoDashboard from './alumno/pages/AlumnoDashboard';
 import MembresiasList from './membresia/pages/MembresiasList';
 import MembresiaForm from './membresia/pages/MembresiaForm';
@@ -44,7 +45,7 @@ function MainApp({ onLogout, onGoHome }) {
   
   const [selectedAlumnoId, setSelectedAlumnoId] = useState(null);
   const [selectedMembresiaId, setSelectedMembresiaId] = useState(null);
-  const [searchDNI, setSearchDNI] = useState('');
+  const [searchAlumno, setSearchAlumno] = useState('');
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [inactivosCargados, setInactivosCargados] = useState(false);
 
@@ -124,11 +125,11 @@ function MainApp({ onLogout, onGoHome }) {
       'Confirmar Acción',
       `¿Estás seguro de que deseas ${actionText} al alumno ${alumno.nombre} ${alumno.apellido}?`,
       async () => {
-        const ok = await ejecutar(async () => {
+        // Se queda en el detalle, que ya muestra el estado actualizado
+        await ejecutar(async () => {
           const actualizado = isActivo ? await darDeBajaAlumno(alumno.id) : await reactivarAlumno(alumno.id);
           setAlumnos(prev => prev.map(a => a.id === actualizado.id ? actualizado : a));
         }, `El alumno ha sido ${newEstado === 'Activo' ? 'activado' : 'dado de baja'} correctamente.`);
-        if (ok) setSelectedAlumnoId(null);
       }
     );
   };
@@ -143,8 +144,12 @@ function MainApp({ onLogout, onGoHome }) {
           setAlumnos(prev => isEdit ? prev.map(a => a.id === guardado.id ? guardado : a) : [...prev, guardado]);
         }, isEdit ? 'Los cambios fueron guardados correctamente.' : 'El alumno ha sido creado correctamente.');
         if (ok) {
-          setView('alumnos_list');
-          setSelectedAlumnoId(null);
+          if (isEdit) {
+            setView('alumnos_detail'); // vuelve al detalle del alumno editado
+          } else {
+            setView('alumnos_list');
+            setSelectedAlumnoId(null);
+          }
         }
       }
     );
@@ -159,7 +164,11 @@ function MainApp({ onLogout, onGoHome }) {
           const guardada = isEdit ? await actualizarMembresia(formData.id, formData) : await crearMembresia(formData);
           setMembresias(prev => isEdit ? prev.map(m => m.id === guardada.id ? guardada : m) : [...prev, guardada]);
           if (isEdit) {
-            setAlumnos(prev => prev.map(a => a.membresiaId === guardada.id ? { ...a, membresia: guardada.nombre } : a));
+            setAlumnos(prev => prev.map(a => ({
+              ...a,
+              membresia: a.membresiaId === guardada.id ? guardada.nombre : a.membresia,
+              inscripcion: a.inscripcion?.membresiaId === guardada.id ? { ...a.inscripcion, membresia: guardada.nombre } : a.inscripcion,
+            })));
           }
         }, isEdit ? 'Membresía modificada correctamente.' : 'Membresía creada correctamente.');
         if (ok) {
@@ -253,17 +262,23 @@ function MainApp({ onLogout, onGoHome }) {
       <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjMGYxNzJhIj48L3JlY3Q+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMxZTI5M2IiPjwvcmVjdD4KPC9zdmc+')]">
         
         {view === 'alumnos_list' && (
-          <AlumnosList 
-            alumnos={alumnos} 
-            selectedId={selectedAlumnoId}
-            setSelectedId={setSelectedAlumnoId}
-            onAdd={() => setView('alumnos_form')}
-            onEdit={() => setView('alumnos_form')}
-            onToggleStatus={handleToggleEstadoAlumno}
-            searchDNI={searchDNI}
+          <AlumnosList
+            alumnos={alumnos}
+            onSelect={(id) => { setSelectedAlumnoId(id); setView('alumnos_detail'); }}
+            onAdd={() => { setSelectedAlumnoId(null); setView('alumnos_form'); }}
+            search={searchAlumno}
+            setSearch={setSearchAlumno}
             mostrarInactivos={mostrarInactivos}
             onToggleMostrarInactivos={handleToggleMostrarInactivos}
-            setSearchDNI={setSearchDNI}
+          />
+        )}
+
+        {view === 'alumnos_detail' && alumnos.some(a => a.id === selectedAlumnoId) && (
+          <AlumnoDetalle
+            alumno={alumnos.find(a => a.id === selectedAlumnoId)}
+            onBack={() => { setView('alumnos_list'); setSelectedAlumnoId(null); }}
+            onEdit={() => setView('alumnos_form')}
+            onToggleStatus={handleToggleEstadoAlumno}
           />
         )}
 
@@ -272,7 +287,7 @@ function MainApp({ onLogout, onGoHome }) {
             alumnoToEdit={alumnos.find(a => a.id === selectedAlumnoId)}
             membresias={membresias}
             onSave={handleSaveAlumno}
-            onCancel={() => { setView('alumnos_list'); setSelectedAlumnoId(null); }}
+            onCancel={() => (selectedAlumnoId ? setView('alumnos_detail') : setView('alumnos_list'))}
             onError={(msg) => displayToast(msg, true)}
           />
         )}

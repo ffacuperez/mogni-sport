@@ -225,7 +225,8 @@ public class AlumnoService {
     }
 
     private AlumnoResponse mapearAResponse(Alumno alumno) {
-        Membresia membresia = alumno.buscarInscripcionActiva().map(Inscripcion::getMembresia).orElse(null);
+        Optional<Inscripcion> activa = alumno.buscarInscripcionActiva();
+        Membresia membresia = activa.map(Inscripcion::getMembresia).orElse(null);
         return new AlumnoResponse(
             alumno.getId(),
             alumno.getNombre(),
@@ -241,7 +242,8 @@ public class AlumnoService {
             alumno.getCuenta().getRol(),
             alumno.getCuenta().isActiva(),
             membresia != null ? membresia.getId() : null,
-            membresia != null ? membresia.getNombre() : null
+            membresia != null ? membresia.getNombre() : null,
+            activa.map(Inscripcion::getFechaInicio).orElse(null)
         );
     }
 }

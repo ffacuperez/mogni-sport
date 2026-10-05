@@ -16,6 +16,8 @@ const fromApi = (a) => ({
   dni: a.dni,
   email: a.email,
   fechaNacimiento: a.fechaNacimiento ?? '',
+  // Fecha de alta = inicio de la inscripción activa (la usa el cálculo de cuotas)
+  fechaIngreso: a.fechaInicioInscripcion ?? '',
   objetivo: a.objetivo ?? '',
   antecedentes: a.cuestionarioSalud ?? '',
   membresiaId: a.membresiaId ?? '',

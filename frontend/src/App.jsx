@@ -7,6 +7,9 @@ import AlumnoForm from './alumno/pages/AlumnoForm';
 import AlumnoDashboard from './alumno/pages/AlumnoDashboard'; // <--- AQUÍ USAMOS TU ARCHIVO REAL
 import MembresiasList from './membresia/pages/MembresiasList';
 import MembresiaForm from './membresia/pages/MembresiaForm';
+import CuotasList from './cuota/pages/CuotasList';
+import RegistrarPagoModal from './cuota/pages/RegistrarPagoModal';
+import HistorialPagosModal from './cuota/pages/HistorialPagosModal';
 import ConfirmModal from './shared/components/ConfirmModal';
 import Toast from './shared/components/Toast';
 import { hasSession, logout } from './auth/services/authService';
@@ -24,11 +27,13 @@ import {
   eliminarMembresia,
   listarMembresias,
 } from './membresia/services/membresiasService';
+import { generarPagosDeEjemplo } from './cuota/services/cuotasService';
 
 // --- ICONS (Main App) ---
 const IconHome = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
 const IconUsers = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
 const IconCard = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>;
+const IconWallet = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>;
 const IconLogout = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>;
 
 // --- MAIN APP COMPONENT ---
@@ -40,6 +45,14 @@ function MainApp({ onLogout, onGoHome }) {
   const [selectedAlumnoId, setSelectedAlumnoId] = useState(null);
   const [selectedMembresiaId, setSelectedMembresiaId] = useState(null);
   const [searchDNI, setSearchDNI] = useState('');
+
+  // --- Cuotas (HU-45/46/48): sin backend todavía, se mockea en memoria (ver cuotasService.js) ---
+  const [pagos, setPagos] = useState({}); // { [alumnoId]: [{ fecha, monto, medioPago, recargo }] }
+  const [selectedCuotaAlumnoId, setSelectedCuotaAlumnoId] = useState(null);
+  const [searchCuota, setSearchCuota] = useState('');
+  const [filtroCuota, setFiltroCuota] = useState('Todas');
+  const [registrarPagoAlumnoId, setRegistrarPagoAlumnoId] = useState(null);
+  const [historialAlumnoId, setHistorialAlumnoId] = useState(null);
 
   const [modalConfig, setModalConfig] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
   const [toastConfig, setToastConfig] = useState({ isVisible: false, message: '', isError: false });
@@ -54,6 +67,7 @@ function MainApp({ onLogout, onGoHome }) {
       .then(([alumnosData, membresiasData]) => {
         setAlumnos(alumnosData);
         setMembresias(membresiasData);
+        setPagos(generarPagosDeEjemplo(alumnosData)); // ver nota en cuotasService.js
       })
       .catch((error) => displayToast(error.message, true));
   }, []);
@@ -139,6 +153,16 @@ function MainApp({ onLogout, onGoHome }) {
     );
   };
 
+  // HU-45: registra el pago en memoria y recalcula el estado de esa cuota.
+  const handleRegistrarPago = (alumnoId, { monto, medioPago, fecha }) => {
+    setPagos((prev) => ({
+      ...prev,
+      [alumnoId]: [...(prev[alumnoId] ?? []), { fecha, monto, medioPago, recargo: false }],
+    }));
+    setRegistrarPagoAlumnoId(null);
+    displayToast('El pago fue registrado correctamente.');
+  };
+
   const handleDeleteMembresia = () => {
     const membresia = membresias.find(m => m.id === selectedMembresiaId);
     if (!membresia) return;
@@ -190,6 +214,14 @@ function MainApp({ onLogout, onGoHome }) {
                 className={`w-full flex items-center gap-3 px-6 py-3 transition-colors ${view.startsWith('membresias') ? 'text-slate-100 bg-slate-900 border-l-4 border-red-600' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900 border-l-4 border-transparent'}`}
               >
                 <IconCard /> Membresías
+              </button>
+            </li>
+            <li>
+              <button
+                onClick={() => { setView('cuotas_list'); setSelectedCuotaAlumnoId(null); }}
+                className={`w-full flex items-center gap-3 px-6 py-3 transition-colors ${view.startsWith('cuotas') ? 'text-slate-100 bg-slate-900 border-l-4 border-red-600' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900 border-l-4 border-transparent'}`}
+              >
+                <IconWallet /> Cuotas
               </button>
             </li>
             <li>
@@ -246,6 +278,21 @@ function MainApp({ onLogout, onGoHome }) {
           />
         )}
 
+        {view === 'cuotas_list' && (
+          <CuotasList
+            alumnos={alumnos}
+            pagos={pagos}
+            selectedId={selectedCuotaAlumnoId}
+            setSelectedId={setSelectedCuotaAlumnoId}
+            onRegistrarPago={setRegistrarPagoAlumnoId}
+            onVerHistorial={setHistorialAlumnoId}
+            searchTerm={searchCuota}
+            setSearchTerm={setSearchCuota}
+            filtro={filtroCuota}
+            setFiltro={setFiltroCuota}
+          />
+        )}
+
       </main>
 
       <ConfirmModal 
@@ -255,6 +302,25 @@ function MainApp({ onLogout, onGoHome }) {
         onConfirm={modalConfig.onConfirm}
         onCancel={() => setModalConfig({ ...modalConfig, isOpen: false })}
       />
+
+      {registrarPagoAlumnoId && (
+        <RegistrarPagoModal
+          alumno={alumnos.find(a => a.id === registrarPagoAlumnoId)}
+          montoSugerido={membresias.find(m => m.id === alumnos.find(a => a.id === registrarPagoAlumnoId)?.membresiaId)?.precio}
+          onConfirm={(datos) => handleRegistrarPago(registrarPagoAlumnoId, datos)}
+          onCancel={() => setRegistrarPagoAlumnoId(null)}
+          onError={(msg) => displayToast(msg, true)}
+        />
+      )}
+
+      {historialAlumnoId && (
+        <HistorialPagosModal
+          alumno={alumnos.find(a => a.id === historialAlumnoId)}
+          pagos={pagos[historialAlumnoId]}
+          onClose={() => setHistorialAlumnoId(null)}
+        />
+      )}
+
       <Toast 
         message={toastConfig.message} 
         isVisible={toastConfig.isVisible} 

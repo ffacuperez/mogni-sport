@@ -71,13 +71,18 @@ export default function MembresiaForm({ membresiaToEdit, onSave, onCancel, onErr
           </div>
           
           <div>
-            <label className={labelClass}>Días por semana (de {DIAS_MIN} a {DIAS_MAX})</label>
-            <input type="text" inputMode="numeric" maxLength={1} name="dias" value={formData.dias} onChange={handleChange} required className={inputClass} />
+            <label className={labelClass}>Días por semana</label>
+            <select name="dias" value={formData.dias} onChange={handleChange} required className={inputClass}>
+              <option value="">Seleccionar...</option>
+              {Array.from({ length: DIAS_MAX - DIAS_MIN + 1 }, (_, i) => DIAS_MIN + i).map((n) => (
+                <option key={n} value={n}>{n} día{n > 1 ? 's' : ''} por semana</option>
+              ))}
+            </select>
           </div>
 
           <div>
             <label className={labelClass}>Precio en ARS (ej: 25000)</label>
-            <input type="text" inputMode="decimal" name="precio" value={formData.precio} onChange={handleChange} required className={inputClass} />
+            <input type="text" inputMode="decimal" name="precio" value={formData.precio} onChange={handleChange} required placeholder="Mayor a 0" className={inputClass} />
           </div>
         </div>
 

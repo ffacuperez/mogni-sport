@@ -1,6 +1,7 @@
 import { getToken } from './tokenStorage';
 
-export const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080').replace(/\/$/, '');
+// En Vercel se define VITE_API_URL con la URL del backend en Railway; vacía o sin definir, usa el backend local
+export const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080').replace(/\/$/, '');
 
 export class ApiError extends Error {
   constructor(message, status) {

@@ -31,7 +31,6 @@ import mogni.system_backend.auth.repository.CuentaRepository;
 public class AlumnoService {
 
     private static final int EDAD_MINIMA = 16;
-    private static final int DURACION_INSCRIPCION_DIAS = 30;
 
     private final AlumnoRepository alumnoRepository;
     private final CuentaRepository cuentaRepository;
@@ -199,17 +198,15 @@ public class AlumnoService {
         if (Objects.equals(membresiaActualId, membresiaId)) {
             return;
         }
-        activa.ifPresent(i -> i.setEstado(EstadoInscripcion.CANCELADA));
+        activa.ifPresent(i -> i.cancelar(LocalDate.now()));
         if (membresiaId != null) {
             alumno.agregarInscripcion(nuevaInscripcion(buscarMembresiaOLanzarError(membresiaId)));
         }
     }
 
     private Inscripcion nuevaInscripcion(Membresia membresia) {
-        LocalDate hoy = LocalDate.now();
         Inscripcion inscripcion = new Inscripcion();
-        inscripcion.setFechaInicio(hoy);
-        inscripcion.setFechaFin(hoy.plusDays(DURACION_INSCRIPCION_DIAS));
+        inscripcion.setFechaInicio(LocalDate.now());
         inscripcion.setEstado(EstadoInscripcion.ACTIVA);
         inscripcion.setMembresia(membresia);
         return inscripcion;
@@ -255,7 +252,6 @@ public class AlumnoService {
             membresia != null ? membresia.getId() : null,
             membresia != null ? membresia.getNombre() : null,
             activa.map(Inscripcion::getFechaInicio).orElse(null),
-            activa.map(Inscripcion::getFechaFin).orElse(null),
             alumno.buscarInscripcionActual().map(this::mapearInscripcion).orElse(null)
         );
     }

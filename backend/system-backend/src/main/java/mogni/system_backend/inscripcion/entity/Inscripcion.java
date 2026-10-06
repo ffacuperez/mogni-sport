@@ -35,7 +35,7 @@ public class Inscripcion {
     @Column(nullable = false)
     private LocalDate fechaInicio;
 
-    @Column(nullable = false)
+    /** Null mientras está ACTIVA; al cancelarse guarda el día de la cancelación (solo trazabilidad). */
     private LocalDate fechaFin;
 
     @Enumerated(EnumType.STRING)
@@ -49,4 +49,9 @@ public class Inscripcion {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "membresia_id", nullable = false)
     private Membresia membresia;
+
+    public void cancelar(LocalDate fecha) {
+        this.estado = EstadoInscripcion.CANCELADA;
+        this.fechaFin = fecha;
+    }
 }

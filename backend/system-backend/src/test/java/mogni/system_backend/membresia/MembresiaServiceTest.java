@@ -114,7 +114,7 @@ class MembresiaServiceTest {
 
     @Test
     void eliminarMembresia_rechazaSiTieneHistorialDeInscripciones() {
-        // Solo inscripciones VENCIDAS o CANCELADAS: el historial no se pierde, así que no se elimina
+        // Solo inscripciones CANCELADAS: el historial no se pierde, así que no se elimina
         Membresia membresia = new Membresia();
         when(membresiaRepository.findById(3L)).thenReturn(Optional.of(membresia));
         when(inscripcionRepository.existsByMembresiaIdAndEstado(3L, EstadoInscripcion.ACTIVA)).thenReturn(false);

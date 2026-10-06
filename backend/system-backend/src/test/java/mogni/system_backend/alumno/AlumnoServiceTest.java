@@ -131,7 +131,7 @@ class AlumnoServiceTest {
         Inscripcion inscripcion = guardado.getInscripciones().get(0);
         assertEquals(EstadoInscripcion.ACTIVA, inscripcion.getEstado());
         assertEquals(LocalDate.now(), inscripcion.getFechaInicio());
-        assertEquals(LocalDate.now().plusDays(30), inscripcion.getFechaFin());
+        assertNull(inscripcion.getFechaFin());
         assertEquals(membresia, inscripcion.getMembresia());
         assertEquals(guardado, inscripcion.getAlumno());
     }
@@ -299,7 +299,7 @@ class AlumnoServiceTest {
     void actualizarAlumno_cambiarMembresiaCancelaLaActivaYCreaOtra() {
         Alumno alumno = alumnoExistente();
         Membresia anterior = new Membresia(3L, "Basica", 20000.0, 2, null);
-        Inscripcion vieja = new Inscripcion(1L, LocalDate.now().minusDays(10), LocalDate.now().plusDays(20),
+        Inscripcion vieja = new Inscripcion(1L, LocalDate.now().minusDays(10), null,
                 EstadoInscripcion.ACTIVA, null, anterior);
         alumno.agregarInscripcion(vieja);
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
@@ -309,14 +309,16 @@ class AlumnoServiceTest {
         AlumnoResponse response = alumnoService.actualizarAlumno(10L, actualizacion(alumno, 7L));
 
         assertEquals(EstadoInscripcion.CANCELADA, vieja.getEstado());
+        assertEquals(LocalDate.now(), vieja.getFechaFin());
         assertEquals(2, alumno.getInscripciones().size());
+        assertNull(alumno.getInscripciones().get(1).getFechaFin());
         assertEquals(7L, response.getMembresiaId());
     }
 
     @Test
     void actualizarAlumno_mismaMembresiaNoCreaOtraInscripcion() {
         Alumno alumno = alumnoExistente();
-        Inscripcion actual = new Inscripcion(1L, LocalDate.now(), LocalDate.now().plusDays(30),
+        Inscripcion actual = new Inscripcion(1L, LocalDate.now(), null,
                 EstadoInscripcion.ACTIVA, null, membresia);
         alumno.agregarInscripcion(actual);
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
@@ -331,7 +333,7 @@ class AlumnoServiceTest {
     @Test
     void actualizarAlumno_sinMembresiaCancelaLaActiva() {
         Alumno alumno = alumnoExistente();
-        Inscripcion actual = new Inscripcion(1L, LocalDate.now(), LocalDate.now().plusDays(30),
+        Inscripcion actual = new Inscripcion(1L, LocalDate.now(), null,
                 EstadoInscripcion.ACTIVA, null, membresia);
         alumno.agregarInscripcion(actual);
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
@@ -340,6 +342,7 @@ class AlumnoServiceTest {
         AlumnoResponse response = alumnoService.actualizarAlumno(10L, actualizacion(alumno, null));
 
         assertEquals(EstadoInscripcion.CANCELADA, actual.getEstado());
+        assertEquals(LocalDate.now(), actual.getFechaFin());
         assertNull(response.getMembresiaId());
     }
 
@@ -347,7 +350,7 @@ class AlumnoServiceTest {
     void obtenerAlumnoPorEmail_devuelveLosDatosConLaInscripcionActiva() {
         Alumno alumno = alumnoExistente();
         LocalDate inicio = LocalDate.now().minusDays(5);
-        alumno.agregarInscripcion(new Inscripcion(1L, inicio, inicio.plusDays(30), EstadoInscripcion.ACTIVA, null, membresia));
+        alumno.agregarInscripcion(new Inscripcion(1L, inicio, null, EstadoInscripcion.ACTIVA, null, membresia));
         when(alumnoRepository.findByCuentaEmailIgnoreCase("juan@email.com")).thenReturn(Optional.of(alumno));
 
         AlumnoResponse response = alumnoService.obtenerAlumnoPorEmail("juan@email.com");
@@ -355,7 +358,6 @@ class AlumnoServiceTest {
         assertEquals("Juan", response.getNombre());
         assertEquals("Pro", response.getMembresiaNombre());
         assertEquals(inicio, response.getFechaInicioInscripcion());
-        assertEquals(inicio.plusDays(30), response.getFechaFinInscripcion());
     }
 
     @Test
@@ -387,8 +389,8 @@ class AlumnoServiceTest {
     void obtenerAlumno_inscripcionActualEsLaActivaSiTiene() {
         Alumno alumno = alumnoExistente();
         Membresia anterior = new Membresia(3L, "Basica", 20000.0, 2, null);
-        alumno.agregarInscripcion(new Inscripcion(1L, LocalDate.now().minusDays(60), LocalDate.now().minusDays(30), EstadoInscripcion.VENCIDA, null, anterior));
-        alumno.agregarInscripcion(new Inscripcion(2L, LocalDate.now(), LocalDate.now().plusDays(30), EstadoInscripcion.ACTIVA, null, membresia));
+        alumno.agregarInscripcion(new Inscripcion(1L, LocalDate.now().minusDays(60), LocalDate.now().minusDays(30), EstadoInscripcion.CANCELADA, null, anterior));
+        alumno.agregarInscripcion(new Inscripcion(2L, LocalDate.now(), null, EstadoInscripcion.ACTIVA, null, membresia));
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
 
         AlumnoResponse response = alumnoService.obtenerAlumno(10L);
@@ -403,7 +405,7 @@ class AlumnoServiceTest {
         Membresia anterior = new Membresia(3L, "Basica", 20000.0, 2, null);
         LocalDate inicio = LocalDate.now().minusDays(40);
         alumno.agregarInscripcion(new Inscripcion(1L, LocalDate.now().minusDays(100), LocalDate.now().minusDays(70), EstadoInscripcion.CANCELADA, null, anterior));
-        alumno.agregarInscripcion(new Inscripcion(2L, inicio, inicio.plusDays(30), EstadoInscripcion.VENCIDA, null, membresia));
+        alumno.agregarInscripcion(new Inscripcion(2L, inicio, inicio.plusDays(30), EstadoInscripcion.CANCELADA, null, membresia));
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
 
         AlumnoResponse response = alumnoService.obtenerAlumno(10L);
@@ -412,7 +414,7 @@ class AlumnoServiceTest {
         assertNull(response.getMembresiaId());
         // ...y la última inscripción se informa con su estado
         assertEquals("Pro", response.getInscripcionActual().getMembresiaNombre());
-        assertEquals(EstadoInscripcion.VENCIDA, response.getInscripcionActual().getEstado());
+        assertEquals(EstadoInscripcion.CANCELADA, response.getInscripcionActual().getEstado());
         assertEquals(inicio, response.getInscripcionActual().getFechaInicio());
         assertEquals(inicio.plusDays(30), response.getInscripcionActual().getFechaFin());
     }

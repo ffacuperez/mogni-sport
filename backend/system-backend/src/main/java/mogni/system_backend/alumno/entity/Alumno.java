@@ -80,7 +80,7 @@ public class Alumno {
                 .max(Comparator.comparing(Inscripcion::getFechaInicio));
     }
 
-    /** La inscripción ACTIVA si tiene; si no, la más reciente (VENCIDA o CANCELADA). Vacío si nunca tuvo. */
+    /** La inscripción ACTIVA si tiene; si no, la más reciente (CANCELADA). Vacío si nunca tuvo. */
     public Optional<Inscripcion> buscarInscripcionActual() {
         return buscarInscripcionActiva().or(() -> inscripciones.stream()
                 .max(Comparator.comparing(Inscripcion::getFechaInicio)

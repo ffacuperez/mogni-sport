@@ -54,10 +54,10 @@ INSERT INTO alumnos (nombre, apellido, edad, telefono, sexo, dni, email, fecha_n
         'valentina.lopez@mail.com', DATE '2001-11-18', NULL, 'Asma leve',
         (SELECT id FROM cuentas WHERE email = 'valentina.lopez@mail.com'));
 
--- 6) Una inscripción ACTIVA por alumno (hoy -> hoy + 30 días)
+-- 6) Una inscripción ACTIVA por alumno (fecha_fin queda NULL mientras está activa)
 INSERT INTO inscripciones (fecha_inicio, fecha_fin, estado, alumno_id, membresia_id) VALUES
-    (CURRENT_DATE, CURRENT_DATE + 30, 'ACTIVA', (SELECT id FROM alumnos WHERE dni = '30111222'), (SELECT id FROM membresias WHERE nombre = 'Musculación 3x')),
-    (CURRENT_DATE, CURRENT_DATE + 30, 'ACTIVA', (SELECT id FROM alumnos WHERE dni = '35222333'), (SELECT id FROM membresias WHERE nombre = 'Full 5x')),
-    (CURRENT_DATE, CURRENT_DATE + 30, 'ACTIVA', (SELECT id FROM alumnos WHERE dni = '38333444'), (SELECT id FROM membresias WHERE nombre = 'Funcional 2x')),
-    (CURRENT_DATE, CURRENT_DATE + 30, 'ACTIVA', (SELECT id FROM alumnos WHERE dni = '40444555'), (SELECT id FROM membresias WHERE nombre = 'Musculación 3x')),
-    (CURRENT_DATE, CURRENT_DATE + 30, 'ACTIVA', (SELECT id FROM alumnos WHERE dni = '42555666'), (SELECT id FROM membresias WHERE nombre = 'Full 5x'));
+    (CURRENT_DATE, NULL, 'ACTIVA', (SELECT id FROM alumnos WHERE dni = '30111222'), (SELECT id FROM membresias WHERE nombre = 'Musculación 3x')),
+    (CURRENT_DATE, NULL, 'ACTIVA', (SELECT id FROM alumnos WHERE dni = '35222333'), (SELECT id FROM membresias WHERE nombre = 'Full 5x')),
+    (CURRENT_DATE, NULL, 'ACTIVA', (SELECT id FROM alumnos WHERE dni = '38333444'), (SELECT id FROM membresias WHERE nombre = 'Funcional 2x')),
+    (CURRENT_DATE, NULL, 'ACTIVA', (SELECT id FROM alumnos WHERE dni = '40444555'), (SELECT id FROM membresias WHERE nombre = 'Musculación 3x')),
+    (CURRENT_DATE, NULL, 'ACTIVA', (SELECT id FROM alumnos WHERE dni = '42555666'), (SELECT id FROM membresias WHERE nombre = 'Full 5x'));

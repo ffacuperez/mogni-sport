@@ -12,6 +12,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.alumno.dto.ActualizarAlumnoRequest;
 import mogni.system_backend.alumno.dto.AlumnoResponse;
 import mogni.system_backend.alumno.dto.RegistrarAlumnoRequest;
@@ -56,7 +57,7 @@ public class AlumnoService {
         String dniNormalizado = normalizarDni(request.getDni());
         String email = normalizarEmail(request.getEmail());
 
-        int edad = Period.between(request.getFechaNacimiento(), LocalDate.now()).getYears();
+        int edad = Period.between(request.getFechaNacimiento(), ZonaHoraria.hoy()).getYears();
         if (edad < EDAD_MINIMA) {
             throw new RegistroInvalidoException(
                 "El alumno debe tener al menos " + EDAD_MINIMA + " años para registrarse");
@@ -132,7 +133,7 @@ public class AlumnoService {
             throw new RegistroInvalidoException("Ya existe otro alumno registrado con ese DNI");
         }
 
-        int edad = Period.between(request.getFechaNacimiento(), LocalDate.now()).getYears();
+        int edad = Period.between(request.getFechaNacimiento(), ZonaHoraria.hoy()).getYears();
         if (edad < EDAD_MINIMA) {
             throw new RegistroInvalidoException(
                 "El alumno debe tener al menos " + EDAD_MINIMA + " años");
@@ -210,7 +211,7 @@ public class AlumnoService {
 
         LocalDate vencimientoAPreservar = activa.flatMap(this::vencimientoAPreservar).orElse(null);
 
-        activa.ifPresent(i -> i.cancelar(LocalDate.now()));
+        activa.ifPresent(i -> i.cancelar(ZonaHoraria.hoy()));
         if (membresiaId != null) {
             alumno.agregarInscripcion(nuevaInscripcion(buscarMembresiaOLanzarError(membresiaId), vencimientoAPreservar));
         }
@@ -232,7 +233,7 @@ public class AlumnoService {
             throw new RegistroInvalidoException(
                 "No se puede cambiar la membresía: la cuota actual todavía no está pagada");
         }
-        return cuota.getFechaVencimiento().isAfter(LocalDate.now())
+        return cuota.getFechaVencimiento().isAfter(ZonaHoraria.hoy())
                 ? Optional.of(cuota.getFechaVencimiento())
                 : Optional.empty();
     }
@@ -243,7 +244,7 @@ public class AlumnoService {
 
     private Inscripcion nuevaInscripcion(Membresia membresia, LocalDate vencimientoAPreservar) {
         Inscripcion inscripcion = new Inscripcion();
-        inscripcion.setFechaInicio(LocalDate.now());
+        inscripcion.setFechaInicio(ZonaHoraria.hoy());
         inscripcion.setEstado(EstadoInscripcion.ACTIVA);
         inscripcion.setMembresia(membresia);
         if (vencimientoAPreservar != null) {

@@ -1,70 +1,73 @@
-export default function MembresiasList({ membresias, selectedId, setSelectedId, onAdd, onEdit, onDelete }) {
+import { Pencil, Plus, Trash2 } from 'lucide-react';
+
+import { formatearMonto } from '../../shared/services/texto';
+import { Button, EmptyRow, PageHeader, Panel, Row, SelectDot, Table } from '../../shared/components/ui';
+
+const COLUMNAS = [
+  { label: '', className: 'w-12' },
+  { label: 'Nombre' },
+  { label: 'Días por semana' },
+  { label: 'Precio (ARS)', className: 'text-right' },
+];
+
+export default function MembresiasList({ membresias, cargando, selectedId, setSelectedId, onAdd, onEdit, onDelete }) {
   const selectedMembresia = membresias.find(m => m.id === selectedId);
 
   return (
-    <div className="animate-in fade-in duration-300">
-      <h1 className="text-3xl font-bold text-white mb-8 tracking-tight">Membresías (Vista de Lista)</h1>
-      
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
-        <div className="flex flex-wrap gap-2 mb-6">
-          <button onClick={onAdd} className="flex items-center gap-2 bg-[#1b5e3a] hover:bg-[#14492d] text-white px-4 py-2 rounded-md font-medium transition-colors">
-            <span className="text-xl leading-none">+</span> Agregar Nueva Membresía
-          </button>
-          
-          {selectedMembresia && (
-            <button onClick={onEdit} className="flex items-center gap-2 bg-[#1b5e3a] hover:bg-[#14492d] text-white px-4 py-2 rounded-md font-medium transition-colors">
-              Modificar Membresía
-            </button>
-          )}
+    <div className="animate-fade-in">
+      <PageHeader
+        eyebrow={`Gestión · ${membresias.length} ${membresias.length === 1 ? 'plan' : 'planes'}`}
+        title="Membresías"
+        actions={
+          <Button variant="primary" onClick={onAdd}>
+            <Plus className="h-4 w-4" /> Agregar nueva membresía
+          </Button>
+        }
+      />
 
-          {selectedMembresia && (
-            <button onClick={onDelete} className="flex items-center gap-2 bg-red-800 hover:bg-red-900 text-white px-4 py-2 rounded-md font-medium transition-colors">
-              Eliminar Membresía
-            </button>
+      <Panel className="p-4 sm:p-5">
+        <div className="mb-5 flex min-h-9 flex-wrap items-center gap-2">
+          {selectedMembresia ? (
+            <>
+              <span className="mr-2 text-sm text-ink-soft">
+                Seleccionada: <span className="font-semibold text-ink">{selectedMembresia.nombre}</span>
+              </span>
+              <Button variant="secondary" size="sm" onClick={onEdit}>
+                <Pencil className="h-3.5 w-3.5" /> Modificar
+              </Button>
+              <Button variant="danger" size="sm" onClick={onDelete}>
+                <Trash2 className="h-3.5 w-3.5" /> Eliminar
+              </Button>
+            </>
+          ) : (
+            <p className="text-sm text-ink-muted">Seleccioná una membresía para modificarla o eliminarla.</p>
           )}
         </div>
 
-        <div className="overflow-x-auto rounded-lg border border-red-950/30">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-slate-800/50 text-slate-300">
-              <tr>
-                <th className="px-4 py-3 w-12 text-center"></th>
-                <th className="px-4 py-3 font-semibold bg-slate-800/80 rounded-l-md mx-1">Nombre</th>
-                <th className="px-4 py-3 font-semibold bg-slate-800/80 mx-1">Días por semana</th>
-                <th className="px-4 py-3 font-semibold bg-slate-800/80 rounded-r-md mx-1">Precio (ARS)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-red-950/30">
-              {membresias.map((membresia) => (
-                <tr 
-                  key={membresia.id} 
-                  className={`hover:bg-slate-800/40 transition-colors ${selectedId === membresia.id ? 'bg-red-950/20' : ''}`}
-                  onClick={() => setSelectedId(selectedId === membresia.id ? null : membresia.id)}
-                >
-                  <td className="px-4 py-3 text-center">
-                    <input 
-                      type="checkbox" 
-                      checked={selectedId === membresia.id}
-                      onChange={() => {}} 
-                      className="w-4 h-4 rounded border-slate-600 text-red-600 bg-slate-800 focus:ring-red-600 focus:ring-offset-slate-900 cursor-pointer accent-red-600"
-                    />
-                  </td>
-                  <td className="px-4 py-3">{membresia.nombre}</td>
-                  <td className="px-4 py-3">{membresia.dias === '' ? '—' : `${membresia.dias} días`}</td>
-                  <td className="px-4 py-3">${Number(membresia.precio).toLocaleString('es-AR')}</td>
-                </tr>
-              ))}
-              {membresias.length === 0 && (
-                <tr>
-                  <td colSpan="4" className="px-4 py-8 text-center text-slate-500">
-                    No hay membresías registradas.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        <Table columns={COLUMNAS} cargando={cargando}>
+          {membresias.map((membresia) => {
+            const seleccionada = selectedId === membresia.id;
+            return (
+              <Row
+                key={membresia.id}
+                selected={seleccionada}
+                onActivate={() => setSelectedId(seleccionada ? null : membresia.id)}
+              >
+                <td className="px-3"><SelectDot selected={seleccionada} /></td>
+                <td className="px-3 font-semibold text-ink">{membresia.nombre}</td>
+                <td className="px-3">
+                  <span className="tabular-nums">{membresia.dias}</span>
+                  <span className="text-ink-soft"> {membresia.dias === '1' ? 'día' : 'días'}</span>
+                </td>
+                <td className="px-3 text-right tabular-nums">{formatearMonto(membresia.precio)}</td>
+              </Row>
+            );
+          })}
+          {membresias.length === 0 && (
+            <EmptyRow colSpan={COLUMNAS.length}>{cargando ? 'Cargando membresías...' : 'No hay membresías registradas.'}</EmptyRow>
+          )}
+        </Table>
+      </Panel>
     </div>
   );
 }

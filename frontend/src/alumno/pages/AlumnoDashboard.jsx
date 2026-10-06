@@ -1,13 +1,26 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, Calendar, CreditCard, Dumbbell, Flame, User } from 'lucide-react';
+import { AlertCircle, Calendar, CreditCard, Dumbbell, User } from 'lucide-react';
 
 import { obtenerMiPerfil } from '../services/alumnosService';
+import { formatearFecha } from '../../shared/services/texto';
+import { Badge, Cargando, Panel } from '../../shared/components/ui';
 
-const formatearFecha = (iso) => {
-  if (!iso) return '—';
-  const [anio, mes, dia] = iso.split('-');
-  return `${dia}/${mes}/${anio}`;
-};
+function Tarjeta({ etiqueta, icono: Icono, children, pie }) {
+  return (
+    <Panel className="flex flex-col justify-between p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-ink-soft">{etiqueta}</p>
+          {children}
+        </div>
+        <span className="rounded-lg bg-error-bg p-2.5 text-primary">
+          <Icono className="h-5 w-5" />
+        </span>
+      </div>
+      <div className="mt-4 border-t border-line pt-4 text-xs">{pie}</div>
+    </Panel>
+  );
+}
 
 export default function AlumnoDashboard() {
   const [alumno, setAlumno] = useState(null);
@@ -21,123 +34,81 @@ export default function AlumnoDashboard() {
 
   if (error) {
     return (
-      <div className="max-w-6xl mx-auto">
-        <div className="bg-[#151c24] border border-red-900/40 rounded-2xl p-6 flex items-center gap-3 text-red-400">
-          <AlertCircle className="w-5 h-5 shrink-0" />
+      <div className="mx-auto max-w-6xl">
+        <div role="alert" className="flex items-center gap-3 rounded-lg border border-line bg-error-bg p-6 text-error">
+          <AlertCircle className="h-5 w-5 shrink-0" />
           <span className="text-sm">{error}</span>
         </div>
       </div>
     );
   }
 
-  if (!alumno) {
-    return (
-      <div className="max-w-6xl mx-auto text-sm text-gray-400" role="status">
-        Cargando tus datos...
-      </div>
-    );
-  }
+  if (!alumno) return <Cargando texto="Cargando tus datos" />;
 
   const tieneMembresia = Boolean(alumno.membresiaId);
   const activo = alumno.estado === 'Activo';
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-fadeIn">
+    <div className="mx-auto max-w-6xl space-y-6 animate-fade-in">
 
-      {/* Banner de Bienvenida */}
-      <div className="bg-gradient-to-r from-[#151c24] to-[#1d2630] border border-red-900/30 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-[-20%] right-[-10%] w-[300px] h-[300px] bg-red-600/10 rounded-full blur-[100px] pointer-events-none" />
-
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-10">
+      {/* Banner de bienvenida */}
+      <Panel className="p-6 sm:p-8">
+        <div className="flex flex-col items-start justify-between gap-5 md:flex-row md:items-center">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-950/60 border border-red-800/50 text-red-400 text-xs font-bold tracking-wider uppercase mb-3">
-              <Flame className="w-3.5 h-3.5 text-[#B32334]" /> Alumno
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
-              ¡Hola, {alumno.nombre}!
-            </h1>
-            <p className="text-gray-400 text-sm mt-1">
-              Bienvenido a tu panel de entrenamiento en Mogni Sport.
-            </p>
+            <p className="mb-1 text-xs font-medium text-ink-soft">Panel del alumno</p>
+            <h1 className="text-2xl font-bold text-ink">¡Hola, {alumno.nombre}!</h1>
+            <p className="mt-1 text-sm text-ink-soft">Bienvenido a tu panel de entrenamiento en Mogni Sport.</p>
           </div>
 
-          <div className="bg-[#131A22] border border-gray-800 rounded-2xl p-4 flex items-center gap-4 shadow-inner">
-            <div className="w-12 h-12 rounded-xl bg-red-600/20 border border-red-500/30 flex items-center justify-center text-red-500 font-bold text-lg">
+          <div className="flex items-center gap-4 rounded-lg border border-line bg-row-hover p-4">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-error-bg text-lg font-bold text-primary">
               {alumno.nombre?.[0]}{alumno.apellido?.[0]}
-            </div>
-            <div>
-              <p className="text-sm font-bold text-white">{alumno.nombre} {alumno.apellido}</p>
-              <p className="text-xs text-gray-400">DNI: {alumno.dni}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Tarjetas de Resumen */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-
-        {/* Membresía */}
-        <div className="bg-[#151c24] border border-gray-800 hover:border-red-900/50 transition-all rounded-2xl p-5 shadow-xl flex flex-col justify-between">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-xs font-semibold text-gray-400 tracking-wider uppercase">Tu Membresía</p>
-              <h3 className="text-xl font-extrabold text-white mt-1">{tieneMembresia ? alumno.membresia : 'Sin membresía'}</h3>
-            </div>
-            <div className="p-2.5 rounded-xl bg-red-600/10 text-[#B32334]">
-              <CreditCard className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-4 pt-4 border-t border-gray-800/80 flex items-center justify-between text-xs">
-            <span className={`font-medium flex items-center gap-1.5 ${activo ? 'text-emerald-400' : 'text-red-400'}`}>
-              <span className={`w-2 h-2 rounded-full ${activo ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span> {alumno.estado}
             </span>
-          </div>
-        </div>
-
-        {/* Inscripción */}
-        <div className="bg-[#151c24] border border-gray-800 hover:border-red-900/50 transition-all rounded-2xl p-5 shadow-xl flex flex-col justify-between">
-          <div className="flex justify-between items-start">
             <div>
-              <p className="text-xs font-semibold text-gray-400 tracking-wider uppercase">Inscripción</p>
-              <h3 className="text-xl font-extrabold text-white mt-1">{formatearFecha(alumno.fechaIngreso)}</h3>
+              <p className="text-sm font-bold text-ink">{alumno.nombre} {alumno.apellido}</p>
+              <p className="text-xs tabular-nums text-ink-soft">DNI {alumno.dni}</p>
             </div>
-            <div className="p-2.5 rounded-xl bg-red-600/10 text-[#B32334]">
-              <Calendar className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-4 pt-4 border-t border-gray-800/80 flex items-center justify-between text-xs">
-            <span className="text-gray-400">Fecha de inicio de tu membresía actual</span>
           </div>
         </div>
+      </Panel>
 
-        {/* Datos de contacto */}
-        <div className="bg-[#151c24] border border-gray-800 hover:border-red-900/50 transition-all rounded-2xl p-5 shadow-xl flex flex-col justify-between">
-          <div className="flex justify-between items-start">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold text-gray-400 tracking-wider uppercase">Tus Datos</p>
-              <h3 className="text-sm font-bold text-white mt-1 truncate">{alumno.email}</h3>
-              <p className="text-xs text-gray-400 mt-1">{alumno.telefono || 'Sin teléfono'}</p>
-            </div>
-            <div className="p-2.5 rounded-xl bg-red-600/10 text-[#B32334]">
-              <User className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-4 pt-4 border-t border-gray-800/80 text-xs">
-            <span className="text-gray-400">Objetivo: </span>
-            <span className="text-gray-200">{alumno.objetivo || 'Sin definir'}</span>
-          </div>
-        </div>
+      {/* Tarjetas de resumen */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Tarjeta
+          etiqueta="Tu membresía"
+          icono={CreditCard}
+          pie={<Badge tone={activo ? 'success' : 'error'}>{alumno.estado}</Badge>}
+        >
+          <h3 className="mt-1 text-base font-semibold text-ink">{tieneMembresia ? alumno.membresia : 'Sin membresía'}</h3>
+        </Tarjeta>
 
+        <Tarjeta
+          etiqueta="Inscripción"
+          icono={Calendar}
+          pie={<span className="text-ink-soft">Fecha de inicio de tu membresía actual</span>}
+        >
+          <h3 className="mt-1 text-base font-semibold tabular-nums text-ink">{formatearFecha(alumno.fechaIngreso)}</h3>
+        </Tarjeta>
+
+        <Tarjeta
+          etiqueta="Tus datos"
+          icono={User}
+          pie={<><span className="text-ink-soft">Objetivo: </span><span className="text-ink">{alumno.objetivo || 'Sin definir'}</span></>}
+        >
+          <h3 className="mt-1 truncate text-sm font-bold text-ink">{alumno.email}</h3>
+          <p className="mt-1 text-xs text-ink-soft">{alumno.telefono || 'Sin teléfono'}</p>
+        </Tarjeta>
       </div>
 
       {/* Rutinas: todavía no existen en el backend */}
-      <div className="bg-[#151c24] border border-gray-800 rounded-3xl p-6 shadow-xl">
-        <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-4">
-          <Dumbbell className="w-5 h-5 text-[#B32334]" /> Tus Rutinas Asignadas
+      <Panel className="p-6">
+        <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-ink">
+          <Dumbbell className="h-5 w-5 text-primary" /> Tus rutinas asignadas
         </h2>
-        <p className="text-sm text-gray-400">Todavía no tenés rutinas asignadas.</p>
-      </div>
-
+        <p className="rounded-lg border border-dashed border-line bg-row-hover px-4 py-6 text-center text-sm text-ink-soft">
+          Todavía no tenés rutinas asignadas.
+        </p>
+      </Panel>
     </div>
   );
 }

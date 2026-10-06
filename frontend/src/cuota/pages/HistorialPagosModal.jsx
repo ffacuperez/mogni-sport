@@ -1,51 +1,49 @@
 import { formatearFecha, formatearMonto, formatearPeriodo, labelMedioDePago } from '../services/cuotasService';
+import { Button, Cargando, Modal } from '../../shared/components/ui';
 
 export default function HistorialPagosModal({ alumno, pagos, cargando, onClose }) {
   if (!alumno) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200">
-        <h3 className="text-xl font-bold text-white mb-1">Historial de pagos</h3>
-        <p className="text-slate-400 text-sm mb-5">{alumno.nombre} {alumno.apellido} · DNI {alumno.dni}</p>
-
-        {cargando ? (
-          <p className="text-slate-400 text-sm text-center py-6">Cargando historial...</p>
-        ) : pagos.length === 0 ? (
-          <p className="text-slate-400 text-sm bg-slate-900/60 border border-slate-700 rounded-md px-4 py-6 text-center">
-            Este alumno no tiene pagos registrados.
-          </p>
-        ) : (
-          <div className="max-h-80 overflow-y-auto rounded-md border border-slate-700">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-900/90 text-slate-300 sticky top-0">
-                <tr>
-                  <th className="px-4 py-2 font-semibold">Fecha</th>
-                  <th className="px-4 py-2 font-semibold">Periodo</th>
-                  <th className="px-4 py-2 font-semibold">Monto</th>
-                  <th className="px-4 py-2 font-semibold">Medio de pago</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-700">
-                {pagos.map((pago) => (
-                  <tr key={pago.id} className="bg-slate-900/40">
-                    <td className="px-4 py-3 text-slate-200 whitespace-nowrap">{formatearFecha(pago.fecha)}</td>
-                    <td className="px-4 py-3 text-slate-200 whitespace-nowrap">{formatearPeriodo(pago.periodo)}</td>
-                    <td className="px-4 py-3 font-semibold text-emerald-400 whitespace-nowrap">{formatearMonto(pago.monto)}</td>
-                    <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{labelMedioDePago(pago.medioDePago)}</td>
-                  </tr>
+    <Modal
+      title="Historial de pagos"
+      subtitle={`${alumno.nombre} ${alumno.apellido} · DNI ${alumno.dni}`}
+      onClose={onClose}
+      size="lg"
+    >
+      {cargando ? (
+        <Cargando texto="Cargando historial" className="py-8" />
+      ) : pagos.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-line bg-row-hover px-4 py-8 text-center text-sm text-ink-soft">
+          Este alumno no tiene pagos registrados.
+        </p>
+      ) : (
+        <div className="max-h-80 overflow-y-auto rounded-lg border border-line">
+          <table className="w-full text-left text-sm">
+            <thead className="sticky top-0 bg-thead">
+              <tr>
+                {['Fecha', 'Periodo', 'Monto', 'Medio de pago'].map((th) => (
+                  <th key={th} scope="col" className="h-12 px-3 text-[13px] font-semibold text-ink-soft">{th}</th>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <div className="flex justify-end mt-6">
-          <button onClick={onClose} className="px-4 py-2 rounded bg-slate-700 text-white hover:bg-slate-600 transition-colors">
-            Cerrar
-          </button>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line-soft bg-card">
+              {pagos.map((pago) => (
+                <tr key={pago.id}>
+                  <td className="h-12 whitespace-nowrap px-3 tabular-nums text-ink">{formatearFecha(pago.fecha)}</td>
+                  <td className="h-12 whitespace-nowrap px-3 tabular-nums text-ink">{formatearPeriodo(pago.periodo)}</td>
+                  <td className="h-12 whitespace-nowrap px-3 font-semibold tabular-nums text-success">{formatearMonto(pago.monto)}</td>
+                  <td className="h-12 whitespace-nowrap px-3 text-ink-soft">{labelMedioDePago(pago.medioDePago)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
+      )}
+
+      <div className="mt-6 flex justify-end">
+        <Button variant="ghost" onClick={onClose}>Cerrar</Button>
       </div>
-    </div>
+    </Modal>
   );
 }

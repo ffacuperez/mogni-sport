@@ -25,6 +25,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.alumno.dto.ActualizarAlumnoRequest;
 import mogni.system_backend.alumno.dto.AlumnoResponse;
 import mogni.system_backend.alumno.dto.RegistrarAlumnoRequest;
@@ -74,7 +75,7 @@ class AlumnoServiceTest {
         request.setApellido("Perez");
         request.setDni("12.345.678");
         request.setEmail("juan@email.com");
-        request.setFechaNacimiento(LocalDate.now().minusYears(30));
+        request.setFechaNacimiento(ZonaHoraria.hoy().minusYears(30));
         request.setTelefono("1122334455");
         request.setSexo("Masculino");
         request.setMembresiaId(7L);
@@ -88,7 +89,7 @@ class AlumnoServiceTest {
         alumno.setNombre("Juan");
         alumno.setApellido("Perez");
         alumno.setDni("12345678");
-        alumno.setFechaNacimiento(LocalDate.now().minusYears(30));
+        alumno.setFechaNacimiento(ZonaHoraria.hoy().minusYears(30));
         alumno.setCuenta(cuenta);
         return alumno;
     }
@@ -133,7 +134,7 @@ class AlumnoServiceTest {
         assertEquals(1, guardado.getInscripciones().size());
         Inscripcion inscripcion = guardado.getInscripciones().get(0);
         assertEquals(EstadoInscripcion.ACTIVA, inscripcion.getEstado());
-        assertEquals(LocalDate.now(), inscripcion.getFechaInicio());
+        assertEquals(ZonaHoraria.hoy(), inscripcion.getFechaInicio());
         assertNull(inscripcion.getFechaFin());
         assertEquals(membresia, inscripcion.getMembresia());
         assertEquals(guardado, inscripcion.getAlumno());
@@ -142,7 +143,7 @@ class AlumnoServiceTest {
         assertEquals(1, inscripcion.getCuotas().size());
         Cuota cuota = inscripcion.getCuotas().get(0);
         assertEquals(EstadoCuota.PENDIENTE, cuota.getEstado());
-        assertEquals(LocalDate.now().plusDays(30), cuota.getFechaVencimiento());
+        assertEquals(ZonaHoraria.hoy().plusDays(30), cuota.getFechaVencimiento());
         assertEquals(0, BigDecimal.valueOf(40000).compareTo(cuota.getMontoEsperado()));
     }
 
@@ -182,7 +183,7 @@ class AlumnoServiceTest {
     @Test
     void registrarAlumno_rechazaMenoresDeEdadMinima() {
         RegistrarAlumnoRequest request = registro();
-        request.setFechaNacimiento(LocalDate.now().minusYears(16).plusDays(1));
+        request.setFechaNacimiento(ZonaHoraria.hoy().minusYears(16).plusDays(1));
 
         assertThrows(RegistroInvalidoException.class, () -> alumnoService.registrarAlumno(request));
         verify(alumnoRepository, never()).save(any());
@@ -191,7 +192,7 @@ class AlumnoServiceTest {
     @Test
     void registrarAlumno_aceptaAlumnoQueCumple16Hoy() {
         RegistrarAlumnoRequest request = registro();
-        request.setFechaNacimiento(LocalDate.now().minusYears(16));
+        request.setFechaNacimiento(ZonaHoraria.hoy().minusYears(16));
         when(membresiaRepository.findById(7L)).thenReturn(Optional.of(membresia));
         when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -283,7 +284,7 @@ class AlumnoServiceTest {
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
 
         ActualizarAlumnoRequest request = actualizacion(alumno, null);
-        request.setFechaNacimiento(LocalDate.now().minusYears(15));
+        request.setFechaNacimiento(ZonaHoraria.hoy().minusYears(15));
         RegistroInvalidoException ex = assertThrows(RegistroInvalidoException.class,
                 () -> alumnoService.actualizarAlumno(10L, request));
 
@@ -309,7 +310,7 @@ class AlumnoServiceTest {
     void actualizarAlumno_cambiarMembresiaCancelaLaActivaYCreaOtra() {
         Alumno alumno = alumnoExistente();
         Membresia anterior = new Membresia(3L, "Basica", 20000.0, 2, null);
-        Inscripcion vieja = new Inscripcion(1L, LocalDate.now().minusDays(10), null,
+        Inscripcion vieja = new Inscripcion(1L, ZonaHoraria.hoy().minusDays(10), null,
                 EstadoInscripcion.ACTIVA, null, anterior);
         alumno.agregarInscripcion(vieja);
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
@@ -319,7 +320,7 @@ class AlumnoServiceTest {
         AlumnoResponse response = alumnoService.actualizarAlumno(10L, actualizacion(alumno, 7L));
 
         assertEquals(EstadoInscripcion.CANCELADA, vieja.getEstado());
-        assertEquals(LocalDate.now(), vieja.getFechaFin());
+        assertEquals(ZonaHoraria.hoy(), vieja.getFechaFin());
         assertEquals(2, alumno.getInscripciones().size());
         Inscripcion nueva = alumno.getInscripciones().get(1);
         assertNull(nueva.getFechaFin());
@@ -332,11 +333,11 @@ class AlumnoServiceTest {
     void actualizarAlumno_rechazaCambioDeMembresiaConCuotaActualSinPagar() {
         Alumno alumno = alumnoExistente();
         Membresia anterior = new Membresia(3L, "Basica", 20000.0, 2, null);
-        Inscripcion vieja = new Inscripcion(1L, LocalDate.now().minusDays(10), null,
+        Inscripcion vieja = new Inscripcion(1L, ZonaHoraria.hoy().minusDays(10), null,
                 EstadoInscripcion.ACTIVA, null, anterior);
         Cuota cuotaSinPagar = new Cuota();
         cuotaSinPagar.setEstado(EstadoCuota.PENDIENTE);
-        cuotaSinPagar.setFechaVencimiento(LocalDate.now().plusDays(10));
+        cuotaSinPagar.setFechaVencimiento(ZonaHoraria.hoy().plusDays(10));
         vieja.getCuotas().add(cuotaSinPagar);
         alumno.agregarInscripcion(vieja);
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
@@ -352,11 +353,11 @@ class AlumnoServiceTest {
     @Test
     void actualizarAlumno_rechazaQuitarMembresiaConCuotaActualAtrasada() {
         Alumno alumno = alumnoExistente();
-        Inscripcion actual = new Inscripcion(1L, LocalDate.now().minusDays(40), null,
+        Inscripcion actual = new Inscripcion(1L, ZonaHoraria.hoy().minusDays(40), null,
                 EstadoInscripcion.ACTIVA, null, membresia);
         Cuota cuotaAtrasada = new Cuota();
         cuotaAtrasada.setEstado(EstadoCuota.ATRASADA);
-        cuotaAtrasada.setFechaVencimiento(LocalDate.now().minusDays(10));
+        cuotaAtrasada.setFechaVencimiento(ZonaHoraria.hoy().minusDays(10));
         actual.getCuotas().add(cuotaAtrasada);
         alumno.agregarInscripcion(actual);
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
@@ -371,11 +372,11 @@ class AlumnoServiceTest {
     void actualizarAlumno_cambioDeMembresiaPreservaDiasPagosRestantes() {
         Alumno alumno = alumnoExistente();
         Membresia anterior = new Membresia(3L, "Basica", 20000.0, 2, null);
-        Inscripcion vieja = new Inscripcion(1L, LocalDate.now().minusDays(20), null,
+        Inscripcion vieja = new Inscripcion(1L, ZonaHoraria.hoy().minusDays(20), null,
                 EstadoInscripcion.ACTIVA, null, anterior);
         Cuota cuotaPagada = new Cuota();
         cuotaPagada.setEstado(EstadoCuota.PAGADA);
-        LocalDate vencimientoAnterior = LocalDate.now().plusDays(10); // todavía le quedan 10 días pagos
+        LocalDate vencimientoAnterior = ZonaHoraria.hoy().plusDays(10); // todavía le quedan 10 días pagos
         cuotaPagada.setFechaVencimiento(vencimientoAnterior);
         vieja.getCuotas().add(cuotaPagada);
         alumno.agregarInscripcion(vieja);
@@ -395,11 +396,11 @@ class AlumnoServiceTest {
     void actualizarAlumno_cambioDeMembresiaSinDiasRestantesCalculaDesdeHoy() {
         Alumno alumno = alumnoExistente();
         Membresia anterior = new Membresia(3L, "Basica", 20000.0, 2, null);
-        Inscripcion vieja = new Inscripcion(1L, LocalDate.now().minusDays(40), null,
+        Inscripcion vieja = new Inscripcion(1L, ZonaHoraria.hoy().minusDays(40), null,
                 EstadoInscripcion.ACTIVA, null, anterior);
         Cuota cuotaPagadaVencida = new Cuota();
         cuotaPagadaVencida.setEstado(EstadoCuota.PAGADA);
-        cuotaPagadaVencida.setFechaVencimiento(LocalDate.now().minusDays(5)); // pagada tarde, ya sin días restantes
+        cuotaPagadaVencida.setFechaVencimiento(ZonaHoraria.hoy().minusDays(5)); // pagada tarde, ya sin días restantes
         vieja.getCuotas().add(cuotaPagadaVencida);
         alumno.agregarInscripcion(vieja);
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
@@ -409,13 +410,13 @@ class AlumnoServiceTest {
         alumnoService.actualizarAlumno(10L, actualizacion(alumno, 7L));
 
         Inscripcion nueva = alumno.getInscripciones().get(1);
-        assertEquals(LocalDate.now().plusDays(30), nueva.getCuotas().get(0).getFechaVencimiento());
+        assertEquals(ZonaHoraria.hoy().plusDays(30), nueva.getCuotas().get(0).getFechaVencimiento());
     }
 
     @Test
     void actualizarAlumno_mismaMembresiaNoCreaOtraInscripcion() {
         Alumno alumno = alumnoExistente();
-        Inscripcion actual = new Inscripcion(1L, LocalDate.now(), null,
+        Inscripcion actual = new Inscripcion(1L, ZonaHoraria.hoy(), null,
                 EstadoInscripcion.ACTIVA, null, membresia);
         alumno.agregarInscripcion(actual);
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
@@ -430,7 +431,7 @@ class AlumnoServiceTest {
     @Test
     void actualizarAlumno_sinMembresiaCancelaLaActiva() {
         Alumno alumno = alumnoExistente();
-        Inscripcion actual = new Inscripcion(1L, LocalDate.now(), null,
+        Inscripcion actual = new Inscripcion(1L, ZonaHoraria.hoy(), null,
                 EstadoInscripcion.ACTIVA, null, membresia);
         alumno.agregarInscripcion(actual);
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
@@ -439,14 +440,14 @@ class AlumnoServiceTest {
         AlumnoResponse response = alumnoService.actualizarAlumno(10L, actualizacion(alumno, null));
 
         assertEquals(EstadoInscripcion.CANCELADA, actual.getEstado());
-        assertEquals(LocalDate.now(), actual.getFechaFin());
+        assertEquals(ZonaHoraria.hoy(), actual.getFechaFin());
         assertNull(response.getMembresiaId());
     }
 
     @Test
     void obtenerAlumnoPorEmail_devuelveLosDatosConLaInscripcionActiva() {
         Alumno alumno = alumnoExistente();
-        LocalDate inicio = LocalDate.now().minusDays(5);
+        LocalDate inicio = ZonaHoraria.hoy().minusDays(5);
         alumno.agregarInscripcion(new Inscripcion(1L, inicio, null, EstadoInscripcion.ACTIVA, null, membresia));
         when(alumnoRepository.findByCuentaEmailIgnoreCase("juan@email.com")).thenReturn(Optional.of(alumno));
 
@@ -486,8 +487,8 @@ class AlumnoServiceTest {
     void obtenerAlumno_inscripcionActualEsLaActivaSiTiene() {
         Alumno alumno = alumnoExistente();
         Membresia anterior = new Membresia(3L, "Basica", 20000.0, 2, null);
-        alumno.agregarInscripcion(new Inscripcion(1L, LocalDate.now().minusDays(60), LocalDate.now().minusDays(30), EstadoInscripcion.CANCELADA, null, anterior));
-        alumno.agregarInscripcion(new Inscripcion(2L, LocalDate.now(), null, EstadoInscripcion.ACTIVA, null, membresia));
+        alumno.agregarInscripcion(new Inscripcion(1L, ZonaHoraria.hoy().minusDays(60), ZonaHoraria.hoy().minusDays(30), EstadoInscripcion.CANCELADA, null, anterior));
+        alumno.agregarInscripcion(new Inscripcion(2L, ZonaHoraria.hoy(), null, EstadoInscripcion.ACTIVA, null, membresia));
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
 
         AlumnoResponse response = alumnoService.obtenerAlumno(10L);
@@ -500,8 +501,8 @@ class AlumnoServiceTest {
     void obtenerAlumno_sinActivaMuestraLaUltimaConSuEstado() {
         Alumno alumno = alumnoExistente();
         Membresia anterior = new Membresia(3L, "Basica", 20000.0, 2, null);
-        LocalDate inicio = LocalDate.now().minusDays(40);
-        alumno.agregarInscripcion(new Inscripcion(1L, LocalDate.now().minusDays(100), LocalDate.now().minusDays(70), EstadoInscripcion.CANCELADA, null, anterior));
+        LocalDate inicio = ZonaHoraria.hoy().minusDays(40);
+        alumno.agregarInscripcion(new Inscripcion(1L, ZonaHoraria.hoy().minusDays(100), ZonaHoraria.hoy().minusDays(70), EstadoInscripcion.CANCELADA, null, anterior));
         alumno.agregarInscripcion(new Inscripcion(2L, inicio, inicio.plusDays(30), EstadoInscripcion.CANCELADA, null, membresia));
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
 

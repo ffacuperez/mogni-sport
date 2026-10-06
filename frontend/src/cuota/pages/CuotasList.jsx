@@ -1,8 +1,21 @@
-import { clasesEstadoCuota, formatearFecha, formatearMonto } from '../services/cuotasService';
+import { AlertTriangle, Clock, History, Receipt, Wallet } from 'lucide-react';
 
-const IconSearch = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
+import { avisoVencimiento, formatearFecha, formatearMonto, tonoEstadoCuota } from '../services/cuotasService';
+import { normalizar } from '../../shared/services/texto';
+import { Badge, Button, EmptyRow, PageHeader, Panel, Row, SearchInput, SelectDot, Stat, Table } from '../../shared/components/ui';
 
-const FILTROS = ['Todas', 'Próxima a vencer', 'Vencida'];
+// Un filtro por cada estado que se muestra en la tabla
+const FILTROS = ['Todas', 'Al día', 'Próxima a vencer', 'Vencida'];
+
+const COLUMNAS = [
+  { label: '', className: 'w-12' },
+  { label: 'Alumno' },
+  { label: 'DNI' },
+  { label: 'Membresía' },
+  { label: 'Monto', className: 'text-right' },
+  { label: 'Vencimiento' },
+  { label: 'Estado' },
+];
 
 export default function CuotasList({
   cuotas,
@@ -16,73 +29,69 @@ export default function CuotasList({
   filtro,
   setFiltro,
 }) {
+  // Misma búsqueda que en Alumnos: sin tildes ni mayúsculas, también por "nombre apellido"
+  const termino = normalizar(searchTerm.trim());
+  const coincide = (c) => !termino
+    || c.dni.includes(termino)
+    || normalizar(c.nombre).includes(termino)
+    || normalizar(c.apellido).includes(termino)
+    || normalizar(`${c.nombre} ${c.apellido}`).includes(termino);
+
   // El backend ya devuelve solo cuotas de alumnos activos con inscripción activa.
   const filas = cuotas
-    .filter((cuota) => {
-      const term = searchTerm.trim().toLowerCase();
-      if (!term) return true;
-      return (
-        cuota.dni.includes(term) ||
-        cuota.nombre.toLowerCase().includes(term) ||
-        cuota.apellido.toLowerCase().includes(term)
-      );
-    })
+    .filter(coincide)
     .filter((cuota) => filtro === 'Todas' || cuota.estado === filtro);
 
   const seleccion = filas.find((c) => c.id === selectedId);
 
+  const porCobrar = cuotas.filter((c) => c.pagable);
+  const cantidad = (estado) => cuotas.filter((c) => c.estado === estado).length;
+  const totalPorCobrar = porCobrar.reduce((total, c) => total + c.monto, 0);
+
+  let vacio = 'No hay cuotas que coincidan con la búsqueda.';
+  if (cargando) vacio = 'Cargando cuotas...';
+  else if (cuotas.length === 0) vacio = 'No hay cuotas registradas.';
+
   return (
-    <div className="animate-in fade-in duration-300">
-      <h1 className="text-3xl font-bold text-white mb-8 tracking-tight">Cuotas</h1>
+    <div className="animate-fade-in">
+      <PageHeader eyebrow="Cobranzas · Propietario" title="Cuotas" />
 
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => onRegistrarPago(seleccion)}
-              disabled={!seleccion?.pagable}
-              className="flex items-center gap-2 bg-[#1b5e3a] hover:bg-[#14492d] text-white px-4 py-2 rounded-md font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#1b5e3a]"
-            >
-              Registrar Pago
-            </button>
-            <button
-              onClick={() => onVerHistorial(seleccion)}
-              disabled={!seleccion}
-              className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-md font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-700"
-            >
-              Ver Historial
-            </button>
-            {!seleccion && (
-              <p className="text-sm text-slate-500">Seleccioná una cuota para registrar el pago o ver el historial.</p>
-            )}
-            {seleccion && !seleccion.pagable && (
-              <p className="text-sm text-slate-500">La cuota seleccionada ya está pagada.</p>
-            )}
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat label="Por cobrar" value={porCobrar.length} icon={Receipt} />
+        <Stat label="Vencidas" value={cantidad('Vencida')} tone={cantidad('Vencida') ? 'error' : 'neutral'} icon={AlertTriangle} />
+        <Stat label="Próximas a vencer" value={cantidad('Próxima a vencer')} tone={cantidad('Próxima a vencer') ? 'warning' : 'neutral'} icon={Clock} />
+        <Stat label="Monto pendiente" value={formatearMonto(totalPorCobrar)} tone="primary" icon={Wallet} />
+      </div>
+
+      <Panel className="p-4 sm:p-5">
+        <div className="mb-4 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="primary" onClick={() => onRegistrarPago(seleccion)} disabled={!seleccion?.pagable}>
+              <Wallet className="h-4 w-4" /> Registrar pago
+            </Button>
+            <Button onClick={() => onVerHistorial(seleccion)} disabled={!seleccion}>
+              <History className="h-4 w-4" /> Ver historial
+            </Button>
+            <p className="text-sm text-ink-muted">
+              {!seleccion && 'Seleccioná una cuota para registrar el pago o ver el historial.'}
+              {seleccion && !seleccion.pagable && 'La cuota seleccionada ya está pagada.'}
+            </p>
           </div>
 
-          <div className="relative w-full sm:w-80">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-              <IconSearch />
-            </div>
-            <input
-              type="text"
-              placeholder="Buscar por nombre o DNI"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-white text-slate-900 pl-10 pr-4 py-2 rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-red-500"
-            />
-          </div>
+          <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar por nombre o DNI" label="Buscar cuota por nombre o DNI" />
         </div>
 
-        <div className="flex flex-wrap gap-2 mb-6">
+        <div className="mb-5 flex flex-wrap gap-2" role="group" aria-label="Filtrar por estado">
           {FILTROS.map((f) => (
             <button
               key={f}
+              type="button"
               onClick={() => setFiltro(f)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+              aria-pressed={filtro === f}
+              className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
                 filtro === f
-                  ? 'bg-red-800 text-white'
-                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
+                  ? 'border-primary bg-primary text-on-dark'
+                  : 'border-line bg-card text-ink-soft hover:bg-row-hover hover:text-ink'
               }`}
             >
               {f}
@@ -90,57 +99,33 @@ export default function CuotasList({
           ))}
         </div>
 
-        <div className="overflow-x-auto rounded-lg border border-red-950/30">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-slate-800/50 text-slate-300">
-              <tr>
-                <th className="px-4 py-3 w-12 text-center"></th>
-                <th className="px-4 py-3 font-semibold bg-slate-800/80 rounded-l-md mx-1">Alumno</th>
-                <th className="px-4 py-3 font-semibold bg-slate-800/80 mx-1">DNI</th>
-                <th className="px-4 py-3 font-semibold bg-slate-800/80 mx-1">Membresía</th>
-                <th className="px-4 py-3 font-semibold bg-slate-800/80 mx-1">Monto</th>
-                <th className="px-4 py-3 font-semibold bg-slate-800/80 mx-1">Vencimiento</th>
-                <th className="px-4 py-3 font-semibold bg-slate-800/80 rounded-r-md mx-1">Estado</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-red-950/30">
-              {filas.map((cuota) => (
-                <tr
-                  key={cuota.id}
-                  className={`hover:bg-slate-800/40 transition-colors cursor-pointer ${selectedId === cuota.id ? 'bg-red-950/20' : ''}`}
-                  onClick={() => setSelectedId(selectedId === cuota.id ? null : cuota.id)}
-                >
-                  <td className="px-4 py-3 text-center">
-                    <input
-                      type="checkbox"
-                      checked={selectedId === cuota.id}
-                      onChange={() => {}}
-                      className="w-4 h-4 rounded border-slate-600 text-red-600 bg-slate-800 focus:ring-red-600 focus:ring-offset-slate-900 cursor-pointer accent-red-600"
-                    />
-                  </td>
-                  <td className="px-4 py-3">{cuota.apellido}, {cuota.nombre}</td>
-                  <td className="px-4 py-3 text-slate-300">{cuota.dni}</td>
-                  <td className="px-4 py-3">{cuota.membresia}</td>
-                  <td className="px-4 py-3">{formatearMonto(cuota.monto)}</td>
-                  <td className="px-4 py-3">{formatearFecha(cuota.vencimiento)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${clasesEstadoCuota(cuota.estado)}`}>
-                      {cuota.estado}
+        <Table columns={COLUMNAS} cargando={cargando}>
+          {filas.map((cuota) => {
+            const seleccionada = selectedId === cuota.id;
+            return (
+              <Row key={cuota.id} selected={seleccionada} onActivate={() => setSelectedId(seleccionada ? null : cuota.id)}>
+                <td className="px-3"><SelectDot selected={seleccionada} /></td>
+                <td className="px-3 font-semibold text-ink">{cuota.apellido}, {cuota.nombre}</td>
+                <td className="px-3 tabular-nums text-ink-soft">{cuota.dni}</td>
+                <td className="px-3">{cuota.membresia}</td>
+                <td className="px-3 text-right tabular-nums">{formatearMonto(cuota.monto)}</td>
+                <td className="px-3">
+                  <span className="tabular-nums">{formatearFecha(cuota.vencimiento)}</span>
+                  {avisoVencimiento(cuota) && (
+                    <span className={`block text-xs ${{ 'Vencida': 'text-error', 'Próxima a vencer': 'text-warning-text' }[cuota.estado] ?? 'text-success'}`}>
+                      {avisoVencimiento(cuota)}
                     </span>
-                  </td>
-                </tr>
-              ))}
-              {filas.length === 0 && (
-                <tr>
-                  <td colSpan="7" className="px-4 py-8 text-center text-slate-500">
-                    {cargando ? 'Cargando cuotas...' : 'No hay cuotas que coincidan con la búsqueda.'}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                  )}
+                </td>
+                <td className="px-3">
+                  <Badge tone={tonoEstadoCuota(cuota.estado)}>{cuota.estado}</Badge>
+                </td>
+              </Row>
+            );
+          })}
+          {filas.length === 0 && <EmptyRow colSpan={COLUMNAS.length}>{vacio}</EmptyRow>}
+        </Table>
+      </Panel>
     </div>
   );
 }

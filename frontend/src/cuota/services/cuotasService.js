@@ -19,12 +19,14 @@ function diasHasta(fechaISO) {
 
 /**
  * Estado que se muestra en la pantalla, a partir del estado del backend:
- * ATRASADA -> "Vencida"; PENDIENTE que vence en 5 días o menos -> "Próxima a vencer".
+ * ATRASADA -> "Vencida"; PENDIENTE que vence en 5 días o menos -> "Próxima a vencer";
+ * PAGADA o PENDIENTE con más de 5 días por delante -> "Al día" (no requiere ninguna acción todavía).
+ * Si una cuota "Al día" está paga o no, lo indica `pagable` (y el aviso bajo la fecha).
  */
 function estadoVisible(cuota) {
-  if (cuota.estado === 'PAGADA') return 'Pagada';
   if (cuota.estado === 'ATRASADA') return 'Vencida';
-  return diasHasta(cuota.fechaVencimiento) <= DIAS_PROXIMO_A_VENCER ? 'Próxima a vencer' : 'Pendiente';
+  if (cuota.estado === 'PENDIENTE' && diasHasta(cuota.fechaVencimiento) <= DIAS_PROXIMO_A_VENCER) return 'Próxima a vencer';
+  return 'Al día';
 }
 
 // Backend -> forma que usan las pantallas
@@ -40,6 +42,7 @@ const fromApi = (c) => ({
   vencimiento: c.fechaVencimiento,
   estadoApi: c.estado,
   estado: estadoVisible(c),
+  diasParaVencer: diasHasta(c.fechaVencimiento),
   // HU-45: solo se pueden pagar las cuotas que todavía no están pagas
   pagable: c.estado === 'PENDIENTE' || c.estado === 'ATRASADA',
 });
@@ -76,29 +79,36 @@ export function labelMedioDePago(medio) {
   return MEDIOS_DE_PAGO.find((m) => m.value === medio)?.label ?? medio;
 }
 
-/** Clases de Tailwind para el badge de estado (mismo patrón que ya usa AlumnoDashboard). */
-export function clasesEstadoCuota(estado) {
+/** Aviso corto bajo la fecha: pagada, cuántos días faltan o cuántos pasaron. null si no hace falta. */
+export function avisoVencimiento(cuota) {
+  if (!cuota.pagable) return 'Pagada';
+  const d = cuota.diasParaVencer;
+  if (cuota.estado === 'Próxima a vencer') {
+    if (d <= 0) return 'Vence hoy';
+    return d === 1 ? 'Vence mañana' : `Vence en ${d} días`;
+  }
+  if (cuota.estado === 'Vencida') {
+    const atraso = Math.max(-d, 1);
+    return atraso === 1 ? 'Venció hace 1 día' : `Venció hace ${atraso} días`;
+  }
+  return null;
+}
+
+/** Tono del badge de estado (ver Badge en shared/components/ui). */
+export function tonoEstadoCuota(estado) {
   switch (estado) {
-    case 'Pagada':
-      return 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/40';
+    case 'Al día':
+      return 'success';
     case 'Próxima a vencer':
-      return 'bg-amber-950/60 text-amber-400 border border-amber-800/40';
+      return 'warning';
     case 'Vencida':
-      return 'bg-red-950/60 text-red-400 border border-red-800/40';
+      return 'error';
     default:
-      return 'bg-slate-800 text-slate-400 border border-slate-700';
+      return 'neutral';
   }
 }
 
-export function formatearMonto(monto) {
-  return `$${Number(monto).toLocaleString('es-AR')}`;
-}
-
-export function formatearFecha(fechaISO) {
-  if (!fechaISO) return '—';
-  const [y, m, d] = fechaISO.split('-');
-  return `${d}/${m}/${y}`;
-}
+export { formatearFecha, formatearMonto } from '../../shared/services/texto';
 
 /** "2026-10" -> "10/2026" */
 export function formatearPeriodo(periodo) {

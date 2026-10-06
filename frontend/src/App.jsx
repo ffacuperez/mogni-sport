@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
+import { CreditCard, Home as IconHome, LogOut, Users, Wallet } from 'lucide-react';
 
 import Home from './home/pages/Home';
 import Login from './auth/pages/Login';
@@ -16,6 +17,9 @@ import RegistrarPagoModal from './cuota/pages/RegistrarPagoModal';
 import HistorialPagosModal from './cuota/pages/HistorialPagosModal';
 import ConfirmModal from './shared/components/ConfirmModal';
 import Toast from './shared/components/Toast';
+import { useToast } from './shared/hooks/useToast';
+import { Cargando, Logo } from './shared/components/ui';
+import { FOCUS } from './shared/components/clases';
 import { debeCambiarPassword, getRol, hasSession, logout, ROL_ALUMNO, ROLES_GESTION } from './auth/services/authService';
 import { setUnauthorizedHandler } from './shared/services/httpClient';
 import {
@@ -33,17 +37,6 @@ import {
   listarMembresias,
 } from './membresia/services/membresiasService';
 import { listarCuotas, obtenerHistorialDePagos, registrarPago } from './cuota/services/cuotasService';
-
-// --- ICONS (Main App) ---
-const IconHome = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
-const IconUsers = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
-const IconCard = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>;
-const IconWallet = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>;
-const IconLogout = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>;
-
-function Cargando() {
-  return <p className="text-slate-400 text-center mt-16">Cargando...</p>;
-}
 
 // Las pantallas con :id en la URL esperan a tener el alumno. Si no está en la lista (p. ej. se recargó
 // la página en un alumno dado de baja) se pide al backend.
@@ -93,13 +86,11 @@ function MainApp({ onLogout }) {
   const [pagosHistorial, setPagosHistorial] = useState([]);
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
 
-  const [modalConfig, setModalConfig] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
-  const [toastConfig, setToastConfig] = useState({ isVisible: false, message: '', isError: false });
+  const [modalConfig, setModalConfig] = useState({ isOpen: false, title: '', message: '', danger: false, onConfirm: null });
+  const [toast, mostrarToast] = useToast();
 
-  const displayToast = (msg, isError = false) => {
-    setToastConfig({ isVisible: true, message: msg, isError });
-    setTimeout(() => setToastConfig({ isVisible: false, message: '', isError: false }), 4000);
-  };
+  const displayToast = (msg, isError = false) => mostrarToast(msg, isError ? 'error' : 'success');
+  const cerrarModal = () => setModalConfig(prev => ({ ...prev, isOpen: false }));
 
   useEffect(() => {
     Promise.all([listarAlumnos(), listarMembresias()])
@@ -148,14 +139,16 @@ function MainApp({ onLogout }) {
     }
   };
 
-  const showModal = (title, message, onConfirm) => {
+  // danger: acción destructiva (baja, eliminación); el botón de confirmar se muestra en rojo
+  const showModal = (title, message, onConfirm, { danger = false } = {}) => {
     setModalConfig({
       isOpen: true,
       title,
       message,
+      danger,
       onConfirm: () => {
+        cerrarModal();
         onConfirm();
-        setModalConfig({ ...modalConfig, isOpen: false });
       }
     });
   };
@@ -189,7 +182,8 @@ function MainApp({ onLogout }) {
           const actualizado = isActivo ? await darDeBajaAlumno(alumno.id) : await reactivarAlumno(alumno.id);
           setAlumnos(prev => prev.map(a => a.id === actualizado.id ? actualizado : a));
         }, `El alumno ha sido ${newEstado === 'Activo' ? 'activado' : 'dado de baja'} correctamente.`);
-      }
+      },
+      { danger: isActivo }
     );
   };
 
@@ -221,7 +215,7 @@ function MainApp({ onLogout }) {
     showModal(
       'Confirmar cambio de membresía',
       formData.membresiaId
-        ? '¿Desea cambiar la membresía del alumno? Se cancelará la inscripción activa y se creará una nueva desde hoy.'
+        ? '¿Desea cambiar la membresía del alumno? Se cancelará la inscripción activa y se creará una nueva; los días ya pagados de la cuota actual se respetan.'
         : '¿Desea dejar al alumno sin membresía? Se cancelará la inscripción activa.',
       async () => {
         const ok = await ejecutar(async () => {
@@ -296,71 +290,87 @@ function MainApp({ onLogout }) {
           setMembresias(prev => prev.filter(m => m.id !== membresia.id));
         }, 'Membresía eliminada correctamente.');
         if (ok) setSelectedMembresiaId(null);
-      }
+      },
+      { danger: true }
     );
   };
 
-  return (
-    <div className="min-h-screen bg-slate-900 text-slate-200 font-sans flex flex-col md:flex-row selection:bg-red-500/30">
+  const rol = getRol();
+  const navItems = [
+    { to: '/alumnos', label: 'Alumnos', icon: Users },
+    { to: '/membresias', label: 'Membresías', icon: CreditCard, onClick: () => setSelectedMembresiaId(null) },
+    // Cobranzas (HU-45) es solo del propietario
+    ...(esPropietario ? [{ to: '/cuotas', label: 'Cuotas', icon: Wallet, onClick: () => setSelectedCuotaId(null) }] : []),
+  ];
+  const seccionActual = navItems.find(item => pathname.startsWith(item.to))?.label ?? 'Panel';
+  // Guía 4.5: ítems de 44px, activo con borde izquierdo rojo de 3px sobre #3A3A3A
+  const itemClass = (activo) => `group flex h-11 w-full shrink-0 cursor-pointer items-center gap-3 whitespace-nowrap border-l-3 px-4 text-sm font-medium text-on-dark transition-colors ${FOCUS} ${
+    activo ? 'border-primary bg-sidebar-hover' : 'border-transparent hover:bg-sidebar-hover'
+  }`;
+  const iconClass = (activo) => `h-5 w-5 shrink-0 ${activo ? 'text-on-dark' : 'text-ink-muted'}`;
 
-      <aside className="w-full md:w-64 bg-slate-950 border-r border-slate-800 flex flex-col flex-shrink-0">
-        <div className="p-6 flex justify-center items-center border-b border-slate-800/50">
-          <div className="w-32 h-32 rounded-full border-2 border-red-600 flex items-center justify-center bg-slate-900 shadow-[0_0_15px_rgba(220,38,38,0.3)]">
-            <div className="text-center">
-              <span className="block text-red-500 font-black text-2xl tracking-tighter leading-none">MOGNI</span>
-              <span className="block text-slate-300 text-xs tracking-widest mt-1">SPORT</span>
-            </div>
-          </div>
+  return (
+    <div className="flex min-h-screen flex-col bg-page text-ink md:flex-row">
+
+      <aside className="z-30 flex shrink-0 flex-col bg-sidebar md:sticky md:top-0 md:h-screen md:w-60">
+        <div className="flex items-center justify-between gap-3 px-4 py-4 md:py-6">
+          <Logo onDark />
+          {/* En celular, cerrar sesión queda junto al logo */}
+          <button type="button" onClick={onLogout} aria-label="Cerrar sesión" className={`rounded-lg p-2 text-ink-muted transition-colors hover:bg-sidebar-hover hover:text-on-dark md:hidden ${FOCUS}`}>
+            <LogOut className="h-5 w-5" />
+          </button>
         </div>
 
-        <nav className="flex-1 py-4">
-          <ul className="space-y-1 text-sm font-medium">
-            <li>
-              <button onClick={() => navigate('/')} className="w-full flex items-center gap-3 px-6 py-3 text-slate-400 hover:text-slate-100 hover:bg-slate-900 transition-colors">
-                <IconHome /> Inicio
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => navigate('/alumnos')}
-                className={`w-full flex items-center gap-3 px-6 py-3 transition-colors ${pathname.startsWith('/alumnos') ? 'text-slate-100 bg-slate-900 border-l-4 border-red-600' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900 border-l-4 border-transparent'}`}
-              >
-                <IconUsers /> Alumnos
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => { setSelectedMembresiaId(null); navigate('/membresias'); }}
-                className={`w-full flex items-center gap-3 px-6 py-3 transition-colors ${pathname.startsWith('/membresias') ? 'text-slate-100 bg-slate-900 border-l-4 border-red-600' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900 border-l-4 border-transparent'}`}
-              >
-                <IconCard /> Membresías
-              </button>
-            </li>
-            {esPropietario && (
-            <li>
-              <button
-                onClick={() => { setSelectedCuotaId(null); navigate('/cuotas'); }}
-                className={`w-full flex items-center gap-3 px-6 py-3 transition-colors ${pathname.startsWith('/cuotas') ? 'text-slate-100 bg-slate-900 border-l-4 border-red-600' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900 border-l-4 border-transparent'}`}
-              >
-                <IconWallet /> Cuotas
-              </button>
-            </li>
-            )}
-            <li>
-              <button onClick={onLogout} className="w-full flex items-center gap-3 px-6 py-3 text-slate-400 hover:text-slate-100 hover:bg-slate-900 transition-colors mt-8">
-                <IconLogout /> Cerrar Sesión
+        <nav aria-label="Secciones" className="flex-1 pb-2 md:pb-0">
+          <ul className="flex overflow-x-auto md:flex-col md:overflow-visible">
+            {navItems.map(({ to, label, icon: Icon, onClick }) => {
+              const activo = pathname.startsWith(to);
+              return (
+                <li key={to}>
+                  <button
+                    type="button"
+                    onClick={() => { onClick?.(); navigate(to); }}
+                    aria-current={activo ? 'page' : undefined}
+                    className={itemClass(activo)}
+                  >
+                    <Icon className={iconClass(activo)} />
+                    {label}
+                  </button>
+                </li>
+              );
+            })}
+            <li className="md:mt-4 md:border-t md:border-sidebar-hover md:pt-4">
+              <button type="button" onClick={() => navigate('/')} className={itemClass(false)}>
+                <IconHome className={iconClass(false)} /> Sitio web
               </button>
             </li>
           </ul>
         </nav>
+
+        <div className="hidden border-t border-sidebar-hover py-4 md:block">
+          <p className="mb-2 px-4 text-xs text-ink-muted">
+            Sesión: <span className="font-medium capitalize text-on-dark">{rol?.toLowerCase()}</span>
+          </p>
+          <button type="button" onClick={onLogout} className={itemClass(false)}>
+            <LogOut className={iconClass(false)} /> Cerrar sesión
+          </button>
+        </div>
       </aside>
 
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjMGYxNzJhIj48L3JlY3Q+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMxZTI5M2IiPjwvcmVjdD4KPC9zdmc+')]">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="sticky top-0 z-20 hidden h-14 items-center border-b border-line bg-card px-8 md:flex">
+          <p className="text-sm text-ink-soft">
+            Panel <span className="text-ink-muted">/</span> <span className="font-semibold text-ink">{seccionActual}</span>
+          </p>
+        </div>
+
+      <main className="mx-auto w-full max-w-[1200px] flex-1 p-4 md:p-8">
 
         <Routes>
           <Route path="alumnos" element={
             <AlumnosList
               alumnos={alumnos}
+              cargando={!cargado}
               onSelect={(id) => navigate(`/alumnos/${id}`)}
               onAdd={() => navigate('/alumnos/nuevo')}
               search={searchAlumno}
@@ -424,6 +434,7 @@ function MainApp({ onLogout }) {
           <Route path="membresias" element={
             <MembresiasList
               membresias={membresias}
+              cargando={!cargado}
               selectedId={selectedMembresiaId}
               setSelectedId={setSelectedMembresiaId}
               onAdd={() => navigate('/membresias/nueva')}
@@ -479,13 +490,15 @@ function MainApp({ onLogout }) {
         </Routes>
 
       </main>
+      </div>
 
       <ConfirmModal
         isOpen={modalConfig.isOpen}
         title={modalConfig.title}
         message={modalConfig.message}
+        danger={modalConfig.danger}
         onConfirm={modalConfig.onConfirm}
-        onCancel={() => setModalConfig({ ...modalConfig, isOpen: false })}
+        onCancel={cerrarModal}
       />
 
       {cuotaAPagar && (
@@ -506,11 +519,7 @@ function MainApp({ onLogout }) {
         />
       )}
 
-      <Toast
-        message={toastConfig.message}
-        isVisible={toastConfig.isVisible}
-        isError={toastConfig.isError}
-      />
+      <Toast key={toast?.key} message={toast?.message} type={toast?.type} />
 
     </div>
   );
@@ -596,17 +605,21 @@ export default function App() {
       {/* Dashboard: solo rol ALUMNO */}
       <Route path="/mi-cuenta" element={
         <RequiereRol sesion={authSession} permitido={esAlumno}>
-          <div className="min-h-screen bg-slate-950 text-slate-200 p-6 relative">
-            <div className="absolute top-4 right-4 z-20">
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition shadow-lg cursor-pointer flex items-center gap-2"
-              >
-                Cerrar Sesión
-              </button>
-            </div>
+          <div className="min-h-screen bg-page text-ink">
+            <header className="sticky top-0 z-30 bg-sidebar">
+              <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+                <Logo onDark />
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className={`flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-on-dark transition-colors hover:bg-sidebar-hover ${FOCUS}`}
+                >
+                  <LogOut className="h-5 w-5 text-ink-muted" /> Cerrar sesión
+                </button>
+              </div>
+            </header>
 
-            <div className="pt-10">
+            <div className="px-4 py-8 sm:px-6">
               <AlumnoDashboard />
             </div>
           </div>

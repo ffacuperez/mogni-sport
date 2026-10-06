@@ -54,9 +54,9 @@ export async function listarCuotas({ estado, alumnoId } = {}) {
   return data.map(fromApi);
 }
 
-/** HU-45: la fecha del pago la pone el backend (siempre hoy). */
-export function registrarPago({ cuotaId, monto, medioDePago }) {
-  return request('/pagos', { method: 'POST', body: { cuotaId, monto, medioDePago } });
+/** El monto no lo ingresa el propietario: el backend siempre usa el monto esperado de la cuota, igual que la fecha (siempre hoy). */
+export function registrarPago({ cuotaId, medioDePago }) {
+  return request('/pagos', { method: 'POST', body: { cuotaId, medioDePago } });
 }
 
 /** HU-48: historial de pagos de un alumno, ya ordenado por el backend del más reciente al más antiguo. */

@@ -64,13 +64,6 @@ public class PagoService {
             throw new RegistroInvalidoException("No se pueden registrar pagos a un alumno inactivo");
         }
 
-        // compareTo y no equals: 25000 y 25000.00 son el mismo monto
-        if (request.getMonto().compareTo(cuota.getMontoEsperado()) != 0) {
-            log.warn("Pago rechazado: monto {} distinto al esperado {} en la cuota {}",
-                    request.getMonto(), cuota.getMontoEsperado(), cuota.getId());
-            throw new RegistroInvalidoException("El monto debe coincidir con el monto de la cuota");
-        }
-
         Pago pago = new Pago();
         pago.setCuota(cuota);
         pago.setMonto(cuota.getMontoEsperado());

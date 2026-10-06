@@ -2,12 +2,11 @@ import { useState } from 'react';
 
 import { formatearMonto, formatearPeriodo, MEDIOS_DE_PAGO } from '../services/cuotasService';
 
-const inputClass = "w-full bg-slate-100 text-slate-900 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 border border-transparent";
 const readonlyClass = "w-full bg-slate-900/60 text-slate-300 px-3 py-2 rounded-md border border-slate-700";
+const inputClass = "w-full bg-slate-100 text-slate-900 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 border border-transparent";
 const labelClass = "block text-sm font-semibold text-slate-200 mb-1";
 
 export default function RegistrarPagoModal({ cuota, onConfirm, onCancel, onError }) {
-  const [monto, setMonto] = useState('');
   const [medioDePago, setMedioDePago] = useState('');
   const [enviando, setEnviando] = useState(false);
 
@@ -15,22 +14,14 @@ export default function RegistrarPagoModal({ cuota, onConfirm, onCancel, onError
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!monto || Number(monto) <= 0) {
-      onError('El monto debe ser numérico y mayor a 0.');
-      return;
-    }
-    // HU-45: no se admiten pagos parciales ni excedentes
-    if (Number(monto) !== cuota.monto) {
-      onError(`El monto debe coincidir con el de la cuota (${formatearMonto(cuota.monto)}).`);
-      return;
-    }
     if (!medioDePago) {
       onError('Seleccione un medio de pago.');
       return;
     }
     setEnviando(true);
     try {
-      await onConfirm({ cuotaId: cuota.id, monto: Number(monto), medioDePago });
+      // El monto no lo ingresa el propietario: siempre es el de la cuota (ver cuotasService.registrarPago).
+      await onConfirm({ cuotaId: cuota.id, medioDePago });
     } finally {
       setEnviando(false);
     }
@@ -49,21 +40,9 @@ export default function RegistrarPagoModal({ cuota, onConfirm, onCancel, onError
               <p className={readonlyClass}>{formatearPeriodo(cuota.periodo)}</p>
             </div>
             <div>
-              <label className={labelClass}>Monto esperado</label>
+              <label className={labelClass}>Monto a pagar</label>
               <p className={readonlyClass}>{formatearMonto(cuota.monto)}</p>
             </div>
-          </div>
-
-          <div>
-            <label className={labelClass}>Monto pagado (ARS)</label>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={monto}
-              onChange={(e) => { if (e.target.value === '' || /^\d+(\.\d{0,2})?$/.test(e.target.value)) setMonto(e.target.value); }}
-              placeholder={`ej: ${cuota.monto}`}
-              className={inputClass}
-            />
           </div>
 
           <div>
@@ -76,7 +55,7 @@ export default function RegistrarPagoModal({ cuota, onConfirm, onCancel, onError
             </select>
           </div>
 
-          <p className="text-xs text-slate-400">La fecha del pago se registra automáticamente con el día de hoy.</p>
+          <p className="text-xs text-slate-400">El monto es el de la membresía vigente del alumno; la fecha del pago se registra automáticamente con el día de hoy.</p>
 
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onCancel} disabled={enviando} className="px-4 py-2 rounded bg-slate-700 text-white hover:bg-slate-600 transition-colors disabled:opacity-50">

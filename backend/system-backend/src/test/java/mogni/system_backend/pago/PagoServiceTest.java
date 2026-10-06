@@ -71,10 +71,9 @@ class PagoServiceTest {
         cuota.setId(100L);
     }
 
-    private RegistrarPagoRequest pago(String monto, MedioDePago medio) {
+    private RegistrarPagoRequest pago(MedioDePago medio) {
         RegistrarPagoRequest request = new RegistrarPagoRequest();
         request.setCuotaId(100L);
-        request.setMonto(new BigDecimal(monto));
         request.setMedioDePago(medio);
         return request;
     }
@@ -96,7 +95,7 @@ class PagoServiceTest {
         cuotaExiste();
         pagoSeGuarda();
 
-        PagoResponse response = pagoService.registrarPago(pago("25000", MedioDePago.TRANSFERENCIA));
+        PagoResponse response = pagoService.registrarPago(pago(MedioDePago.TRANSFERENCIA));
 
         assertEquals(EstadoCuota.PAGADA, cuota.getEstado());
         assertEquals(EstadoCuota.PAGADA, response.getEstadoCuota());
@@ -112,13 +111,14 @@ class PagoServiceTest {
     }
 
     @Test
-    void registrarPago_aceptaElMontoConDecimales() {
+    void registrarPago_usaSiempreElMontoEsperadoDeLaCuota_sinImportarLoQueLlegueEnElRequest() {
         cuotaExiste();
         pagoSeGuarda();
 
-        pagoService.registrarPago(pago("25000.00", MedioDePago.EFECTIVO));
+        // El cliente no envía monto (ver RegistrarPagoRequest); el servicio lo toma de la cuota.
+        PagoResponse response = pagoService.registrarPago(pago(MedioDePago.EFECTIVO));
 
-        assertEquals(EstadoCuota.PAGADA, cuota.getEstado());
+        assertEquals(0, cuota.getMontoEsperado().compareTo(response.getMonto()));
     }
 
     @Test
@@ -127,21 +127,9 @@ class PagoServiceTest {
         cuotaExiste();
         pagoSeGuarda();
 
-        pagoService.registrarPago(pago("25000", MedioDePago.EFECTIVO));
+        pagoService.registrarPago(pago(MedioDePago.EFECTIVO));
 
         assertEquals(EstadoCuota.PAGADA, cuota.getEstado());
-    }
-
-    @Test
-    void registrarPago_rechazaMontoDistintoAlDeLaCuota() {
-        cuotaExiste();
-
-        assertThrows(RegistroInvalidoException.class,
-                () -> pagoService.registrarPago(pago("20000", MedioDePago.EFECTIVO)));
-        assertThrows(RegistroInvalidoException.class,
-                () -> pagoService.registrarPago(pago("30000", MedioDePago.EFECTIVO)));
-        assertEquals(EstadoCuota.PENDIENTE, cuota.getEstado());
-        verify(pagoRepository, never()).save(any());
     }
 
     @Test
@@ -150,7 +138,7 @@ class PagoServiceTest {
         cuotaExiste();
 
         assertThrows(RegistroInvalidoException.class,
-                () -> pagoService.registrarPago(pago("25000", MedioDePago.EFECTIVO)));
+                () -> pagoService.registrarPago(pago(MedioDePago.EFECTIVO)));
         verify(pagoRepository, never()).save(any());
     }
 
@@ -160,7 +148,7 @@ class PagoServiceTest {
         cuotaExiste();
 
         assertThrows(RegistroInvalidoException.class,
-                () -> pagoService.registrarPago(pago("25000", MedioDePago.EFECTIVO)));
+                () -> pagoService.registrarPago(pago(MedioDePago.EFECTIVO)));
         assertEquals(EstadoCuota.PENDIENTE, cuota.getEstado());
         verify(pagoRepository, never()).save(any());
     }
@@ -171,7 +159,7 @@ class PagoServiceTest {
         cuotaExiste();
 
         assertThrows(RegistroInvalidoException.class,
-                () -> pagoService.registrarPago(pago("25000", MedioDePago.EFECTIVO)));
+                () -> pagoService.registrarPago(pago(MedioDePago.EFECTIVO)));
         verify(pagoRepository, never()).save(any());
     }
 
@@ -180,7 +168,7 @@ class PagoServiceTest {
         when(cuotaRepository.findByIdParaActualizar(100L)).thenReturn(Optional.empty());
 
         assertThrows(RecursoNoEncontradoException.class,
-                () -> pagoService.registrarPago(pago("25000", MedioDePago.EFECTIVO)));
+                () -> pagoService.registrarPago(pago(MedioDePago.EFECTIVO)));
         verify(pagoRepository, never()).save(any());
     }
 

@@ -91,7 +91,8 @@ export default function AlumnoDetalle({ alumno, onBack, onEdit, onEditMembresia,
             <dl className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <Dato label="Membresía" ancho>{inscripcion.membresia}</Dato>
               <Dato label="Fecha de inicio">{formatearFecha(inscripcion.fechaInicio)}</Dato>
-              <Dato label="Fecha de fin">{formatearFecha(inscripcion.fechaFin)}</Dato>
+              {/* fechaFin solo existe si la inscripción se canceló */}
+              {inscripcion.fechaFin && <Dato label="Fecha de cancelación">{formatearFecha(inscripcion.fechaFin)}</Dato>}
             </dl>
           ) : (
             <p className="text-slate-400">Sin membresía: el alumno nunca tuvo una inscripción.</p>

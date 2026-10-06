@@ -13,7 +13,6 @@ import MembresiasList from './membresia/pages/MembresiasList';
 import MembresiaForm from './membresia/pages/MembresiaForm';
 import CuotasList from './cuota/pages/CuotasList';
 import RegistrarPagoModal from './cuota/pages/RegistrarPagoModal';
-import HistorialPagosModal from './cuota/pages/HistorialPagosModal';
 import ConfirmModal from './shared/components/ConfirmModal';
 import Toast from './shared/components/Toast';
 import { debeCambiarPassword, getRol, hasSession, logout, ROL_ALUMNO, ROLES_GESTION } from './auth/services/authService';
@@ -32,7 +31,7 @@ import {
   eliminarMembresia,
   listarMembresias,
 } from './membresia/services/membresiasService';
-import { generarPagosDeEjemplo } from './cuota/services/cuotasService';
+import { listarCuotas, registrarPago } from './cuota/services/cuotasService';
 
 // --- ICONS (Main App) ---
 const IconHome = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
@@ -68,6 +67,8 @@ function ConMembresia({ membresias, cargado, onNoEncontrada, children }) {
 // --- MAIN APP COMPONENT ---
 function MainApp({ onLogout }) {
   const navigate = useNavigate();
+  // Cobranzas (HU-45) es solo del propietario; el backend también lo exige
+  const esPropietario = getRol() === 'PROPIETARIO';
   const { pathname } = useLocation();
   const [alumnos, setAlumnos] = useState([]);
   const [membresias, setMembresias] = useState([]);
@@ -78,13 +79,13 @@ function MainApp({ onLogout }) {
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [inactivosCargados, setInactivosCargados] = useState(false);
 
-  // --- Cuotas (HU-45/46/48): sin backend todavía, se mockea en memoria (ver cuotasService.js) ---
-  const [pagos, setPagos] = useState({}); // { [alumnoId]: [{ fecha, monto, medioPago, recargo }] }
-  const [selectedCuotaAlumnoId, setSelectedCuotaAlumnoId] = useState(null);
+  // --- Cuotas (HU-45) ---
+  const [cuotas, setCuotas] = useState([]);
+  const [cargandoCuotas, setCargandoCuotas] = useState(false);
+  const [selectedCuotaId, setSelectedCuotaId] = useState(null);
   const [searchCuota, setSearchCuota] = useState('');
   const [filtroCuota, setFiltroCuota] = useState('Todas');
-  const [registrarPagoAlumnoId, setRegistrarPagoAlumnoId] = useState(null);
-  const [historialAlumnoId, setHistorialAlumnoId] = useState(null);
+  const [cuotaAPagar, setCuotaAPagar] = useState(null);
 
   const [modalConfig, setModalConfig] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
   const [toastConfig, setToastConfig] = useState({ isVisible: false, message: '', isError: false });
@@ -99,11 +100,26 @@ function MainApp({ onLogout }) {
       .then(([alumnosData, membresiasData]) => {
         setAlumnos(alumnosData);
         setMembresias(membresiasData);
-        setPagos(generarPagosDeEjemplo(alumnosData)); // ver nota en cuotasService.js
       })
       .catch((error) => displayToast(error.message, true))
       .finally(() => setCargado(true));
   }, []);
+
+  const cargarCuotas = async () => {
+    setCargandoCuotas(true);
+    try {
+      setCuotas(await listarCuotas());
+    } catch (error) {
+      displayToast(error.message, true);
+    } finally {
+      setCargandoCuotas(false);
+    }
+  };
+
+  // Cada vez que se entra a Cuotas se trae el estado actualizado (los vencimientos cambian día a día)
+  useEffect(() => {
+    if (esPropietario && pathname.startsWith('/cuotas')) cargarCuotas();
+  }, [pathname, esPropietario]);
 
   const cargarAlumno = async (id) => {
     try {
@@ -235,14 +251,15 @@ function MainApp({ onLogout }) {
     );
   };
 
-  // HU-45: registra el pago en memoria y recalcula el estado de esa cuota.
-  const handleRegistrarPago = (alumnoId, { monto, medioPago, fecha }) => {
-    setPagos((prev) => ({
-      ...prev,
-      [alumnoId]: [...(prev[alumnoId] ?? []), { fecha, monto, medioPago, recargo: false }],
-    }));
-    setRegistrarPagoAlumnoId(null);
-    displayToast('El pago fue registrado correctamente.');
+  // HU-45: registra el pago en el backend (la cuota pasa a PAGADA) y refresca la lista.
+  // Si falla, el modal queda abierto para corregir los datos.
+  const handleRegistrarPago = async (datos) => {
+    const ok = await ejecutar(() => registrarPago(datos), 'El pago fue registrado correctamente.');
+    if (ok) {
+      setCuotaAPagar(null);
+      setSelectedCuotaId(null);
+      cargarCuotas();
+    }
   };
 
   const handleDeleteMembresia = () => {
@@ -298,14 +315,16 @@ function MainApp({ onLogout }) {
                 <IconCard /> Membresías
               </button>
             </li>
+            {esPropietario && (
             <li>
               <button
-                onClick={() => { setSelectedCuotaAlumnoId(null); navigate('/cuotas'); }}
+                onClick={() => { setSelectedCuotaId(null); navigate('/cuotas'); }}
                 className={`w-full flex items-center gap-3 px-6 py-3 transition-colors ${pathname.startsWith('/cuotas') ? 'text-slate-100 bg-slate-900 border-l-4 border-red-600' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900 border-l-4 border-transparent'}`}
               >
                 <IconWallet /> Cuotas
               </button>
             </li>
+            )}
             <li>
               <button onClick={onLogout} className="w-full flex items-center gap-3 px-6 py-3 text-slate-400 hover:text-slate-100 hover:bg-slate-900 transition-colors mt-8">
                 <IconLogout /> Cerrar Sesión
@@ -420,20 +439,19 @@ function MainApp({ onLogout }) {
             </ConMembresia>
           } />
 
-          <Route path="cuotas" element={
+          <Route path="cuotas" element={esPropietario ? (
             <CuotasList
-              alumnos={alumnos}
-              pagos={pagos}
-              selectedId={selectedCuotaAlumnoId}
-              setSelectedId={setSelectedCuotaAlumnoId}
-              onRegistrarPago={setRegistrarPagoAlumnoId}
-              onVerHistorial={setHistorialAlumnoId}
+              cuotas={cuotas}
+              cargando={cargandoCuotas}
+              selectedId={selectedCuotaId}
+              setSelectedId={setSelectedCuotaId}
+              onRegistrarPago={setCuotaAPagar}
               searchTerm={searchCuota}
               setSearchTerm={setSearchCuota}
               filtro={filtroCuota}
               setFiltro={setFiltroCuota}
             />
-          } />
+          ) : <Navigate to="/alumnos" replace />} />
 
           <Route path="*" element={<Navigate to="/alumnos" replace />} />
         </Routes>
@@ -448,21 +466,12 @@ function MainApp({ onLogout }) {
         onCancel={() => setModalConfig({ ...modalConfig, isOpen: false })}
       />
 
-      {registrarPagoAlumnoId && (
+      {cuotaAPagar && (
         <RegistrarPagoModal
-          alumno={alumnos.find(a => a.id === registrarPagoAlumnoId)}
-          montoSugerido={membresias.find(m => m.id === alumnos.find(a => a.id === registrarPagoAlumnoId)?.membresiaId)?.precio}
-          onConfirm={(datos) => handleRegistrarPago(registrarPagoAlumnoId, datos)}
-          onCancel={() => setRegistrarPagoAlumnoId(null)}
+          cuota={cuotaAPagar}
+          onConfirm={handleRegistrarPago}
+          onCancel={() => setCuotaAPagar(null)}
           onError={(msg) => displayToast(msg, true)}
-        />
-      )}
-
-      {historialAlumnoId && (
-        <HistorialPagosModal
-          alumno={alumnos.find(a => a.id === historialAlumnoId)}
-          pagos={pagos[historialAlumnoId]}
-          onClose={() => setHistorialAlumnoId(null)}
         />
       )}
 

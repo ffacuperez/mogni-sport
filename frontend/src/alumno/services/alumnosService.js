@@ -2,9 +2,9 @@ import { request } from '../../shared/services/httpClient';
 
 const BASE_PATH = '/alumnos';
 
-const ESTADOS_INSCRIPCION = { ACTIVA: 'Activa', VENCIDA: 'Vencida', CANCELADA: 'Cancelada' };
+const ESTADOS_INSCRIPCION = { ACTIVA: 'Activa', CANCELADA: 'Cancelada' };
 
-// Inscripción activa o, si no tiene, la última (vencida o cancelada). null si nunca tuvo.
+// Inscripción activa o, si no tiene, la última (cancelada). null si nunca tuvo.
 const inscripcionFromApi = (i) => (i ? {
   membresiaId: i.membresiaId,
   membresia: i.membresiaNombre,
@@ -31,9 +31,8 @@ const fromApi = (a) => ({
   dni: a.dni,
   email: a.email,
   fechaNacimiento: a.fechaNacimiento ?? '',
-  // Fecha de alta = inicio de la inscripción activa (la usa el cálculo de cuotas)
+  // Fecha de alta = inicio de la inscripción activa
   fechaIngreso: a.fechaInicioInscripcion ?? '',
-  fechaVencimiento: a.fechaFinInscripcion ?? '',
   objetivo: a.objetivo ?? '',
   antecedentes: a.cuestionarioSalud ?? '',
   membresiaId: a.membresiaId ?? '',

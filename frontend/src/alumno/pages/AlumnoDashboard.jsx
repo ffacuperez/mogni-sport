@@ -91,7 +91,6 @@ export default function AlumnoDashboard() {
             <span className={`font-medium flex items-center gap-1.5 ${activo ? 'text-emerald-400' : 'text-red-400'}`}>
               <span className={`w-2 h-2 rounded-full ${activo ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span> {alumno.estado}
             </span>
-            {tieneMembresia && <span className="text-gray-400">Vence: {formatearFecha(alumno.fechaVencimiento)}</span>}
           </div>
         </div>
 

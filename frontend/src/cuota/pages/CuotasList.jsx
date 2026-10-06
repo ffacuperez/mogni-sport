@@ -1,63 +1,54 @@
-import { calcularEstadoCuota, clasesEstadoCuota, formatearFecha } from '../services/cuotasService';
+import { clasesEstadoCuota, formatearFecha, formatearMonto } from '../services/cuotasService';
 
 const IconSearch = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
 
 const FILTROS = ['Todas', 'Próxima a vencer', 'Vencida'];
 
 export default function CuotasList({
-  alumnos,
-  pagos,
+  cuotas,
+  cargando,
   selectedId,
   setSelectedId,
   onRegistrarPago,
-  onVerHistorial,
   searchTerm,
   setSearchTerm,
   filtro,
   setFiltro,
 }) {
-  // HU-46: "un alumno inactivo no aparece en el listado" (prueba de aceptación).
-  const filas = alumnos
-    .filter((a) => a.estado === 'Activo')
-    .map((alumno) => ({ alumno, cuota: calcularEstadoCuota(alumno, pagos[alumno.id]) }))
-    .filter(({ alumno }) => {
+  // El backend ya devuelve solo cuotas de alumnos activos con inscripción activa.
+  const filas = cuotas
+    .filter((cuota) => {
       const term = searchTerm.trim().toLowerCase();
       if (!term) return true;
       return (
-        alumno.dni.includes(term) ||
-        alumno.nombre.toLowerCase().includes(term) ||
-        alumno.apellido.toLowerCase().includes(term)
+        cuota.dni.includes(term) ||
+        cuota.nombre.toLowerCase().includes(term) ||
+        cuota.apellido.toLowerCase().includes(term)
       );
     })
-    .filter(({ cuota }) => filtro === 'Todas' || cuota.estado === filtro);
+    .filter((cuota) => filtro === 'Todas' || cuota.estado === filtro);
 
-  const seleccion = filas.find((f) => f.alumno.id === selectedId);
+  const seleccion = filas.find((c) => c.id === selectedId);
 
   return (
     <div className="animate-in fade-in duration-300">
-      <h1 className="text-3xl font-bold text-white mb-8 tracking-tight">Cuotas (Vista de Lista)</h1>
+      <h1 className="text-3xl font-bold text-white mb-8 tracking-tight">Cuotas</h1>
 
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-          <div className="flex flex-wrap gap-2">
-            {seleccion && (
-              <>
-                <button
-                  onClick={() => onRegistrarPago(seleccion.alumno.id)}
-                  className="flex items-center gap-2 bg-[#1b5e3a] hover:bg-[#14492d] text-white px-4 py-2 rounded-md font-medium transition-colors"
-                >
-                  Registrar Pago
-                </button>
-                <button
-                  onClick={() => onVerHistorial(seleccion.alumno.id)}
-                  className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-md font-medium transition-colors"
-                >
-                  Ver Historial
-                </button>
-              </>
-            )}
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => onRegistrarPago(seleccion)}
+              disabled={!seleccion?.pagable}
+              className="flex items-center gap-2 bg-[#1b5e3a] hover:bg-[#14492d] text-white px-4 py-2 rounded-md font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#1b5e3a]"
+            >
+              Registrar Pago
+            </button>
             {!seleccion && (
-              <p className="text-sm text-slate-500 py-2">Seleccioná un alumno de la lista para registrar un pago o ver su historial.</p>
+              <p className="text-sm text-slate-500">Seleccioná una cuota pendiente o vencida para registrar el pago.</p>
+            )}
+            {seleccion && !seleccion.pagable && (
+              <p className="text-sm text-slate-500">La cuota seleccionada ya está pagada.</p>
             )}
           </div>
 
@@ -99,28 +90,30 @@ export default function CuotasList({
                 <th className="px-4 py-3 font-semibold bg-slate-800/80 rounded-l-md mx-1">Alumno</th>
                 <th className="px-4 py-3 font-semibold bg-slate-800/80 mx-1">DNI</th>
                 <th className="px-4 py-3 font-semibold bg-slate-800/80 mx-1">Membresía</th>
+                <th className="px-4 py-3 font-semibold bg-slate-800/80 mx-1">Monto</th>
                 <th className="px-4 py-3 font-semibold bg-slate-800/80 mx-1">Vencimiento</th>
                 <th className="px-4 py-3 font-semibold bg-slate-800/80 rounded-r-md mx-1">Estado</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-red-950/30">
-              {filas.map(({ alumno, cuota }) => (
+              {filas.map((cuota) => (
                 <tr
-                  key={alumno.id}
-                  className={`hover:bg-slate-800/40 transition-colors cursor-pointer ${selectedId === alumno.id ? 'bg-red-950/20' : ''}`}
-                  onClick={() => setSelectedId(selectedId === alumno.id ? null : alumno.id)}
+                  key={cuota.id}
+                  className={`hover:bg-slate-800/40 transition-colors cursor-pointer ${selectedId === cuota.id ? 'bg-red-950/20' : ''}`}
+                  onClick={() => setSelectedId(selectedId === cuota.id ? null : cuota.id)}
                 >
                   <td className="px-4 py-3 text-center">
                     <input
                       type="checkbox"
-                      checked={selectedId === alumno.id}
+                      checked={selectedId === cuota.id}
                       onChange={() => {}}
                       className="w-4 h-4 rounded border-slate-600 text-red-600 bg-slate-800 focus:ring-red-600 focus:ring-offset-slate-900 cursor-pointer accent-red-600"
                     />
                   </td>
-                  <td className="px-4 py-3">{alumno.apellido}, {alumno.nombre}</td>
-                  <td className="px-4 py-3 text-slate-300">{alumno.dni}</td>
-                  <td className="px-4 py-3">{alumno.membresia}</td>
+                  <td className="px-4 py-3">{cuota.apellido}, {cuota.nombre}</td>
+                  <td className="px-4 py-3 text-slate-300">{cuota.dni}</td>
+                  <td className="px-4 py-3">{cuota.membresia}</td>
+                  <td className="px-4 py-3">{formatearMonto(cuota.monto)}</td>
                   <td className="px-4 py-3">{formatearFecha(cuota.vencimiento)}</td>
                   <td className="px-4 py-3">
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${clasesEstadoCuota(cuota.estado)}`}>
@@ -131,8 +124,8 @@ export default function CuotasList({
               ))}
               {filas.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="px-4 py-8 text-center text-slate-500">
-                    No hay alumnos activos que coincidan con la búsqueda.
+                  <td colSpan="7" className="px-4 py-8 text-center text-slate-500">
+                    {cargando ? 'Cargando cuotas...' : 'No hay cuotas que coincidan con la búsqueda.'}
                   </td>
                 </tr>
               )}

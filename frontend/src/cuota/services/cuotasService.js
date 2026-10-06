@@ -1,51 +1,62 @@
-// El backend todavía no tiene el módulo de cuotas (HU-45, HU-46, HU-47, HU-48 están
-// "Por hacer" en el Sprint Backlog). Siguiendo el DoD del equipo ("se pueden mockear
-// los datos"), este archivo calcula el estado de cuota en el frontend y guarda los
-// pagos en memoria durante la sesión. Cuando el backend exponga /cuotas, solo hay que
-// reemplazar las funciones de este archivo por llamadas a `request(...)` igual que en
-// alumnosService.js y membresiasService.js; los componentes que lo usan no cambian.
+import { request } from '../../shared/services/httpClient';
 
-const DIAS_VIGENCIA_CUOTA = 30; // Plan de Proyecto: vencimiento a 30 días.
 const DIAS_PROXIMO_A_VENCER = 5; // Criterio de aceptación HU-46.
-const PORCENTAJE_RECARGO = 10; // Criterio de aceptación HU-47 (referencia a futuro).
 
-function sumarDias(fechaISO, dias) {
-  const fecha = new Date(`${fechaISO}T00:00:00`);
-  fecha.setDate(fecha.getDate() + dias);
-  return fecha;
-}
+export const MEDIOS_DE_PAGO = [
+  { value: 'EFECTIVO', label: 'Efectivo' },
+  { value: 'TRANSFERENCIA', label: 'Transferencia' },
+];
 
 function hoySinHora() {
   return new Date(new Date().toDateString());
 }
 
-/** El pago más reciente de un alumno, o null si todavía no registró ninguno. */
-export function obtenerUltimoPago(pagos) {
-  if (!pagos || pagos.length === 0) return null;
-  return [...pagos].sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
+/** Días que faltan para el vencimiento (negativo si ya venció). */
+function diasHasta(fechaISO) {
+  const fecha = new Date(`${fechaISO}T00:00:00`);
+  return Math.round((fecha - hoySinHora()) / 86400000);
 }
 
 /**
- * Calcula el estado de la cuota de un alumno activo.
- * - Sin pagos: el ciclo arranca en su fecha de ingreso (HU-46: "vencimientos
- *   individuales a 30 días desde la fecha de ingreso de cada alumno").
- * - Con pagos: el ciclo arranca en la fecha del último pago registrado.
+ * Estado que se muestra en la pantalla, a partir del estado del backend:
+ * ATRASADA -> "Vencida"; PENDIENTE que vence en 5 días o menos -> "Próxima a vencer".
  */
-export function calcularEstadoCuota(alumno, pagos) {
-  const ultimoPago = obtenerUltimoPago(pagos);
-  const fechaBase = ultimoPago ? ultimoPago.fecha : alumno.fechaIngreso;
-  if (!fechaBase) {
-    return { estado: 'Sin datos', vencimiento: null, diasRestantes: null };
-  }
+function estadoVisible(cuota) {
+  if (cuota.estado === 'PAGADA') return 'Pagada';
+  if (cuota.estado === 'ATRASADA') return 'Vencida';
+  return diasHasta(cuota.fechaVencimiento) <= DIAS_PROXIMO_A_VENCER ? 'Próxima a vencer' : 'Pendiente';
+}
 
-  const vencimiento = sumarDias(fechaBase, DIAS_VIGENCIA_CUOTA);
-  const diasRestantes = Math.round((vencimiento - hoySinHora()) / 86400000);
+// Backend -> forma que usan las pantallas
+const fromApi = (c) => ({
+  id: c.id,
+  alumnoId: c.alumnoId,
+  nombre: c.alumnoNombre,
+  apellido: c.alumnoApellido,
+  dni: c.alumnoDni,
+  membresia: c.membresiaNombre,
+  periodo: c.periodo,
+  monto: Number(c.montoEsperado),
+  vencimiento: c.fechaVencimiento,
+  estadoApi: c.estado,
+  estado: estadoVisible(c),
+  // HU-45: solo se pueden pagar las cuotas que todavía no están pagas
+  pagable: c.estado === 'PENDIENTE' || c.estado === 'ATRASADA',
+});
 
-  let estado = 'Pagada';
-  if (diasRestantes < 0) estado = 'Vencida';
-  else if (diasRestantes <= DIAS_PROXIMO_A_VENCER) estado = 'Próxima a vencer';
+/** Cuotas de los alumnos activos. Filtros opcionales: estado del backend (PENDIENTE/PAGADA/ATRASADA) y alumnoId. */
+export async function listarCuotas({ estado, alumnoId } = {}) {
+  const params = new URLSearchParams();
+  if (estado) params.set('estado', estado);
+  if (alumnoId) params.set('alumnoId', alumnoId);
+  const query = params.toString();
+  const data = await request(`/cuotas${query ? `?${query}` : ''}`);
+  return data.map(fromApi);
+}
 
-  return { estado, vencimiento: vencimiento.toISOString().split('T')[0], diasRestantes };
+/** HU-45: la fecha del pago la pone el backend (siempre hoy). */
+export function registrarPago({ cuotaId, monto, medioDePago }) {
+  return request('/pagos', { method: 'POST', body: { cuotaId, monto, medioDePago } });
 }
 
 /** Clases de Tailwind para el badge de estado (mismo patrón que ya usa AlumnoDashboard). */
@@ -72,32 +83,9 @@ export function formatearFecha(fechaISO) {
   return `${d}/${m}/${y}`;
 }
 
-/**
- * Datos de ejemplo para que la pantalla no se vea vacía mientras no exista el backend
- * de cuotas. Genera 0, 1 o 2 pagos pasados por alumno de forma determinística (según su
- * id), nunca aleatoria, para que la demo sea reproducible.
- */
-export function generarPagosDeEjemplo(alumnos) {
-  const seed = {};
-  alumnos.forEach((alumno) => {
-    const resto = alumno.id % 3;
-    if (resto === 0 || !alumno.fechaIngreso) {
-      seed[alumno.id] = []; // sin pagos: queda calculado desde fechaIngreso
-      return;
-    }
-    const diasAtras = resto === 1 ? 35 : 10; // 1 => vencida; 2 => al día/próxima
-    const fechaPago = new Date();
-    fechaPago.setDate(fechaPago.getDate() - diasAtras);
-    seed[alumno.id] = [
-      {
-        fecha: fechaPago.toISOString().split('T')[0],
-        monto: 25000,
-        medioPago: resto === 1 ? 'Efectivo' : 'Transferencia',
-        recargo: false,
-      },
-    ];
-  });
-  return seed;
+/** "2026-10" -> "10/2026" */
+export function formatearPeriodo(periodo) {
+  if (!periodo) return '—';
+  const [y, m] = periodo.split('-');
+  return `${m}/${y}`;
 }
-
-export const PORCENTAJE_RECARGO_MORA = PORCENTAJE_RECARGO;

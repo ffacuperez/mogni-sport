@@ -70,6 +70,11 @@ public class Inscripcion {
         cuotas.add(Cuota.primeraDe(this));
     }
 
+    /** Ver {@link Cuota#primeraDe(Inscripcion, LocalDate)}. */
+    public void generarPrimeraCuota(LocalDate fechaVencimientoAnterior) {
+        cuotas.add(Cuota.primeraDe(this, fechaVencimientoAnterior));
+    }
+
     public void cancelar(LocalDate fecha) {
         this.estado = EstadoInscripcion.CANCELADA;
         this.fechaFin = fecha;

@@ -63,4 +63,15 @@ public class Cuota {
         cuota.setEstado(EstadoCuota.PENDIENTE);
         return cuota;
     }
+
+    /**
+     * Primera cuota de una inscripción creada por un cambio de membresía, cuando a la cuota paga de la
+     * inscripción anterior todavía le quedaban días de vigencia: vence 30 días después de ESE vencimiento
+     * (no de hoy), para no perder los días ya pagados.
+     */
+    public static Cuota primeraDe(Inscripcion inscripcion, LocalDate fechaVencimientoAnterior) {
+        Cuota cuota = primeraDe(inscripcion);
+        cuota.setFechaVencimiento(fechaVencimientoAnterior.plusDays(DIAS_VENCIMIENTO));
+        return cuota;
+    }
 }

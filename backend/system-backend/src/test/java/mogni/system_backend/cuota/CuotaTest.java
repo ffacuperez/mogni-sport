@@ -62,6 +62,18 @@ class CuotaTest {
     }
 
     @Test
+    void primeraCuotaConVencimientoAnterior_venceA30DiasDeEseVencimientoNoDeHoy() {
+        Inscripcion inscripcion = inscripcion(LocalDate.now()); // cambio de membresía: arranca hoy
+        LocalDate vencimientoAnterior = LocalDate.now().plusDays(10);
+
+        Cuota cuota = Cuota.primeraDe(inscripcion, vencimientoAnterior);
+
+        assertEquals(vencimientoAnterior.plusDays(30), cuota.getFechaVencimiento());
+        assertEquals(EstadoCuota.PENDIENTE, cuota.getEstado());
+        assertEquals(inscripcion, cuota.getInscripcion());
+    }
+
+    @Test
     void vencimiento_marcaComoAtrasadasLasPendientesVencidas() {
         VencimientoCuotasService service = new VencimientoCuotasService(cuotaRepository);
         when(cuotaRepository.marcarAtrasadas(ZonaHoraria.hoy(), EstadoCuota.PENDIENTE, EstadoCuota.ATRASADA)).thenReturn(2);

@@ -329,6 +329,90 @@ class AlumnoServiceTest {
     }
 
     @Test
+    void actualizarAlumno_rechazaCambioDeMembresiaConCuotaActualSinPagar() {
+        Alumno alumno = alumnoExistente();
+        Membresia anterior = new Membresia(3L, "Basica", 20000.0, 2, null);
+        Inscripcion vieja = new Inscripcion(1L, LocalDate.now().minusDays(10), null,
+                EstadoInscripcion.ACTIVA, null, anterior);
+        Cuota cuotaSinPagar = new Cuota();
+        cuotaSinPagar.setEstado(EstadoCuota.PENDIENTE);
+        cuotaSinPagar.setFechaVencimiento(LocalDate.now().plusDays(10));
+        vieja.getCuotas().add(cuotaSinPagar);
+        alumno.agregarInscripcion(vieja);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+
+        RegistroInvalidoException ex = assertThrows(RegistroInvalidoException.class,
+                () -> alumnoService.actualizarAlumno(10L, actualizacion(alumno, 7L)));
+
+        assertEquals("No se puede cambiar la membresía: la cuota actual todavía no está pagada", ex.getMessage());
+        assertEquals(EstadoInscripcion.ACTIVA, vieja.getEstado());
+        verify(alumnoRepository, never()).save(any());
+    }
+
+    @Test
+    void actualizarAlumno_rechazaQuitarMembresiaConCuotaActualAtrasada() {
+        Alumno alumno = alumnoExistente();
+        Inscripcion actual = new Inscripcion(1L, LocalDate.now().minusDays(40), null,
+                EstadoInscripcion.ACTIVA, null, membresia);
+        Cuota cuotaAtrasada = new Cuota();
+        cuotaAtrasada.setEstado(EstadoCuota.ATRASADA);
+        cuotaAtrasada.setFechaVencimiento(LocalDate.now().minusDays(10));
+        actual.getCuotas().add(cuotaAtrasada);
+        alumno.agregarInscripcion(actual);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+
+        assertThrows(RegistroInvalidoException.class,
+                () -> alumnoService.actualizarAlumno(10L, actualizacion(alumno, null)));
+        assertEquals(EstadoInscripcion.ACTIVA, actual.getEstado());
+        verify(alumnoRepository, never()).save(any());
+    }
+
+    @Test
+    void actualizarAlumno_cambioDeMembresiaPreservaDiasPagosRestantes() {
+        Alumno alumno = alumnoExistente();
+        Membresia anterior = new Membresia(3L, "Basica", 20000.0, 2, null);
+        Inscripcion vieja = new Inscripcion(1L, LocalDate.now().minusDays(20), null,
+                EstadoInscripcion.ACTIVA, null, anterior);
+        Cuota cuotaPagada = new Cuota();
+        cuotaPagada.setEstado(EstadoCuota.PAGADA);
+        LocalDate vencimientoAnterior = LocalDate.now().plusDays(10); // todavía le quedan 10 días pagos
+        cuotaPagada.setFechaVencimiento(vencimientoAnterior);
+        vieja.getCuotas().add(cuotaPagada);
+        alumno.agregarInscripcion(vieja);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(7L)).thenReturn(Optional.of(membresia));
+        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        alumnoService.actualizarAlumno(10L, actualizacion(alumno, 7L));
+
+        assertEquals(EstadoInscripcion.CANCELADA, vieja.getEstado());
+        Inscripcion nueva = alumno.getInscripciones().get(1);
+        // Vence 30 días después del vencimiento de la cuota anterior, no 30 días desde hoy.
+        assertEquals(vencimientoAnterior.plusDays(30), nueva.getCuotas().get(0).getFechaVencimiento());
+    }
+
+    @Test
+    void actualizarAlumno_cambioDeMembresiaSinDiasRestantesCalculaDesdeHoy() {
+        Alumno alumno = alumnoExistente();
+        Membresia anterior = new Membresia(3L, "Basica", 20000.0, 2, null);
+        Inscripcion vieja = new Inscripcion(1L, LocalDate.now().minusDays(40), null,
+                EstadoInscripcion.ACTIVA, null, anterior);
+        Cuota cuotaPagadaVencida = new Cuota();
+        cuotaPagadaVencida.setEstado(EstadoCuota.PAGADA);
+        cuotaPagadaVencida.setFechaVencimiento(LocalDate.now().minusDays(5)); // pagada tarde, ya sin días restantes
+        vieja.getCuotas().add(cuotaPagadaVencida);
+        alumno.agregarInscripcion(vieja);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(7L)).thenReturn(Optional.of(membresia));
+        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        alumnoService.actualizarAlumno(10L, actualizacion(alumno, 7L));
+
+        Inscripcion nueva = alumno.getInscripciones().get(1);
+        assertEquals(LocalDate.now().plusDays(30), nueva.getCuotas().get(0).getFechaVencimiento());
+    }
+
+    @Test
     void actualizarAlumno_mismaMembresiaNoCreaOtraInscripcion() {
         Alumno alumno = alumnoExistente();
         Inscripcion actual = new Inscripcion(1L, LocalDate.now(), null,

@@ -2,6 +2,7 @@ package mogni.system_backend.alumno.service;
 
 import java.time.LocalDate;
 import java.time.Period;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -17,6 +18,8 @@ import mogni.system_backend.alumno.dto.RegistrarAlumnoRequest;
 import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
+import mogni.system_backend.cuota.entity.Cuota;
+import mogni.system_backend.cuota.entity.EstadoCuota;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
 import mogni.system_backend.inscripcion.dto.InscripcionResponse;
@@ -191,6 +194,12 @@ public class AlumnoService {
     /**
      * Si la membresía elegida es distinta a la de la inscripción activa, cancela la activa
      * y crea una inscripción nueva. Null deja al alumno sin inscripción activa.
+     *
+     * No se permite cambiar (ni quitar) la membresía si la cuota actual todavía no está pagada:
+     * al cancelar la inscripción esa deuda dejaría de verse en la pantalla de Cuotas (que solo
+     * lista inscripciones ACTIVAS). Si la cuota actual ya está pagada y todavía le quedan días de
+     * vigencia, esos días no se pierden: la cuota de la nueva inscripción vence 30 días después del
+     * vencimiento de la anterior, no de hoy.
      */
     private void cambiarMembresia(Alumno alumno, Long membresiaId) {
         Optional<Inscripcion> activa = alumno.buscarInscripcionActiva();
@@ -198,18 +207,50 @@ public class AlumnoService {
         if (Objects.equals(membresiaActualId, membresiaId)) {
             return;
         }
+
+        LocalDate vencimientoAPreservar = activa.flatMap(this::vencimientoAPreservar).orElse(null);
+
         activa.ifPresent(i -> i.cancelar(LocalDate.now()));
         if (membresiaId != null) {
-            alumno.agregarInscripcion(nuevaInscripcion(buscarMembresiaOLanzarError(membresiaId)));
+            alumno.agregarInscripcion(nuevaInscripcion(buscarMembresiaOLanzarError(membresiaId), vencimientoAPreservar));
         }
     }
 
+    /**
+     * Valida que la cuota más reciente de la inscripción esté pagada (si no, corta el cambio de
+     * membresía) y, si todavía le quedan días de vigencia, devuelve su fecha de vencimiento para
+     * que la nueva cuota la herede. Sin cuotas (caso legacy) no hay nada que validar ni preservar.
+     */
+    private Optional<LocalDate> vencimientoAPreservar(Inscripcion inscripcion) {
+        Optional<Cuota> cuotaActual = inscripcion.getCuotas().stream()
+                .max(Comparator.comparing(Cuota::getFechaVencimiento));
+        if (cuotaActual.isEmpty()) {
+            return Optional.empty();
+        }
+        Cuota cuota = cuotaActual.get();
+        if (cuota.getEstado() != EstadoCuota.PAGADA) {
+            throw new RegistroInvalidoException(
+                "No se puede cambiar la membresía: la cuota actual todavía no está pagada");
+        }
+        return cuota.getFechaVencimiento().isAfter(LocalDate.now())
+                ? Optional.of(cuota.getFechaVencimiento())
+                : Optional.empty();
+    }
+
     private Inscripcion nuevaInscripcion(Membresia membresia) {
+        return nuevaInscripcion(membresia, null);
+    }
+
+    private Inscripcion nuevaInscripcion(Membresia membresia, LocalDate vencimientoAPreservar) {
         Inscripcion inscripcion = new Inscripcion();
         inscripcion.setFechaInicio(LocalDate.now());
         inscripcion.setEstado(EstadoInscripcion.ACTIVA);
         inscripcion.setMembresia(membresia);
-        inscripcion.generarPrimeraCuota();
+        if (vencimientoAPreservar != null) {
+            inscripcion.generarPrimeraCuota(vencimientoAPreservar);
+        } else {
+            inscripcion.generarPrimeraCuota();
+        }
         return inscripcion;
     }
 

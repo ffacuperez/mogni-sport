@@ -57,6 +57,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/alumnos/me").hasRole("ALUMNO")
                 .requestMatchers("/alumnos/**", "/membresias/**")
                     .hasAnyRole("PROPIETARIO", "ENTRENADOR", "NUTRICIONISTA")
+                // Cobranzas: solo el propietario
+                .requestMatchers("/cuotas/**", "/pagos/**").hasRole("PROPIETARIO")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

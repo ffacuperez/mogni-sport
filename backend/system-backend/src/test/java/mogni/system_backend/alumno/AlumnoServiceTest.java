@@ -11,6 +11,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -33,6 +34,8 @@ import mogni.system_backend.alumno.service.AlumnoService;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
 import mogni.system_backend.auth.repository.CuentaRepository;
+import mogni.system_backend.cuota.entity.Cuota;
+import mogni.system_backend.cuota.entity.EstadoCuota;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
 import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
@@ -134,6 +137,13 @@ class AlumnoServiceTest {
         assertNull(inscripcion.getFechaFin());
         assertEquals(membresia, inscripcion.getMembresia());
         assertEquals(guardado, inscripcion.getAlumno());
+
+        // HU-45: al inscribirse se genera la primera cuota PENDIENTE
+        assertEquals(1, inscripcion.getCuotas().size());
+        Cuota cuota = inscripcion.getCuotas().get(0);
+        assertEquals(EstadoCuota.PENDIENTE, cuota.getEstado());
+        assertEquals(LocalDate.now().plusDays(30), cuota.getFechaVencimiento());
+        assertEquals(0, BigDecimal.valueOf(40000).compareTo(cuota.getMontoEsperado()));
     }
 
     @Test
@@ -311,7 +321,10 @@ class AlumnoServiceTest {
         assertEquals(EstadoInscripcion.CANCELADA, vieja.getEstado());
         assertEquals(LocalDate.now(), vieja.getFechaFin());
         assertEquals(2, alumno.getInscripciones().size());
-        assertNull(alumno.getInscripciones().get(1).getFechaFin());
+        Inscripcion nueva = alumno.getInscripciones().get(1);
+        assertNull(nueva.getFechaFin());
+        assertEquals(1, nueva.getCuotas().size());
+        assertEquals(EstadoCuota.PENDIENTE, nueva.getCuotas().get(0).getEstado());
         assertEquals(7L, response.getMembresiaId());
     }
 

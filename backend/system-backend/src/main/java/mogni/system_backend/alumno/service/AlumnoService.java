@@ -209,6 +209,7 @@ public class AlumnoService {
         inscripcion.setFechaInicio(LocalDate.now());
         inscripcion.setEstado(EstadoInscripcion.ACTIVA);
         inscripcion.setMembresia(membresia);
+        inscripcion.generarPrimeraCuota();
         return inscripcion;
     }
 

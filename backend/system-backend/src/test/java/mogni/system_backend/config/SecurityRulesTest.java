@@ -63,6 +63,21 @@ class SecurityRulesTest {
     }
 
     @Test
+    void cobranzasSoloParaElPropietario() throws Exception {
+        mockMvc.perform(get("/cuotas")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/cuotas").with(user("e@x.com").roles("ENTRENADOR"))).andExpect(status().isForbidden());
+        mockMvc.perform(get("/cuotas").with(user("a@x.com").roles("ALUMNO"))).andExpect(status().isForbidden());
+        mockMvc.perform(post("/pagos").with(user("e@x.com").roles("ENTRENADOR"))
+                        .contentType("application/json").content("{}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/cuotas").with(user("p@x.com").roles("PROPIETARIO"))).andExpect(status().isOk());
+        // El propietario pasa la regla de seguridad; el cuerpo vacío lo rechaza la validación
+        mockMvc.perform(post("/pagos").with(user("p@x.com").roles("PROPIETARIO"))
+                        .contentType("application/json").content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void preflightDesdeViteEsPermitidoSinAutenticar() throws Exception {
         mockMvc.perform(options("/alumnos")
                         .header("Origin", "http://localhost:5173")

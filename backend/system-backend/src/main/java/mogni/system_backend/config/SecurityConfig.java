@@ -59,6 +59,8 @@ public class SecurityConfig {
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 // El alumno solo puede ver sus propios datos; va antes de /alumnos/** para que tenga prioridad
                 .requestMatchers(HttpMethod.GET, "/alumnos/me").hasRole("ALUMNO")
+                // Historial de pagos (HU-48): solo el propietario, también antes de /alumnos/**
+                .requestMatchers(HttpMethod.GET, "/alumnos/*/pagos").hasRole("PROPIETARIO")
                 .requestMatchers("/alumnos/**", "/membresias/**")
                     .hasAnyRole("PROPIETARIO", "ENTRENADOR", "NUTRICIONISTA")
                 // Cobranzas: solo el propietario

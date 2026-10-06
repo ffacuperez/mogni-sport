@@ -78,6 +78,18 @@ class SecurityRulesTest {
     }
 
     @Test
+    void historialDePagosSoloParaElPropietario() throws Exception {
+        mockMvc.perform(get("/alumnos/1/pagos")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/alumnos/1/pagos").with(user("e@x.com").roles("ENTRENADOR")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/alumnos/1/pagos").with(user("a@x.com").roles("ALUMNO")))
+                .andExpect(status().isForbidden());
+        // El propietario pasa la regla de seguridad; 404 porque este id no existe en la base de prueba
+        mockMvc.perform(get("/alumnos/999999/pagos").with(user("p@x.com").roles("PROPIETARIO")))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void preflightDesdeViteEsPermitidoSinAutenticar() throws Exception {
         mockMvc.perform(options("/alumnos")
                         .header("Origin", "http://localhost:5173")

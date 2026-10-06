@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import mogni.system_backend.alumno.entity.Alumno;
+import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
 import mogni.system_backend.config.ZonaHoraria;
@@ -31,6 +33,7 @@ import mogni.system_backend.exception.RegistroInvalidoException;
 import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
 import mogni.system_backend.inscripcion.entity.Inscripcion;
 import mogni.system_backend.membresia.entity.Membresia;
+import mogni.system_backend.pago.dto.HistorialPagoResponse;
 import mogni.system_backend.pago.dto.PagoResponse;
 import mogni.system_backend.pago.dto.RegistrarPagoRequest;
 import mogni.system_backend.pago.entity.MedioDePago;
@@ -46,6 +49,9 @@ class PagoServiceTest {
 
     @Mock
     private CuotaRepository cuotaRepository;
+
+    @Mock
+    private AlumnoRepository alumnoRepository;
 
     @InjectMocks
     private PagoService pagoService;
@@ -176,5 +182,52 @@ class PagoServiceTest {
         assertThrows(RecursoNoEncontradoException.class,
                 () -> pagoService.registrarPago(pago("25000", MedioDePago.EFECTIVO)));
         verify(pagoRepository, never()).save(any());
+    }
+
+    private Pago pagoRegistrado(Long id, String monto, MedioDePago medio, LocalDate fechaPago, String periodo) {
+        Cuota c = Cuota.primeraDe(inscripcion);
+        c.setPeriodo(periodo);
+        Pago p = new Pago();
+        p.setId(id);
+        p.setCuota(c);
+        p.setMonto(new BigDecimal(monto));
+        p.setMedioDePago(medio);
+        p.setFechaPago(fechaPago);
+        return p;
+    }
+
+    @Test
+    void listarHistorialDePagos_rechazaAlumnoInexistente() {
+        when(alumnoRepository.existsById(10L)).thenReturn(false);
+
+        assertThrows(RecursoNoEncontradoException.class, () -> pagoService.listarHistorialDePagos(10L));
+    }
+
+    @Test
+    void listarHistorialDePagos_sinPagosDevuelveListaVacia() {
+        when(alumnoRepository.existsById(10L)).thenReturn(true);
+        when(pagoRepository.buscarPorAlumno(10L)).thenReturn(List.of());
+
+        assertEquals(0, pagoService.listarHistorialDePagos(10L).size());
+    }
+
+    @Test
+    void listarHistorialDePagos_mapeaFechaMontoMedioYPeriodo() {
+        when(alumnoRepository.existsById(10L)).thenReturn(true);
+        Pago reciente = pagoRegistrado(2L, "25000", MedioDePago.TRANSFERENCIA, LocalDate.of(2026, 10, 1), "2026-10");
+        Pago viejo = pagoRegistrado(1L, "25000", MedioDePago.EFECTIVO, LocalDate.of(2026, 9, 1), "2026-09");
+        // El repositorio ya los devuelve del más reciente al más antiguo; el servicio no reordena.
+        when(pagoRepository.buscarPorAlumno(10L)).thenReturn(List.of(reciente, viejo));
+
+        List<HistorialPagoResponse> historial = pagoService.listarHistorialDePagos(10L);
+
+        assertEquals(2, historial.size());
+        assertEquals(2L, historial.get(0).getPagoId());
+        assertEquals(0, new BigDecimal("25000").compareTo(historial.get(0).getMonto()));
+        assertEquals(MedioDePago.TRANSFERENCIA, historial.get(0).getMedioDePago());
+        assertEquals(LocalDate.of(2026, 10, 1), historial.get(0).getFechaPago());
+        assertEquals("2026-10", historial.get(0).getPeriodo());
+        assertEquals(1L, historial.get(1).getPagoId());
+        assertEquals("2026-09", historial.get(1).getPeriodo());
     }
 }

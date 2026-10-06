@@ -1,11 +1,14 @@
 package mogni.system_backend.pago.service;
 
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import mogni.system_backend.alumno.entity.Alumno;
+import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.cuota.entity.Cuota;
 import mogni.system_backend.cuota.entity.EstadoCuota;
@@ -13,6 +16,7 @@ import mogni.system_backend.cuota.repository.CuotaRepository;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
 import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
+import mogni.system_backend.pago.dto.HistorialPagoResponse;
 import mogni.system_backend.pago.dto.PagoResponse;
 import mogni.system_backend.pago.dto.RegistrarPagoRequest;
 import mogni.system_backend.pago.entity.Pago;
@@ -25,10 +29,13 @@ public class PagoService {
 
     private final PagoRepository pagoRepository;
     private final CuotaRepository cuotaRepository;
+    private final AlumnoRepository alumnoRepository;
 
-    public PagoService(PagoRepository pagoRepository, CuotaRepository cuotaRepository) {
+    public PagoService(PagoRepository pagoRepository, CuotaRepository cuotaRepository,
+                        AlumnoRepository alumnoRepository) {
         this.pagoRepository = pagoRepository;
         this.cuotaRepository = cuotaRepository;
+        this.alumnoRepository = alumnoRepository;
     }
 
     /**
@@ -77,5 +84,17 @@ public class PagoService {
 
         return new PagoResponse(guardado.getId(), cuota.getId(), cuota.getPeriodo(), guardado.getMonto(),
                 guardado.getMedioDePago(), guardado.getFechaPago(), cuota.getEstado());
+    }
+
+    /** Historial de pagos de un alumno, del más reciente al más antiguo (HU-48). */
+    @Transactional(readOnly = true)
+    public List<HistorialPagoResponse> listarHistorialDePagos(Long alumnoId) {
+        if (!alumnoRepository.existsById(alumnoId)) {
+            throw new RecursoNoEncontradoException("No existe un alumno con id " + alumnoId);
+        }
+        return pagoRepository.buscarPorAlumno(alumnoId).stream()
+                .map(p -> new HistorialPagoResponse(p.getId(), p.getMonto(), p.getMedioDePago(),
+                        p.getFechaPago(), p.getCuota().getPeriodo()))
+                .toList();
     }
 }

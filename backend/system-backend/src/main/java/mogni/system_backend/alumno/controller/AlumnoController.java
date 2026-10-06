@@ -20,15 +20,19 @@ import mogni.system_backend.alumno.dto.ActualizarAlumnoRequest;
 import mogni.system_backend.alumno.dto.AlumnoResponse;
 import mogni.system_backend.alumno.dto.RegistrarAlumnoRequest;
 import mogni.system_backend.alumno.service.AlumnoService;
+import mogni.system_backend.pago.dto.HistorialPagoResponse;
+import mogni.system_backend.pago.service.PagoService;
 
 @RestController
 @RequestMapping("/alumnos")
 public class AlumnoController {
 
     private final AlumnoService alumnoService;
+    private final PagoService pagoService;
 
-    public AlumnoController(AlumnoService alumnoService) {
+    public AlumnoController(AlumnoService alumnoService, PagoService pagoService) {
         this.alumnoService = alumnoService;
+        this.pagoService = pagoService;
     }
 
     @PostMapping
@@ -71,5 +75,11 @@ public class AlumnoController {
     @PutMapping("/{id}/reactivar")
     public ResponseEntity<AlumnoResponse> reactivarAlumno(@PathVariable Long id) {
         return ResponseEntity.ok(alumnoService.reactivarAlumno(id));
+    }
+
+    /** HU-48: historial de pagos del alumno, del más reciente al más antiguo. Solo PROPIETARIO (ver SecurityConfig). */
+    @GetMapping("/{id}/pagos")
+    public ResponseEntity<List<HistorialPagoResponse>> listarPagos(@PathVariable Long id) {
+        return ResponseEntity.ok(pagoService.listarHistorialDePagos(id));
     }
 }

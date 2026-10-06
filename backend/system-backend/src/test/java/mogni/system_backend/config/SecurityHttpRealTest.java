@@ -59,6 +59,7 @@ class SecurityHttpRealTest {
         assertEquals(403, status("GET", "/cuotas", entrenador));
         assertEquals(403, status("POST", "/pagos", entrenador));
         assertEquals(403, status("GET", "/alumnos/me", entrenador));
+        assertEquals(403, status("GET", "/alumnos/1/pagos", entrenador));
         // Lo que sí puede hacer sigue funcionando
         assertEquals(200, status("GET", "/alumnos", entrenador));
     }

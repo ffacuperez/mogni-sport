@@ -1,7 +1,7 @@
 import { getToken } from './tokenStorage';
 
-// En Vercel se define VITE_API_URL con la URL del backend en Railway; vacía o sin definir, usa el backend local
-export const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080').replace(/\/$/, '');
+// Backend deployado en Railway (fijo: no depende de variables de entorno)
+export const API_URL = 'https://mogni-sport-production.up.railway.app';
 
 export class ApiError extends Error {
   constructor(message, status) {

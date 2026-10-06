@@ -10,6 +10,7 @@ export default function CuotasList({
   selectedId,
   setSelectedId,
   onRegistrarPago,
+  onVerHistorial,
   searchTerm,
   setSearchTerm,
   filtro,
@@ -44,8 +45,15 @@ export default function CuotasList({
             >
               Registrar Pago
             </button>
+            <button
+              onClick={() => onVerHistorial(seleccion)}
+              disabled={!seleccion}
+              className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-md font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-700"
+            >
+              Ver Historial
+            </button>
             {!seleccion && (
-              <p className="text-sm text-slate-500">Seleccioná una cuota pendiente o vencida para registrar el pago.</p>
+              <p className="text-sm text-slate-500">Seleccioná una cuota para registrar el pago o ver el historial.</p>
             )}
             {seleccion && !seleccion.pagable && (
               <p className="text-sm text-slate-500">La cuota seleccionada ya está pagada.</p>

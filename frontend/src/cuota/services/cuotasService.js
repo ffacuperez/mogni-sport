@@ -59,6 +59,23 @@ export function registrarPago({ cuotaId, monto, medioDePago }) {
   return request('/pagos', { method: 'POST', body: { cuotaId, monto, medioDePago } });
 }
 
+/** HU-48: historial de pagos de un alumno, ya ordenado por el backend del más reciente al más antiguo. */
+export async function obtenerHistorialDePagos(alumnoId) {
+  const data = await request(`/alumnos/${alumnoId}/pagos`);
+  return data.map((p) => ({
+    id: p.pagoId,
+    monto: Number(p.monto),
+    medioDePago: p.medioDePago,
+    fecha: p.fechaPago,
+    periodo: p.periodo,
+  }));
+}
+
+/** Etiqueta legible de un medio de pago (EFECTIVO/TRANSFERENCIA -> Efectivo/Transferencia). */
+export function labelMedioDePago(medio) {
+  return MEDIOS_DE_PAGO.find((m) => m.value === medio)?.label ?? medio;
+}
+
 /** Clases de Tailwind para el badge de estado (mismo patrón que ya usa AlumnoDashboard). */
 export function clasesEstadoCuota(estado) {
   switch (estado) {

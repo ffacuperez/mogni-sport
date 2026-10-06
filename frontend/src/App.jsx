@@ -13,6 +13,7 @@ import MembresiasList from './membresia/pages/MembresiasList';
 import MembresiaForm from './membresia/pages/MembresiaForm';
 import CuotasList from './cuota/pages/CuotasList';
 import RegistrarPagoModal from './cuota/pages/RegistrarPagoModal';
+import HistorialPagosModal from './cuota/pages/HistorialPagosModal';
 import ConfirmModal from './shared/components/ConfirmModal';
 import Toast from './shared/components/Toast';
 import { debeCambiarPassword, getRol, hasSession, logout, ROL_ALUMNO, ROLES_GESTION } from './auth/services/authService';
@@ -31,7 +32,7 @@ import {
   eliminarMembresia,
   listarMembresias,
 } from './membresia/services/membresiasService';
-import { listarCuotas, registrarPago } from './cuota/services/cuotasService';
+import { listarCuotas, obtenerHistorialDePagos, registrarPago } from './cuota/services/cuotasService';
 
 // --- ICONS (Main App) ---
 const IconHome = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
@@ -86,6 +87,11 @@ function MainApp({ onLogout }) {
   const [searchCuota, setSearchCuota] = useState('');
   const [filtroCuota, setFiltroCuota] = useState('Todas');
   const [cuotaAPagar, setCuotaAPagar] = useState(null);
+
+  // --- Historial de pagos (HU-48) ---
+  const [alumnoHistorial, setAlumnoHistorial] = useState(null);
+  const [pagosHistorial, setPagosHistorial] = useState([]);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
 
   const [modalConfig, setModalConfig] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
   const [toastConfig, setToastConfig] = useState({ isVisible: false, message: '', isError: false });
@@ -259,6 +265,21 @@ function MainApp({ onLogout }) {
       setCuotaAPagar(null);
       setSelectedCuotaId(null);
       cargarCuotas();
+    }
+  };
+
+  // HU-48: historial de pagos del alumno de la cuota seleccionada.
+  const handleVerHistorial = async (cuota) => {
+    if (!cuota) return;
+    setAlumnoHistorial({ nombre: cuota.nombre, apellido: cuota.apellido, dni: cuota.dni });
+    setCargandoHistorial(true);
+    try {
+      setPagosHistorial(await obtenerHistorialDePagos(cuota.alumnoId));
+    } catch (error) {
+      displayToast(error.message, true);
+      setAlumnoHistorial(null);
+    } finally {
+      setCargandoHistorial(false);
     }
   };
 
@@ -446,6 +467,7 @@ function MainApp({ onLogout }) {
               selectedId={selectedCuotaId}
               setSelectedId={setSelectedCuotaId}
               onRegistrarPago={setCuotaAPagar}
+              onVerHistorial={handleVerHistorial}
               searchTerm={searchCuota}
               setSearchTerm={setSearchCuota}
               filtro={filtroCuota}
@@ -472,6 +494,15 @@ function MainApp({ onLogout }) {
           onConfirm={handleRegistrarPago}
           onCancel={() => setCuotaAPagar(null)}
           onError={(msg) => displayToast(msg, true)}
+        />
+      )}
+
+      {alumnoHistorial && (
+        <HistorialPagosModal
+          alumno={alumnoHistorial}
+          pagos={pagosHistorial}
+          cargando={cargandoHistorial}
+          onClose={() => setAlumnoHistorial(null)}
         />
       )}
 

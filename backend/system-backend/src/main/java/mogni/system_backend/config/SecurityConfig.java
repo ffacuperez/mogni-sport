@@ -17,6 +17,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import jakarta.servlet.DispatcherType;
 import mogni.system_backend.security.JwtAuthenticationFilter;
 
 @Configuration
@@ -49,6 +50,9 @@ public class SecurityConfig {
             // Sin token válido respondemos 401 (no el 403 por defecto) para que el frontend pueda redirigir al login
             .exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             .authorizeHttpRequests(auth -> auth
+                // El re-despacho interno a /error (sendError) llega sin el JWT procesado; si no se permite,
+                // un 403 por falta de rol termina respondiéndose como 401 y el frontend cierra la sesión
+                .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                 // Cambiar la contraseña requiere estar logueado; va antes del permitAll de /auth/**
                 .requestMatchers("/auth/cambiar-password").authenticated()
                 .requestMatchers("/auth/**").permitAll()

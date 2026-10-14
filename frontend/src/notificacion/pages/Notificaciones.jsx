@@ -6,6 +6,7 @@ import { Cargando } from '../../shared/components/ui';
 import { cx, FOCUS } from '../../shared/components/clases';
 import { formatearFecha } from '../../shared/services/texto';
 import { clavesSinLeer, marcarTodasLeidas } from '../services/notificacionesService';
+import AvisosCelular from './AvisosCelular';
 
 const FILTROS = [
   { id: 'todas', label: 'Todas', icono: Bell },
@@ -91,6 +92,8 @@ export default function Notificaciones() {
           </p>
         </div>
       </div>
+
+      <AvisosCelular />
 
       <div className="-mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1" role="tablist" aria-label="Filtrar notificaciones">
         {FILTROS.map(({ id, label, icono: Icono }) => (

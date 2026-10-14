@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router';
 import { CircleAlert, CreditCard, LogOut, Mail, Phone, Target } from 'lucide-react';
 
 import { obtenerMiPerfil } from '../services/alumnosService';
+import { desactivarPush } from '../../notificacion/services/pushService';
 import { Badge, Cargando, Panel } from '../../shared/components/ui';
 import { FOCUS } from '../../shared/components/clases';
 
@@ -45,6 +46,12 @@ export default function AlumnoPerfil() {
 
   if (!alumno) return <Cargando texto="Cargando tus datos" />;
 
+  // Al cerrar sesión el dispositivo deja de recibir las push de esta cuenta (se borra mientras el token sigue válido)
+  const cerrarSesion = async () => {
+    await desactivarPush().catch(() => {});
+    onLogout();
+  };
+
   const inscripcion = alumno.inscripcion;
   const activa = inscripcion?.estado === 'Activa';
 
@@ -74,7 +81,7 @@ export default function AlumnoPerfil() {
 
       <button
         type="button"
-        onClick={onLogout}
+        onClick={cerrarSesion}
         className={`mt-auto flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-primary bg-card px-5 py-3 text-sm font-semibold text-primary transition-colors hover:bg-error-bg ${FOCUS}`}
       >
         <LogOut className="h-5 w-5" /> Cerrar sesión

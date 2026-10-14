@@ -58,7 +58,8 @@ public class NotificacionService {
                 .toList();
     }
 
-    private Optional<NotificacionResponse> notificacionDe(Cuota cuota, LocalDate hoy) {
+    /** Notificación vigente de una cuota (vacía si está pagada o falta para su vencimiento). También la usan las push. */
+    public Optional<NotificacionResponse> notificacionDe(Cuota cuota, LocalDate hoy) {
         if (cuota.getEstado() == EstadoCuota.PAGADA) {
             return Optional.empty();
         }

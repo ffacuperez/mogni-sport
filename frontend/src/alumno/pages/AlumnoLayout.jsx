@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet } from 'react-router';
 import { Bell, CalendarDays, Dumbbell, House, User } from 'lucide-react';
 
 import { Logo } from '../../shared/components/ui';
+import BotonInstalarApp from '../../shared/components/BotonInstalarApp';
 import { cx, FOCUS } from '../../shared/components/clases';
 import { contarSinLeer, listarNotificaciones } from '../../notificacion/services/notificacionesService';
 
@@ -57,18 +58,21 @@ export default function AlumnoLayout({ onLogout }) {
       <header className="sticky top-0 z-30 bg-sidebar">
         <div className="mx-auto flex h-16 max-w-lg items-center justify-between gap-4 px-4">
           <Logo onDark />
-          <Link
-            to="notificaciones"
-            aria-label={sinLeer > 0 ? `Notificaciones, ${sinLeer} sin leer` : 'Notificaciones'}
-            className={`relative rounded-lg p-2 text-on-dark transition-colors hover:bg-sidebar-hover ${FOCUS}`}
-          >
-            <Bell className="h-6 w-6" />
-            {sinLeer > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold tabular-nums text-on-dark ring-2 ring-sidebar">
-                {sinLeer}
-              </span>
-            )}
-          </Link>
+          <div className="flex items-center gap-2">
+            <BotonInstalarApp />
+            <Link
+              to="notificaciones"
+              aria-label={sinLeer > 0 ? `Notificaciones, ${sinLeer} sin leer` : 'Notificaciones'}
+              className={`relative rounded-lg p-2 text-on-dark transition-colors hover:bg-sidebar-hover ${FOCUS}`}
+            >
+              <Bell className="h-6 w-6" />
+              {sinLeer > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold tabular-nums text-on-dark ring-2 ring-sidebar">
+                  {sinLeer}
+                </span>
+              )}
+            </Link>
+          </div>
         </div>
       </header>
 

@@ -1,7 +1,7 @@
 import { getToken } from './tokenStorage';
 
 // Backend deployado en Railway (fijo: no depende de variables de entorno)
-export const API_URL = 'https://mogni-sport-production.up.railway.app';
+export const API_URL = import.meta.env.VITE_API_URL || 'https://mogni-sport-production-87b7.up.railway.app';
 
 export class ApiError extends Error {
   constructor(message, status) {

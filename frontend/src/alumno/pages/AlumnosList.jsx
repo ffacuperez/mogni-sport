@@ -1,6 +1,6 @@
 import { Plus } from 'lucide-react';
 
-import { describirMembresia } from '../services/alumnosService';
+import { describirMembresia, describirModalidad } from '../services/alumnosService';
 import { normalizar } from '../../shared/services/texto';
 import { Badge, Button, EmptyRow, PageHeader, Panel, Row, SearchInput, Table } from '../../shared/components/ui';
 
@@ -10,6 +10,7 @@ const COLUMNAS = [
   { label: 'Nombre' },
   { label: 'Correo electrónico' },
   { label: 'Membresía' },
+  { label: 'Modalidad' },
   { label: 'Estado' },
 ];
 
@@ -71,6 +72,7 @@ export default function AlumnosList({ alumnos, cargando, onSelect, onAdd, search
               <td className="px-3">{alumno.nombre}</td>
               <td className="px-3 text-ink-soft">{alumno.email}</td>
               <td className="px-3">{describirMembresia(alumno)}</td>
+              <td className="px-3">{describirModalidad(alumno) || '—'}</td>
               <td className="px-3">
                 <Badge tone={alumno.estado === 'Activo' ? 'success' : 'error'}>{alumno.estado}</Badge>
               </td>

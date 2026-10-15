@@ -15,6 +15,7 @@ import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
 import mogni.system_backend.alumno.dto.RegistrarAlumnoRequest;
+import mogni.system_backend.alumno.entity.Modalidad;
 
 class RegistrarAlumnoRequestValidationTest {
 
@@ -41,6 +42,7 @@ class RegistrarAlumnoRequestValidationTest {
         request.setFechaNacimiento(LocalDate.now().minusYears(20));
         request.setTelefono("1122334455");
         request.setMembresiaId(1L);
+        request.setModalidad(Modalidad.PRESENCIAL);
         return request;
     }
 
@@ -105,6 +107,14 @@ class RegistrarAlumnoRequestValidationTest {
     void sinMembresiaFalla() {
         RegistrarAlumnoRequest request = requestValido();
         request.setMembresiaId(null);
+        assertFalse(validator.validate(request).isEmpty());
+    }
+
+    // HU-253: la modalidad es obligatoria
+    @Test
+    void sinModalidadFalla() {
+        RegistrarAlumnoRequest request = requestValido();
+        request.setModalidad(null);
         assertFalse(validator.validate(request).isEmpty());
     }
 

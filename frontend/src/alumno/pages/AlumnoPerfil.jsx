@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router';
-import { CircleAlert, CreditCard, LogOut, Mail, Phone, Target } from 'lucide-react';
+import { CircleAlert, CreditCard, LogOut, Mail, MapPin, Phone, Target } from 'lucide-react';
 
-import { obtenerMiPerfil } from '../services/alumnosService';
+import { describirModalidad, obtenerMiPerfil } from '../services/alumnosService';
 import { desactivarPush } from '../../notificacion/services/pushService';
 import { Badge, Cargando, Panel } from '../../shared/components/ui';
 import { FOCUS } from '../../shared/components/clases';
@@ -76,6 +76,7 @@ export default function AlumnoPerfil() {
             valor={inscripcion ? inscripcion.membresia : 'Sin membresía'}
             extra={inscripcion && <Badge tone={activa ? 'success' : 'error'}>{inscripcion.estado}</Badge>}
           />
+          <Fila icono={MapPin} etiqueta="Modalidad" valor={describirModalidad(alumno)} />
         </ul>
       </Panel>
 

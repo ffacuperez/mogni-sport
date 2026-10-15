@@ -37,22 +37,22 @@ INSERT INTO cuentas (email, password, rol, debe_cambiar_password, activa) VALUES
     ('valentina.lopez@mail.com',  '$2a$10$NIoLsLEAT6PK52UsPeTu0e81v8NYWjUt0hzBELEbLvf9LiayRE7AO', 'ALUMNO', true, true);
 
 -- 5) Alumnos (todos mayores de 16, DNI y email únicos)
-INSERT INTO alumnos (nombre, apellido, edad, telefono, sexo, dni, email, fecha_nacimiento, objetivo, cuestionario_salud, cuenta_id) VALUES
+INSERT INTO alumnos (nombre, apellido, edad, telefono, sexo, dni, email, fecha_nacimiento, objetivo, cuestionario_salud, modalidad, cuenta_id) VALUES
     ('Lucía', 'Gómez', date_part('year', age(CURRENT_DATE, DATE '1983-04-12'))::int, '3415551111', 'Femenino', '30111222',
         'lucia.gomez@mail.com', DATE '1983-04-12', 'Bajar de peso', NULL,
-        (SELECT id FROM cuentas WHERE email = 'lucia.gomez@mail.com')),
+        'PRESENCIAL', (SELECT id FROM cuentas WHERE email = 'lucia.gomez@mail.com')),
     ('Martín', 'Fernández', date_part('year', age(CURRENT_DATE, DATE '1990-09-03'))::int, '3415552222', 'Masculino', '35222333',
         'martin.fernandez@mail.com', DATE '1990-09-03', 'Ganar masa muscular', 'Lesión de rodilla en 2022',
-        (SELECT id FROM cuentas WHERE email = 'martin.fernandez@mail.com')),
+        'PRESENCIAL', (SELECT id FROM cuentas WHERE email = 'martin.fernandez@mail.com')),
     ('Sofía', 'Ruiz', date_part('year', age(CURRENT_DATE, DATE '1995-01-25'))::int, '3415553333', 'Femenino', '38333444',
         'sofia.ruiz@mail.com', DATE '1995-01-25', NULL, NULL,
-        (SELECT id FROM cuentas WHERE email = 'sofia.ruiz@mail.com')),
+        'PRESENCIAL', (SELECT id FROM cuentas WHERE email = 'sofia.ruiz@mail.com')),
     ('Tomás', 'Díaz', date_part('year', age(CURRENT_DATE, DATE '1998-07-30'))::int, '3415554444', 'Masculino', '40444555',
         'tomas.diaz@mail.com', DATE '1998-07-30', 'Mejorar resistencia', NULL,
-        (SELECT id FROM cuentas WHERE email = 'tomas.diaz@mail.com')),
+        'ONLINE', (SELECT id FROM cuentas WHERE email = 'tomas.diaz@mail.com')),
     ('Valentina', 'López', date_part('year', age(CURRENT_DATE, DATE '2001-11-18'))::int, '3415555555', 'Femenino', '42555666',
         'valentina.lopez@mail.com', DATE '2001-11-18', NULL, 'Asma leve',
-        (SELECT id FROM cuentas WHERE email = 'valentina.lopez@mail.com'));
+        'PRESENCIAL', (SELECT id FROM cuentas WHERE email = 'valentina.lopez@mail.com'));
 
 -- 6) Una inscripción ACTIVA por alumno (fecha_fin queda NULL mientras está activa).
 --    Las fechas de inicio varían para que haya cuotas en todos los estados.

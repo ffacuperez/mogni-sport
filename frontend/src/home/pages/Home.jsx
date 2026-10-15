@@ -18,6 +18,7 @@ import {
 import Toast from '../../shared/components/Toast';
 import { useToast } from '../../shared/hooks/useToast';
 import { Logo } from '../../shared/components/ui';
+import BotonInstalarApp from '../../shared/components/BotonInstalarApp';
 import { FOCUS } from '../../shared/components/clases';
 
 // Colores: tokens de index.css (design system del cliente: grises + rojo #D32F2F).
@@ -190,6 +191,7 @@ export default function Home({ isAuthenticated = false, onLogin }) {
           </nav>
 
           <div className="flex items-center gap-2">
+            <BotonInstalarApp />
             <button
               type="button"
               onClick={handleLogin}

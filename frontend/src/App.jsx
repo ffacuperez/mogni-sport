@@ -9,7 +9,10 @@ import AlumnosList from './alumno/pages/AlumnosList';
 import AlumnoForm from './alumno/pages/AlumnoForm';
 import AlumnoDetalle from './alumno/pages/AlumnoDetalle';
 import AlumnoMembresiaForm from './alumno/pages/AlumnoMembresiaForm';
-import AlumnoDashboard from './alumno/pages/AlumnoDashboard';
+import AlumnoLayout from './alumno/pages/AlumnoLayout';
+import AlumnoPerfil from './alumno/pages/AlumnoPerfil';
+import SeccionProximamente from './alumno/pages/SeccionProximamente';
+import Notificaciones from './notificacion/pages/Notificaciones';
 import MembresiasList from './membresia/pages/MembresiasList';
 import MembresiaForm from './membresia/pages/MembresiaForm';
 import CuotasList from './cuota/pages/CuotasList';
@@ -602,29 +605,20 @@ export default function App() {
           : <Login onLogin={handleLogin} onBack={() => navigate('/')} />
       } />
 
-      {/* Dashboard: solo rol ALUMNO */}
+      {/* App del alumno: solo rol ALUMNO. Inicio, Turnos y Rutinas todavía no están desarrolladas */}
       <Route path="/mi-cuenta" element={
         <RequiereRol sesion={authSession} permitido={esAlumno}>
-          <div className="min-h-screen bg-page text-ink">
-            <header className="sticky top-0 z-30 bg-sidebar">
-              <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-                <Logo onDark />
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className={`flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-on-dark transition-colors hover:bg-sidebar-hover ${FOCUS}`}
-                >
-                  <LogOut className="h-5 w-5 text-ink-muted" /> Cerrar sesión
-                </button>
-              </div>
-            </header>
-
-            <div className="px-4 py-8 sm:px-6">
-              <AlumnoDashboard />
-            </div>
-          </div>
+          <AlumnoLayout onLogout={handleLogout} />
         </RequiereRol>
-      } />
+      }>
+        <Route index element={<Navigate to="perfil" replace />} />
+        <Route path="inicio" element={<SeccionProximamente titulo="Inicio" />} />
+        <Route path="turnos" element={<SeccionProximamente titulo="Turnos" />} />
+        <Route path="rutinas" element={<SeccionProximamente titulo="Rutinas" />} />
+        <Route path="perfil" element={<AlumnoPerfil />} />
+        <Route path="notificaciones" element={<Notificaciones />} />
+        <Route path="*" element={<Navigate to="perfil" replace />} />
+      </Route>
 
       {/* Panel de gestión: solo PROPIETARIO, ENTRENADOR y NUTRICIONISTA. Sus rutas están en MainApp */}
       <Route path="/*" element={

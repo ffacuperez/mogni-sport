@@ -4,7 +4,7 @@ Modelo de dominio (MOD) y diagrama entidad-relación (DER) de lo que agrega la H
 cuota dentro de la app y notificaciones push al celular.
 
 Los diagramas incluyen, como contexto, las entidades existentes con las que se relaciona lo nuevo
-(Cuenta, Alumno, Inscripción, Membresía, Cuota y Pago). **Lo nuevo de esta HU está marcado con «nuevo».**
+(Cuenta, Alumno, Inscripción, Membresía, Cuota y Pago). Lo nuevo de esta HU es lo que lista la tabla de abajo.
 
 | Elemento nuevo | ¿Se guarda en la base? | Para qué |
 |---|---|---|
@@ -16,88 +16,128 @@ Los diagramas incluyen, como contexto, las entidades existentes con las que se r
 
 ## 1. MOD — Modelo de dominio
 
+Mismo formato que el MOD general del proyecto: atributos con tipo, enums como clases aparte y la
+multiplicidad en el extremo de destino de cada asociación. Las clases nuevas son **SuscripcionPush**,
+**AvisoPushEnviado**, **Notificacion** y el enum **TipoNotificacion**; el resto es el modelo existente.
+
 ```mermaid
 classDiagram
     direction LR
 
     class Cuenta {
-        email
-        rol
-        activa
+        - id: Long
+        - email: String
+        - password: String
+        - rol: Rol
+        - debeCambiarPassword: boolean
+        - activa: boolean
     }
     class Alumno {
-        nombre
-        apellido
-        dni
-        telefono
-        objetivo
+        - id: Long
+        - nombre: String
+        - apellido: String
+        - dni: String
+        - email: String
+        - fechaNacimiento: LocalDate
+        - edad: int
+        - telefono: String
+        - sexo: String
+        - objetivo: String
+        - cuestionarioSalud: String
     }
     class Inscripcion {
-        fechaInicio
-        fechaFin
-        estado : EstadoInscripcion
+        - id: Long
+        - fechaInicio: LocalDate
+        - fechaFin: LocalDate
+        - estado: EstadoInscripcion
     }
     class Membresia {
-        nombre
-        precioActual
-        frecuenciaSemanal
+        - id: Long
+        - nombre: String
+        - precioActual: double
+        - frecuenciaSemanal: int
+        - descripcion: String
     }
     class Cuota {
-        periodo
-        montoEsperado
-        fechaVencimiento
-        estado : EstadoCuota
+        - id: Long
+        - periodo: String
+        - montoEsperado: BigDecimal
+        - fechaVencimiento: LocalDate
+        - estado: EstadoCuota
     }
     class Pago {
-        monto
-        medioDePago
-        fechaPago
+        - id: Long
+        - monto: BigDecimal
+        - medioDePago: MedioDePago
+        - fechaPago: LocalDate
     }
 
-    class Notificacion {
-        <<nuevo · derivada>>
-        tipo : TipoNotificacion
-        titulo
-        mensaje
-        fecha
-    }
     class SuscripcionPush {
-        <<nuevo>>
-        endpoint
-        p256dh
-        auth
-        fechaAlta
+        - id: Long
+        - endpoint: String
+        - p256dh: String
+        - auth: String
+        - fechaAlta: LocalDateTime
     }
     class AvisoPushEnviado {
-        <<nuevo>>
-        tipo : TipoNotificacion
-        fechaEnvio
+        - id: Long
+        - tipo: TipoNotificacion
+        - fechaEnvio: LocalDateTime
+    }
+    class Notificacion {
+        <<derivada>>
+        - id: String
+        - tipo: TipoNotificacion
+        - titulo: String
+        - mensaje: String
+        - fecha: LocalDate
+        - fechaVencimiento: LocalDate
     }
 
+    class Rol {
+        <<enumeration>>
+        PROPIETARIO
+        ENTRENADOR
+        NUTRICIONISTA
+        ALUMNO
+    }
+    class EstadoInscripcion {
+        <<enumeration>>
+        ACTIVA
+        CANCELADA
+    }
     class EstadoCuota {
         <<enumeration>>
         PENDIENTE
         PAGADA
         ATRASADA
     }
+    class MedioDePago {
+        <<enumeration>>
+        EFECTIVO
+        TRANSFERENCIA
+    }
     class TipoNotificacion {
-        <<enumeration · nuevo>>
+        <<enumeration>>
         CUOTA_POR_VENCER
         CUOTA_VENCIDA
     }
 
-    Alumno "1" -- "1" Cuenta : tiene
-    Alumno "1" -- "0..*" Inscripcion : se inscribe
-    Inscripcion "0..*" -- "1" Membresia : a
-    Inscripcion "1" -- "0..*" Cuota : genera
-    Cuota "1" -- "0..*" Pago : se paga con
+    Alumno --> "1" Cuenta
+    Alumno --> "1..*" Inscripcion
+    Inscripcion --> "1" Membresia
+    Inscripcion --> "1..*" Cuota
+    Cuota --> "0..*" Pago
+    Cuenta --> "1" Rol
+    Inscripcion --> "1" EstadoInscripcion
+    Cuota --> "1" EstadoCuota
+    Pago --> "1" MedioDePago
 
-    Cuota "1" -- "0..1" Notificacion : origina
-    Cuenta "1" -- "0..*" SuscripcionPush : recibe push en
-    Cuota "1" -- "0..2" AvisoPushEnviado : se avisó
-    Notificacion ..> TipoNotificacion
-    AvisoPushEnviado ..> TipoNotificacion
-    Cuota ..> EstadoCuota
+    Cuenta --> "0..*" SuscripcionPush
+    Cuota --> "0..2" AvisoPushEnviado
+    Cuota --> "0..1" Notificacion
+    AvisoPushEnviado --> "1" TipoNotificacion
+    Notificacion --> "1" TipoNotificacion
 ```
 
 ### Reglas del dominio

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CalendarDays, CalendarX, Check, ChevronRight, CircleAlert, Info, Lock } from 'lucide-react';
 
 import { Button, Cargando, Panel } from '../../shared/components/ui';
@@ -116,7 +117,8 @@ function BottomSheet({ label, onClose, cerrable = true, children }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, cerrable]);
 
-  return (
+  // En el body: la pantalla tiene una animación de entrada y, adentro de ella, "fixed" no cubriría toda la ventana
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 animate-fade-in"
       onMouseDown={(e) => { if (cerrable && e.target === e.currentTarget) onClose(); }}
@@ -126,7 +128,8 @@ function BottomSheet({ label, onClose, cerrable = true, children }) {
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line" aria-hidden="true" />
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

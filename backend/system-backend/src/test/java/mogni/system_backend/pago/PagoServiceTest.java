@@ -64,7 +64,7 @@ class PagoServiceTest {
     void setUp() {
         alumno = new Alumno();
         alumno.setId(10L);
-        alumno.setCuenta(new Cuenta(1L, "juan@email.com", "hash", Rol.ALUMNO, false, true));
+        alumno.setCuenta(new Cuenta(1L, "juan@email.com", "hash", Rol.ALUMNO, false, true, null));
         Membresia membresia = new Membresia(7L, "Pro", 25000.0, 3, null);
         inscripcion = new Inscripcion(5L, LocalDate.now().minusDays(10), null, EstadoInscripcion.ACTIVA, alumno, membresia);
         cuota = Cuota.primeraDe(inscripcion);

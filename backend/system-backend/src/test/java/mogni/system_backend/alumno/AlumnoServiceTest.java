@@ -83,7 +83,7 @@ class AlumnoServiceTest {
     }
 
     private Alumno alumnoExistente() {
-        Cuenta cuenta = new Cuenta(1L, "juan@email.com", "hash", Rol.ALUMNO, true, true);
+        Cuenta cuenta = new Cuenta(1L, "juan@email.com", "hash", Rol.ALUMNO, true, true, null);
         Alumno alumno = new Alumno();
         alumno.setId(10L);
         alumno.setNombre("Juan");
@@ -533,9 +533,11 @@ class AlumnoServiceTest {
         AlumnoResponse baja = alumnoService.darDeBajaAlumno(10L);
         assertFalse(baja.isActivo());
         assertFalse(alumno.getCuenta().isActiva());
+        assertEquals(ZonaHoraria.hoy(), baja.getFechaBaja());
 
         AlumnoResponse alta = alumnoService.reactivarAlumno(10L);
         assertTrue(alta.isActivo());
+        assertNull(alta.getFechaBaja());
         assertNotNull(alta.getId());
     }
 }

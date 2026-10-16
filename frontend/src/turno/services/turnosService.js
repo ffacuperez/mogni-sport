@@ -1,6 +1,6 @@
 import { request } from '../../shared/services/httpClient';
 
-// HU-259, HU-254 y HU-256: turnos disponibles del alumno logueado (hoy y mañana). El backend decide fechas, estados y
+// HU-259, HU-254, HU-256 y HU-255: turnos disponibles del alumno logueado (hoy y mañana). El backend decide fechas, estados y
 // si cada turno se puede elegir; acá solo se piden y se muestran.
 
 /** fecha: "2026-10-13" (hoy o mañana). Sin fecha, el backend devuelve hoy. */
@@ -11,6 +11,11 @@ export async function consultarTurnosDisponibles(fecha) {
 /** HU-256: turnos reservados del alumno logueado que todavía no terminaron, del más cercano al más lejano. */
 export async function consultarMisTurnos() {
   return request('/turnos/mis-turnos');
+}
+
+/** HU-255: cancela una reserva del alumno (hasta 2 horas antes). Si el backend la rechaza, el error trae el motivo. */
+export async function cancelarReserva(reservaId) {
+  return request(`/turnos/reservas/${reservaId}/cancelar`, { method: 'POST' });
 }
 
 /** HU-254: reserva el turno para el alumno logueado. Si el backend la rechaza, el error trae el motivo en español. */

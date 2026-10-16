@@ -13,9 +13,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import mogni.system_backend.turno.dto.MisTurnosResponse;
 import mogni.system_backend.turno.dto.ReservaResponse;
 import mogni.system_backend.turno.dto.TurnosDisponiblesResponse;
 import mogni.system_backend.turno.service.ConsultaTurnosService;
+import mogni.system_backend.turno.service.MisTurnosService;
 import mogni.system_backend.turno.service.ReservaService;
 
 /** HU-259: turnos del alumno logueado. Solo rol ALUMNO (ver SecurityConfig); el servicio exige además activo y presencial. */
@@ -25,10 +27,13 @@ public class TurnoController {
 
     private final ConsultaTurnosService consultaTurnosService;
     private final ReservaService reservaService;
+    private final MisTurnosService misTurnosService;
 
-    public TurnoController(ConsultaTurnosService consultaTurnosService, ReservaService reservaService) {
+    public TurnoController(ConsultaTurnosService consultaTurnosService, ReservaService reservaService,
+                           MisTurnosService misTurnosService) {
         this.consultaTurnosService = consultaTurnosService;
         this.reservaService = reservaService;
+        this.misTurnosService = misTurnosService;
     }
 
     /** ?fecha=YYYY-MM-DD (hoy o mañana). Sin fecha, hoy. */
@@ -37,6 +42,12 @@ public class TurnoController {
             Authentication authentication,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
         return ResponseEntity.ok(consultaTurnosService.consultarTurnosDisponibles(authentication.getName(), fecha));
+    }
+
+    /** HU-256: turnos reservados del alumno logueado que todavía no terminaron, del más cercano al más lejano. */
+    @GetMapping("/mis-turnos")
+    public ResponseEntity<MisTurnosResponse> consultarMisTurnos(Authentication authentication) {
+        return ResponseEntity.ok(misTurnosService.consultarMisTurnos(authentication.getName()));
     }
 
     /** HU-254: reserva el turno para el alumno logueado. Sin cuerpo: el alumno sale del token. */

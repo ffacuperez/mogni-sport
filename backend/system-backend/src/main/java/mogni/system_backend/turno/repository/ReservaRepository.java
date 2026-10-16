@@ -22,4 +22,9 @@ public interface ReservaRepository extends JpaRepository<Reserva, Long> {
     @EntityGraph(attributePaths = {"turno"})
     List<Reserva> findByAlumnoIdAndEstadoAndTurnoFechaBetween(Long alumnoId, EstadoReserva estado,
                                                                LocalDate desde, LocalDate hasta);
+
+    /** Reservas del alumno con ese estado en turnos de esa fecha en adelante (HU-256, sin ordenar). */
+    @EntityGraph(attributePaths = {"turno"})
+    List<Reserva> findByAlumnoIdAndEstadoAndTurnoFechaGreaterThanEqual(Long alumnoId, EstadoReserva estado,
+                                                                        LocalDate desde);
 }

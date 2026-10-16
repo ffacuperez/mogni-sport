@@ -41,8 +41,6 @@ public class ConsultaTurnosService {
 
     /** El selector muestra hoy y los 4 días siguientes. */
     static final int DIAS_EN_SELECTOR = 5;
-    /** Solo hoy y mañana se pueden consultar. */
-    static final int DIAS_HABILITADOS = 2;
 
     private final AlumnoRepository alumnoRepository;
     private final ReservaRepository reservaRepository;
@@ -109,8 +107,13 @@ public class ConsultaTurnosService {
                         turnosReservadosEnElDia.contains(turno.getId()), puedeElegir))
                 .toList();
 
+        // Hoy y mañana se habilitan solo si tienen turnos: un día sin franjas (por ejemplo, un sábado sin clases) no se puede elegir
         List<DiaTurnosResponse> dias = IntStream.range(0, DIAS_EN_SELECTOR)
-                .mapToObj(i -> new DiaTurnosResponse(hoy.plusDays(i), i < DIAS_HABILITADOS))
+                .mapToObj(i -> new DiaTurnosResponse(hoy.plusDays(i), switch (i) {
+                    case 0 -> !turnosHoy.isEmpty();
+                    case 1 -> !turnosManiana.isEmpty();
+                    default -> false;
+                }))
                 .toList();
 
         return new TurnosDisponiblesResponse(hoy, seleccionada, dias, turnosRestantes, tieneReservaEnElDia, turnos);

@@ -26,7 +26,7 @@ function SelectorDias({ dias, hoy, seleccionada, onElegir }) {
                 disabled={!habilitado}
                 onClick={() => onElegir(fecha)}
                 aria-pressed={elegido}
-                aria-label={habilitado ? `${dia} ${numero}${esHoy ? ', hoy' : ''}` : `${dia} ${numero}, todavía no habilitado`}
+                aria-label={habilitado ? `${dia} ${numero}${esHoy ? ', hoy' : ''}` : `${dia} ${numero}, no disponible`}
                 className={cx(
                   'flex h-[4.5rem] w-full flex-col items-center justify-center rounded-xl text-center transition-colors',
                   elegido && 'bg-primary text-on-dark shadow-card',

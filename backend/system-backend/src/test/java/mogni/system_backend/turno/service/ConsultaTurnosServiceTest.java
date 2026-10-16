@@ -178,6 +178,9 @@ class ConsultaTurnosServiceTest {
     // Pruebas 1, 4 y 5
     @Test
     void sinFechaEsHoyYMuestraCincoDiasConHoyYManianaHabilitados() {
+        turno(MARTES, "19:00", 5);
+        turno(MIERCOLES, "08:00", 5);
+
         TurnosDisponiblesResponse response = consultar(null, MARTES_10_30);
 
         assertEquals(MARTES, response.getHoy());
@@ -186,6 +189,17 @@ class ConsultaTurnosServiceTest {
         assertEquals(MARTES, response.getDias().get(0).getFecha());
         assertEquals(MARTES.plusDays(4), response.getDias().get(4).getFecha());
         assertEquals(List.of(true, true, false, false, false),
+                response.getDias().stream().map(d -> d.isHabilitado()).toList());
+    }
+
+    @Test
+    void unDiaSinTurnosApareceDeshabilitadoEnElSelector() {
+        // Hoy tiene turnos y mañana (por ejemplo, un sábado sin clases) no
+        turno(MARTES, "19:00", 5);
+
+        TurnosDisponiblesResponse response = consultar(null, MARTES_10_30);
+
+        assertEquals(List.of(true, false, false, false, false),
                 response.getDias().stream().map(d -> d.isHabilitado()).toList());
     }
 

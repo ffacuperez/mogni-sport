@@ -17,6 +17,8 @@ public class TurnosDisponiblesResponse {
     private List<DiaTurnosResponse> dias;
     /** De la semana (lunes a domingo) de fechaSeleccionada. */
     private int turnosRestantesSemana;
+    /** Turnos por semana que permite la membresía activa del alumno (0 si no tiene). */
+    private int turnosPorSemana;
     private boolean tieneReservaEnElDia;
     /** Turnos de fechaSeleccionada ordenados por hora de inicio (si es hoy, sin los que ya empezaron). */
     private List<TurnoDisponibleResponse> turnos;

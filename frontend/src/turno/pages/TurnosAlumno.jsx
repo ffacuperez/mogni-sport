@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { CalendarDays, CalendarX, Check, ChevronRight, CircleAlert, Info, Lock } from 'lucide-react';
 
-import { Button, Cargando, Modal, Panel } from '../../shared/components/ui';
+import { Button, Cargando, Panel } from '../../shared/components/ui';
 import { cx, FOCUS } from '../../shared/components/clases';
 import {
   consultarTurnosDisponibles,
   partesFecha,
   reservarTurno,
+  textoDiaCompleto,
   textoLugaresLibres,
   textoTurnosRestantes,
 } from '../services/turnosService';
 
-function SelectorDias({ dias, hoy, seleccionada, onElegir }) {
+function SelectorDias({ dias, hoy, seleccionada, conReserva, onElegir }) {
   return (
     <div>
       <ul className="grid grid-cols-5 gap-2">
@@ -38,6 +39,7 @@ function SelectorDias({ dias, hoy, seleccionada, onElegir }) {
                 <span className="text-xs">{dia}</span>
                 <span className="text-lg font-bold leading-tight tabular-nums">{numero}</span>
                 {esHoy && <span className={cx('text-[10px] font-bold', elegido ? 'text-on-dark' : 'text-primary')}>HOY •</span>}
+                {!esHoy && elegido && conReserva && <span className="text-[10px] font-bold leading-none text-on-dark" aria-label="con turno reservado">•</span>}
                 {!habilitado && <Lock className="mt-0.5 h-3 w-3" aria-hidden="true" />}
               </button>
             </li>
@@ -105,50 +107,105 @@ function TarjetaTurno({ turno, elegido, onElegir }) {
   );
 }
 
-/** Confirmar la reserva (HU-254). Si el backend la rechaza, el motivo se muestra acá y el modal queda abierto. */
-function ConfirmarReservaModal({ turno, etiquetaDia, onConfirmar, onCancelar }) {
+/** Panel que sube desde abajo (mockups 3 y 3B). Cierra con Escape o tocando afuera, salvo mientras se envía. */
+function BottomSheet({ label, onClose, cerrable = true, children }) {
+  useEffect(() => {
+    if (!cerrable) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose, cerrable]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 animate-fade-in"
+      onMouseDown={(e) => { if (cerrable && e.target === e.currentTarget) onClose(); }}
+    >
+      <div role="dialog" aria-modal="true" aria-label={label}
+        className="w-full max-w-md rounded-t-3xl bg-card px-5 pb-6 pt-3 shadow-modal animate-slide-up">
+        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line" aria-hidden="true" />
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Confirmar la reserva (HU-254): primero "Confirmá tu reserva" y, una vez hecha, "¡Turno reservado!".
+ * Si el backend la rechaza, el motivo se muestra acá y se puede cerrar.
+ */
+function ReservaSheet({ turno, fechaTexto, esUltimoTurno, onConfirmar, onCerrar }) {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState(null);
+  const [reserva, setReserva] = useState(null);
 
   const confirmar = async () => {
     setEnviando(true);
     setError(null);
     try {
-      await onConfirmar();
+      setReserva(await onConfirmar());
     } catch (err) {
       setError(err.message);
+    } finally {
       setEnviando(false);
     }
   };
 
+  if (reserva) {
+    return (
+      <BottomSheet label="Turno reservado" onClose={onCerrar}>
+        <div className="flex flex-col items-center pb-2 pt-3 text-center">
+          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-success-bg text-success">
+            <Check className="h-8 w-8" strokeWidth={3} />
+          </span>
+          <h2 className="mt-4 text-xl font-bold text-ink">¡Turno reservado!</h2>
+          <p className="mt-1 text-sm text-ink-soft">
+            {textoDiaCompleto(reserva.fecha)} · {reserva.horaInicio} – {reserva.horaFin} hs
+          </p>
+        </div>
+        {/* "Ver mis turnos" llega con la HU de Mis turnos: por ahora el botón solo cierra */}
+        <Button variant="primary" size="lg" className="mt-5 w-full" onClick={onCerrar} autoFocus>Listo</Button>
+      </BottomSheet>
+    );
+  }
+
   return (
-    <Modal title="Reservar turno" onClose={onCancelar} cerrable={!enviando}>
-      <p className="text-sm text-ink-soft">{etiquetaDia}</p>
-      <p className="mt-1 text-2xl font-bold tabular-nums text-ink">{turno.horaInicio} – {turno.horaFin}</p>
-      <p className="mt-1 text-sm text-ink-soft">{textoLugaresLibres(turno.lugaresLibres)}</p>
+    <BottomSheet label="Confirmá tu reserva" onClose={onCerrar} cerrable={!enviando}>
+      <h2 className="mb-4 text-xl font-bold text-ink">Confirmá tu reserva</h2>
+
+      <div className="flex items-center gap-3 rounded-xl bg-row-hover p-3.5">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-error-bg text-primary">
+          <CalendarDays className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="text-sm font-bold text-ink">{fechaTexto}</p>
+          <p className="text-sm tabular-nums text-ink-soft">{turno.horaInicio} – {turno.horaFin} hs</p>
+        </div>
+      </div>
+
+      {esUltimoTurno && !error && (
+        <p className="mt-3 flex items-center gap-2 rounded-lg bg-warning-bg px-3 py-2.5 text-xs font-semibold text-warning-text">
+          <Info className="h-4 w-4 shrink-0" /> Vas a usar tu último turno de esta semana
+        </p>
+      )}
 
       {error && (
-        <p role="alert" className="mt-4 flex items-start gap-2 text-sm font-medium text-error">
+        <p role="alert" className="mt-3 flex items-start gap-2 text-sm font-medium text-error">
           <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" /> {error}
         </p>
       )}
 
-      <div className="mt-6 flex justify-end gap-3">
-        <Button variant="ghost" onClick={onCancelar} disabled={enviando}>{error ? 'Cerrar' : 'Cancelar'}</Button>
-        {!error && (
-          <Button variant="primary" onClick={confirmar} disabled={enviando} autoFocus>
-            {enviando ? 'Reservando...' : 'Confirmar reserva'}
-          </Button>
-        )}
-      </div>
-    </Modal>
+      {!error && (
+        <Button variant="primary" size="lg" className="mt-5 w-full" onClick={confirmar} disabled={enviando} autoFocus>
+          {enviando ? 'Reservando...' : 'Confirmar reserva'}
+        </Button>
+      )}
+      <button type="button" onClick={onCerrar} disabled={enviando}
+        className={cx('mx-auto mt-3 block cursor-pointer px-4 py-2 text-sm font-semibold text-ink-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-50', FOCUS)}>
+        {error ? 'Cerrar' : 'Cancelar'}
+      </button>
+    </BottomSheet>
   );
-}
-
-/** "Hoy · Mar 13" / "Mañana · Mié 14" */
-function etiquetaDia({ hoy, fechaSeleccionada }) {
-  const { dia, numero } = partesFecha(fechaSeleccionada);
-  return `${fechaSeleccionada === hoy ? 'Hoy' : 'Mañana'} · ${dia} ${numero}`;
 }
 
 function Aviso({ icono: Icono, children }) {
@@ -167,8 +224,8 @@ export default function TurnosAlumno() {
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
+  // Turno elegido para reservar (el objeto entero: la lista se vuelve a pedir mientras la hoja sigue abierta)
   const [elegido, setElegido] = useState(null);
-  const [exito, setExito] = useState(null);
   // Si se cambia de día rápido, solo vale la respuesta de la última consulta
   const ultimaConsulta = useRef(0);
 
@@ -194,19 +251,18 @@ export default function TurnosAlumno() {
   const elegirDia = (fecha) => {
     setCargando(true);
     setElegido(null);
-    setExito(null);
     consultar(fecha);
   };
 
+  // La lista y el contador se refrescan por detrás; la hoja sigue abierta mostrando "¡Turno reservado!"
   const confirmarReserva = async () => {
-    const reserva = await reservarTurno(elegido);
-    setElegido(null);
-    setExito(`Reservaste el turno de ${reserva.horaInicio} a ${reserva.horaFin}.`);
+    const reserva = await reservarTurno(elegido.id);
     consultar(datos.fechaSeleccionada);
+    return reserva;
   };
 
-  // Si la reserva falla (por ejemplo, se llenó el turno) se vuelve a consultar para mostrar el estado real
-  const cerrarConfirmacion = () => {
+  // Si la reserva falló (por ejemplo, se llenó el turno) se vuelve a consultar para mostrar el estado real
+  const cerrarReserva = () => {
     setElegido(null);
     consultar(datos.fechaSeleccionada);
   };
@@ -243,8 +299,12 @@ export default function TurnosAlumno() {
 
   if (!datos) return <div>{titulo}<Cargando texto="Cargando turnos" /></div>;
 
-  const { turnos, turnosRestantesSemana, tieneReservaEnElDia } = datos;
-  const turnoElegido = turnos.find(t => t.id === elegido);
+  const { turnos, turnosRestantesSemana, turnosPorSemana, tieneReservaEnElDia } = datos;
+  const sinTurnosEnLaSemana = turnosRestantesSemana === 0 && turnosPorSemana > 0;
+  const grupos = [
+    { titulo: 'Mañana', turnos: turnos.filter(t => t.horaInicio < '12:00') },
+    { titulo: 'Tarde', turnos: turnos.filter(t => t.horaInicio >= '12:00') },
+  ].filter(grupo => grupo.turnos.length > 0);
 
   return (
     <div className="animate-fade-in">
@@ -266,10 +326,10 @@ export default function TurnosAlumno() {
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-error-bg text-primary">
           <CalendarDays className="h-5 w-5" />
         </span>
-        <p className="text-sm font-semibold text-ink">{textoTurnosRestantes(turnosRestantesSemana)}</p>
+        <p className="text-sm font-semibold text-ink">{textoTurnosRestantes(turnosRestantesSemana, turnosPorSemana)}</p>
       </Panel>
 
-      <SelectorDias dias={datos.dias} hoy={datos.hoy} seleccionada={datos.fechaSeleccionada} onElegir={elegirDia} />
+      <SelectorDias dias={datos.dias} hoy={datos.hoy} seleccionada={datos.fechaSeleccionada} conReserva={tieneReservaEnElDia} onElegir={elegirDia} />
 
       {error && (
         <p role="alert" className="mt-4 flex items-center gap-2 text-sm text-error">
@@ -277,9 +337,9 @@ export default function TurnosAlumno() {
         </p>
       )}
 
-      {exito && (
-        <p role="status" className="mt-4 flex items-center gap-2 text-sm font-medium text-success">
-          <Check className="h-4 w-4 shrink-0" /> {exito}
+      {sinTurnosEnLaSemana && (
+        <p className="mt-4 flex items-center gap-2 rounded-lg bg-thead/60 px-3 py-2.5 text-xs text-ink-soft">
+          <Info className="h-4 w-4 shrink-0" /> Podés volver a reservar desde el lunes
         </p>
       )}
 
@@ -292,30 +352,33 @@ export default function TurnosAlumno() {
             <p className="text-sm font-semibold text-ink">No hay turnos disponibles para este día</p>
           </div>
         ) : (
-          <ul className="space-y-2.5">
-            {turnos.map(turno => (
-              <TarjetaTurno
-                key={turno.id}
-                turno={turno}
-                elegido={elegido === turno.id}
-                onElegir={() => { setExito(null); setElegido(turno.id); }}
-              />
-            ))}
-          </ul>
+          grupos.map(grupo => (
+            <div key={grupo.titulo} className="mb-4">
+              <h2 className="mb-2 text-[11px] font-bold uppercase tracking-wide text-ink-muted">{grupo.titulo}</h2>
+              <ul className="space-y-2.5">
+                {grupo.turnos.map(turno => (
+                  <TarjetaTurno
+                    key={turno.id}
+                    turno={turno}
+                    elegido={elegido?.id === turno.id}
+                    onElegir={() => setElegido(turno)}
+                  />
+                ))}
+              </ul>
+            </div>
+          ))
         )}
 
         {tieneReservaEnElDia && <Aviso icono={Info}>Ya tenés un turno reservado este día</Aviso>}
-        {turnosRestantesSemana === 0 && turnos.length > 0 && (
-          <Aviso icono={Info}>Ya usaste todos los turnos de tu membresía en esta semana, así que no podés elegir otro.</Aviso>
-        )}
       </section>
 
-      {turnoElegido && (
-        <ConfirmarReservaModal
-          turno={turnoElegido}
-          etiquetaDia={etiquetaDia(datos)}
+      {elegido && (
+        <ReservaSheet
+          turno={elegido}
+          fechaTexto={textoDiaCompleto(datos.fechaSeleccionada)}
+          esUltimoTurno={turnosRestantesSemana === 1}
           onConfirmar={confirmarReserva}
-          onCancelar={cerrarConfirmacion}
+          onCerrar={cerrarReserva}
         />
       )}
     </div>

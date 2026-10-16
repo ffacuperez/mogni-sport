@@ -12,6 +12,7 @@ import {
   DIAS_SEMANA,
   diaSemana,
   eliminarFranja,
+  etiquetaTurno,
   listarFranjas,
   obtenerConfiguracionGimnasio,
 } from '../services/franjasService';
@@ -36,7 +37,9 @@ function BloqueFranja({ franja, desde, onEditar, onEliminar }) {
       style={{ top, height: alto - 2 }}
     >
       <p className="text-xs font-bold tabular-nums text-primary-hover">{franja.horaInicio} – {franja.horaFin}</p>
-      <p className="text-xs text-ink-soft">{plural(franja.cantidadTurnos, 'turno', 'turnos')}</p>
+      <p className="text-[11px] leading-snug tabular-nums text-ink-soft" title={plural(franja.cantidadTurnos, 'turno', 'turnos')}>
+        {franja.turnos.map(etiquetaTurno).join(', ')}
+      </p>
       {/* En pantallas chicas (sin mouse) los botones se ven siempre */}
       <div className="absolute right-1 top-1 flex gap-1 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100">
         <button type="button" onClick={() => onEditar(franja)} className={accion}

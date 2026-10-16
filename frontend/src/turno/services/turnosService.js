@@ -21,7 +21,17 @@ export function partesFecha(fechaISO) {
   return { dia: DIAS_CORTOS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()], numero: d };
 }
 
-export function textoTurnosRestantes(cantidad) {
+const DIAS_LARGOS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+/** "2026-10-14" -> "Miércoles 14/10" */
+export function textoDiaCompleto(fechaISO) {
+  const [y, m, d] = fechaISO.split('-').map(Number);
+  return `${DIAS_LARGOS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} ${d}/${m}`;
+}
+
+/** total: turnos por semana de la membresía; con 0 restantes se muestra "Usaste tus N turnos". */
+export function textoTurnosRestantes(cantidad, total = 0) {
+  if (cantidad === 0 && total > 0) return total === 1 ? 'Usaste tu turno de esta semana' : `Usaste tus ${total} turnos de esta semana`;
   if (cantidad === 0) return 'No te quedan turnos esta semana';
   if (cantidad === 1) return 'Te queda 1 turno esta semana';
   return `Te quedan ${cantidad} turnos esta semana`;

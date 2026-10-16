@@ -116,7 +116,8 @@ public class ConsultaTurnosService {
                 }))
                 .toList();
 
-        return new TurnosDisponiblesResponse(hoy, seleccionada, dias, turnosRestantes, tieneReservaEnElDia, turnos);
+        return new TurnosDisponiblesResponse(hoy, seleccionada, dias, turnosRestantes, frecuenciaSemanal,
+                tieneReservaEnElDia, turnos);
     }
 
     /** Solo los alumnos con la cuenta activa y modalidad presencial acceden a los turnos. */

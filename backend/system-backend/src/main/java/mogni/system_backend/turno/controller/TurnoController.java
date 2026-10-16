@@ -13,9 +13,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import mogni.system_backend.turno.dto.CancelacionResponse;
 import mogni.system_backend.turno.dto.MisTurnosResponse;
 import mogni.system_backend.turno.dto.ReservaResponse;
 import mogni.system_backend.turno.dto.TurnosDisponiblesResponse;
+import mogni.system_backend.turno.service.CancelacionService;
 import mogni.system_backend.turno.service.ConsultaTurnosService;
 import mogni.system_backend.turno.service.MisTurnosService;
 import mogni.system_backend.turno.service.ReservaService;
@@ -28,12 +30,14 @@ public class TurnoController {
     private final ConsultaTurnosService consultaTurnosService;
     private final ReservaService reservaService;
     private final MisTurnosService misTurnosService;
+    private final CancelacionService cancelacionService;
 
     public TurnoController(ConsultaTurnosService consultaTurnosService, ReservaService reservaService,
-                           MisTurnosService misTurnosService) {
+                           MisTurnosService misTurnosService, CancelacionService cancelacionService) {
         this.consultaTurnosService = consultaTurnosService;
         this.reservaService = reservaService;
         this.misTurnosService = misTurnosService;
+        this.cancelacionService = cancelacionService;
     }
 
     /** ?fecha=YYYY-MM-DD (hoy o mañana). Sin fecha, hoy. */
@@ -54,5 +58,11 @@ public class TurnoController {
     @PostMapping("/{id}/reservar")
     public ResponseEntity<ReservaResponse> reservarTurno(Authentication authentication, @PathVariable Long id) {
         return ResponseEntity.status(HttpStatus.CREATED).body(reservaService.reservar(authentication.getName(), id));
+    }
+
+    /** HU-255: el alumno logueado cancela una reserva suya (hasta 2 horas antes del turno). Sin cuerpo. */
+    @PostMapping("/reservas/{id}/cancelar")
+    public ResponseEntity<CancelacionResponse> cancelarReserva(Authentication authentication, @PathVariable Long id) {
+        return ResponseEntity.ok(cancelacionService.cancelar(authentication.getName(), id));
     }
 }

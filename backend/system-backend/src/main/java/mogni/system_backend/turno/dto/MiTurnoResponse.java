@@ -18,4 +18,6 @@ public class MiTurnoResponse {
     private String horaInicio;
     /** "HH:mm" */
     private String horaFin;
+    /** Si todavía se puede cancelar: hasta 2 horas antes de la hora de inicio (HU-255). */
+    private boolean puedeCancelar;
 }

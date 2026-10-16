@@ -52,7 +52,7 @@ public class MisTurnosService {
                 .filter(reserva -> !yaTermino(reserva.getTurno(), ahora))
                 .sorted(Comparator.comparing((Reserva r) -> r.getTurno().getFecha())
                         .thenComparing(r -> r.getTurno().getHoraInicio()))
-                .map(MisTurnosService::mapear)
+                .map(reserva -> mapear(reserva, ahora))
                 .toList();
         return new MisTurnosResponse(ahora.toLocalDate(), turnos);
     }
@@ -62,7 +62,7 @@ public class MisTurnosService {
         return turno.getFecha().atTime(turno.getHoraFin()).compareTo(ahora) <= 0;
     }
 
-    private static MiTurnoResponse mapear(Reserva reserva) {
+    private static MiTurnoResponse mapear(Reserva reserva, LocalDateTime ahora) {
         Turno turno = reserva.getTurno();
         return new MiTurnoResponse(
                 reserva.getId(),
@@ -70,6 +70,7 @@ public class MisTurnosService {
                 turno.getFecha(),
                 turno.getFecha().getDayOfWeek(),
                 FranjaHorariaService.formatearHora(turno.getHoraInicio()),
-                FranjaHorariaService.formatearHora(turno.getHoraFin()));
+                FranjaHorariaService.formatearHora(turno.getHoraFin()),
+                CancelacionService.sePuedeCancelar(turno, ahora));
     }
 }

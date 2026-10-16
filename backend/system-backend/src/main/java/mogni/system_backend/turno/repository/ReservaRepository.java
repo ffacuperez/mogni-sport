@@ -3,9 +3,15 @@ package mogni.system_backend.turno.repository;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
+
+import jakarta.persistence.LockModeType;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import mogni.system_backend.turno.entity.EstadoReserva;
 import mogni.system_backend.turno.entity.Reserva;
@@ -27,4 +33,12 @@ public interface ReservaRepository extends JpaRepository<Reserva, Long> {
     @EntityGraph(attributePaths = {"turno"})
     List<Reserva> findByAlumnoIdAndEstadoAndTurnoFechaGreaterThanEqual(Long alumnoId, EstadoReserva estado,
                                                                         LocalDate desde);
+
+    /**
+     * La reserva con la fila bloqueada hasta el fin de la transacción (SELECT ... FOR UPDATE): dos cancelaciones de
+     * la misma reserva (doble clic) se hacen una detrás de otra y la segunda la encuentra ya cancelada.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from Reserva r where r.id = :id")
+    Optional<Reserva> findByIdConBloqueo(@Param("id") Long id);
 }

@@ -224,6 +224,20 @@ class MisTurnosServiceTest {
         assertEquals(mia.getId(), turnos.get(0).getReservaId());
     }
 
+    // --- puedeCancelar (HU-255) ---
+
+    @Test
+    void indicaSiTodaviaSePuedeCancelarCadaTurno() {
+        // Son las 10:30: el de las 19:00 se puede cancelar y el de las 11:30 (falta 1 hora) ya no
+        reservar(turno(MARTES, "11:30", "12:30"));
+        reservar(turno(MARTES, "19:00", "20:00"));
+
+        List<MiTurnoResponse> turnos = consultar().getTurnos();
+
+        assertEquals(List.of("11:30", "19:00"), turnos.stream().map(MiTurnoResponse::getHoraInicio).toList());
+        assertEquals(List.of(false, true), turnos.stream().map(MiTurnoResponse::isPuedeCancelar).toList());
+    }
+
     // --- Acceso ---
 
     @Test

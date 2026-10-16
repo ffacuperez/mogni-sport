@@ -1,11 +1,16 @@
 import { request } from '../../shared/services/httpClient';
 
-// HU-259: turnos disponibles del alumno logueado (hoy y mañana). El backend decide fechas, estados y
+// HU-259 y HU-254: turnos disponibles del alumno logueado (hoy y mañana). El backend decide fechas, estados y
 // si cada turno se puede elegir; acá solo se piden y se muestran.
 
 /** fecha: "2026-10-13" (hoy o mañana). Sin fecha, el backend devuelve hoy. */
 export async function consultarTurnosDisponibles(fecha) {
   return request(fecha ? `/turnos/disponibles?fecha=${fecha}` : '/turnos/disponibles');
+}
+
+/** HU-254: reserva el turno para el alumno logueado. Si el backend la rechaza, el error trae el motivo en español. */
+export async function reservarTurno(turnoId) {
+  return request(`/turnos/${turnoId}/reservar`, { method: 'POST' });
 }
 
 const DIAS_CORTOS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];

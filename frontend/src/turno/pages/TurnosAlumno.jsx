@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { CalendarDays, CalendarX, Check, ChevronRight, CircleAlert, Info, Lock } from 'lucide-react';
 
-import { Cargando, Panel } from '../../shared/components/ui';
+import { Button, Cargando, Modal, Panel } from '../../shared/components/ui';
 import { cx, FOCUS } from '../../shared/components/clases';
-import { consultarTurnosDisponibles, partesFecha, textoLugaresLibres, textoTurnosRestantes } from '../services/turnosService';
+import {
+  consultarTurnosDisponibles,
+  partesFecha,
+  reservarTurno,
+  textoLugaresLibres,
+  textoTurnosRestantes,
+} from '../services/turnosService';
 
 function SelectorDias({ dias, hoy, seleccionada, onElegir }) {
   return (
@@ -55,7 +61,7 @@ function TarjetaTurno({ turno, elegido, onElegir }) {
   if (reservado) {
     detalle = <span className="flex items-center gap-1 font-semibold text-primary"><Check className="h-4 w-4" /> Reservado</span>;
   } else if (cancelado) {
-    detalle = <span className="font-medium text-error">Cancelado</span>;
+    detalle = <span className="font-medium text-error">Cancelado por el gimnasio</span>;
   } else if (estado === 'COMPLETO') {
     detalle = <span>Completo</span>;
   } else {
@@ -99,6 +105,52 @@ function TarjetaTurno({ turno, elegido, onElegir }) {
   );
 }
 
+/** Confirmar la reserva (HU-254). Si el backend la rechaza, el motivo se muestra acá y el modal queda abierto. */
+function ConfirmarReservaModal({ turno, etiquetaDia, onConfirmar, onCancelar }) {
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState(null);
+
+  const confirmar = async () => {
+    setEnviando(true);
+    setError(null);
+    try {
+      await onConfirmar();
+    } catch (err) {
+      setError(err.message);
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <Modal title="Reservar turno" onClose={onCancelar} cerrable={!enviando}>
+      <p className="text-sm text-ink-soft">{etiquetaDia}</p>
+      <p className="mt-1 text-2xl font-bold tabular-nums text-ink">{turno.horaInicio} – {turno.horaFin}</p>
+      <p className="mt-1 text-sm text-ink-soft">{textoLugaresLibres(turno.lugaresLibres)}</p>
+
+      {error && (
+        <p role="alert" className="mt-4 flex items-start gap-2 text-sm font-medium text-error">
+          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" /> {error}
+        </p>
+      )}
+
+      <div className="mt-6 flex justify-end gap-3">
+        <Button variant="ghost" onClick={onCancelar} disabled={enviando}>{error ? 'Cerrar' : 'Cancelar'}</Button>
+        {!error && (
+          <Button variant="primary" onClick={confirmar} disabled={enviando} autoFocus>
+            {enviando ? 'Reservando...' : 'Confirmar reserva'}
+          </Button>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+/** "Hoy · Mar 13" / "Mañana · Mié 14" */
+function etiquetaDia({ hoy, fechaSeleccionada }) {
+  const { dia, numero } = partesFecha(fechaSeleccionada);
+  return `${fechaSeleccionada === hoy ? 'Hoy' : 'Mañana'} · ${dia} ${numero}`;
+}
+
 function Aviso({ icono: Icono, children }) {
   return (
     <p className="mt-3 flex items-center gap-2 text-xs text-ink-soft">
@@ -109,13 +161,14 @@ function Aviso({ icono: Icono, children }) {
 
 /**
  * HU-259: turnos disponibles de hoy y mañana. Todo lo decide el backend (días, estados, contador, qué se puede
- * elegir); la pantalla solo lo dibuja. Elegir un turno solo lo marca: reservar es la HU-254.
+ * elegir); la pantalla solo lo dibuja. Elegir un turno abre la confirmación y reservarlo es la HU-254.
  */
 export default function TurnosAlumno() {
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
   const [elegido, setElegido] = useState(null);
+  const [exito, setExito] = useState(null);
   // Si se cambia de día rápido, solo vale la respuesta de la última consulta
   const ultimaConsulta = useRef(0);
 
@@ -141,7 +194,21 @@ export default function TurnosAlumno() {
   const elegirDia = (fecha) => {
     setCargando(true);
     setElegido(null);
+    setExito(null);
     consultar(fecha);
+  };
+
+  const confirmarReserva = async () => {
+    const reserva = await reservarTurno(elegido);
+    setElegido(null);
+    setExito(`Reservaste el turno de ${reserva.horaInicio} a ${reserva.horaFin}.`);
+    consultar(datos.fechaSeleccionada);
+  };
+
+  // Si la reserva falla (por ejemplo, se llenó el turno) se vuelve a consultar para mostrar el estado real
+  const cerrarConfirmacion = () => {
+    setElegido(null);
+    consultar(datos.fechaSeleccionada);
   };
 
   const titulo = <h1 className="mb-5 text-2xl font-bold text-ink">Turnos</h1>;
@@ -177,6 +244,7 @@ export default function TurnosAlumno() {
   if (!datos) return <div>{titulo}<Cargando texto="Cargando turnos" /></div>;
 
   const { turnos, turnosRestantesSemana, tieneReservaEnElDia } = datos;
+  const turnoElegido = turnos.find(t => t.id === elegido);
 
   return (
     <div className="animate-fade-in">
@@ -209,6 +277,12 @@ export default function TurnosAlumno() {
         </p>
       )}
 
+      {exito && (
+        <p role="status" className="mt-4 flex items-center gap-2 text-sm font-medium text-success">
+          <Check className="h-4 w-4 shrink-0" /> {exito}
+        </p>
+      )}
+
       <section aria-label="Turnos del día" aria-busy={cargando} className={cx('mt-5 transition-opacity', cargando && 'opacity-50')}>
         {turnos.length === 0 ? (
           <div className="mt-10 flex flex-col items-center gap-3 text-center">
@@ -224,7 +298,7 @@ export default function TurnosAlumno() {
                 key={turno.id}
                 turno={turno}
                 elegido={elegido === turno.id}
-                onElegir={() => setElegido(turno.id)}
+                onElegir={() => { setExito(null); setElegido(turno.id); }}
               />
             ))}
           </ul>
@@ -235,6 +309,15 @@ export default function TurnosAlumno() {
           <Aviso icono={Info}>Ya usaste todos los turnos de tu membresía en esta semana, así que no podés elegir otro.</Aviso>
         )}
       </section>
+
+      {turnoElegido && (
+        <ConfirmarReservaModal
+          turno={turnoElegido}
+          etiquetaDia={etiquetaDia(datos)}
+          onConfirmar={confirmarReserva}
+          onCancelar={cerrarConfirmacion}
+        />
+      )}
     </div>
   );
 }

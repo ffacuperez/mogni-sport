@@ -4,6 +4,8 @@ import { CalendarDays, CalendarX, Check, ChevronRight, CircleAlert, Info, Lock }
 
 import { Button, Cargando, Panel } from '../../shared/components/ui';
 import { cx, FOCUS } from '../../shared/components/clases';
+import AccesoBloqueado from '../components/AccesoBloqueado';
+import MisTurnos from './MisTurnos';
 import {
   consultarTurnosDisponibles,
   partesFecha,
@@ -220,10 +222,10 @@ function Aviso({ icono: Icono, children }) {
 }
 
 /**
- * HU-259: turnos disponibles de hoy y mañana. Todo lo decide el backend (días, estados, contador, qué se puede
- * elegir); la pantalla solo lo dibuja. Elegir un turno abre la confirmación y reservarlo es la HU-254.
+ * HU-259 y HU-254: turnos disponibles de hoy y mañana. Todo lo decide el backend (días, estados, contador, qué se
+ * puede elegir); la pantalla solo lo dibuja. Elegir un turno abre la confirmación para reservarlo.
  */
-export default function TurnosAlumno() {
+function ReservarTurnos() {
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
@@ -270,28 +272,12 @@ export default function TurnosAlumno() {
     consultar(datos.fechaSeleccionada);
   };
 
-  const titulo = <h1 className="mb-5 text-2xl font-bold text-ink">Turnos</h1>;
-
   // 403: alumno inactivo u online. El mensaje con el motivo lo manda el backend
-  if (error?.status === 403) {
-    return (
-      <div className="animate-fade-in">
-        {titulo}
-        <div className="mt-12 flex flex-col items-center gap-3 text-center">
-          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-card text-ink-muted shadow-card">
-            <Lock className="h-6 w-6" />
-          </span>
-          <p className="text-sm font-semibold text-ink">No podés acceder a los turnos</p>
-          <p className="max-w-64 text-xs text-ink-soft">{error.message}</p>
-        </div>
-      </div>
-    );
-  }
+  if (error?.status === 403) return <AccesoBloqueado mensaje={error.message} />;
 
   if (error && !datos) {
     return (
       <div className="animate-fade-in">
-        {titulo}
         <div role="alert" className="flex items-center gap-3 rounded-lg border border-line bg-error-bg p-4 text-error">
           <CircleAlert className="h-5 w-5 shrink-0" />
           <span className="text-sm">{error.message}</span>
@@ -300,7 +286,7 @@ export default function TurnosAlumno() {
     );
   }
 
-  if (!datos) return <div>{titulo}<Cargando texto="Cargando turnos" /></div>;
+  if (!datos) return <Cargando texto="Cargando turnos" />;
 
   const { turnos, turnosRestantesSemana, turnosPorSemana, tieneReservaEnElDia } = datos;
   const sinTurnosEnLaSemana = turnosRestantesSemana === 0 && turnosPorSemana > 0;
@@ -311,20 +297,6 @@ export default function TurnosAlumno() {
 
   return (
     <div className="animate-fade-in">
-      {titulo}
-
-      <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-thead/70 p-1" role="tablist" aria-label="Turnos">
-        <button type="button" role="tab" aria-selected="true"
-          className={cx('rounded-lg bg-card py-2 text-sm font-semibold text-primary shadow-card', FOCUS)}>
-          Reservar
-        </button>
-        {/* Mis turnos es la HU-256 */}
-        <button type="button" role="tab" aria-selected="false" disabled title="Próximamente"
-          className="cursor-not-allowed rounded-lg py-2 text-sm font-medium text-ink-muted">
-          Mis turnos <span className="text-[10px] font-normal">(próximamente)</span>
-        </button>
-      </div>
-
       <Panel className="mb-4 flex items-center gap-3 rounded-xl p-3.5">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-error-bg text-primary">
           <CalendarDays className="h-5 w-5" />
@@ -384,6 +356,40 @@ export default function TurnosAlumno() {
           onCerrar={cerrarReserva}
         />
       )}
+    </div>
+  );
+}
+
+const PESTANIAS = [
+  { id: 'reservar', texto: 'Reservar' },
+  { id: 'mis-turnos', texto: 'Mis turnos' },
+];
+
+/** Pantalla de turnos del alumno: pestañas "Reservar" (HU-259 y HU-254) y "Mis turnos" (HU-256). */
+export default function TurnosAlumno() {
+  const [pestania, setPestania] = useState('reservar');
+
+  return (
+    <div>
+      <h1 className="mb-5 text-2xl font-bold text-ink">Turnos</h1>
+
+      <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-thead/70 p-1" role="tablist" aria-label="Turnos">
+        {PESTANIAS.map(({ id, texto }) => {
+          const activa = pestania === id;
+          return (
+            <button key={id} type="button" role="tab" aria-selected={activa} onClick={() => setPestania(id)}
+              className={cx('cursor-pointer rounded-lg py-2 text-sm transition-colors', FOCUS,
+                activa ? 'bg-card font-semibold text-primary shadow-card' : 'font-medium text-ink-muted hover:text-ink')}>
+              {texto}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Al cambiar de pestaña se vuelve a montar y a consultar: Mis turnos siempre muestra lo último reservado */}
+      {pestania === 'reservar'
+        ? <ReservarTurnos />
+        : <MisTurnos onVerDisponibles={() => setPestania('reservar')} />}
     </div>
   );
 }

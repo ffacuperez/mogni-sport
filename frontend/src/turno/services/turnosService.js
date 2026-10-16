@@ -1,11 +1,16 @@
 import { request } from '../../shared/services/httpClient';
 
-// HU-259 y HU-254: turnos disponibles del alumno logueado (hoy y mañana). El backend decide fechas, estados y
+// HU-259, HU-254 y HU-256: turnos disponibles del alumno logueado (hoy y mañana). El backend decide fechas, estados y
 // si cada turno se puede elegir; acá solo se piden y se muestran.
 
 /** fecha: "2026-10-13" (hoy o mañana). Sin fecha, el backend devuelve hoy. */
 export async function consultarTurnosDisponibles(fecha) {
   return request(fecha ? `/turnos/disponibles?fecha=${fecha}` : '/turnos/disponibles');
+}
+
+/** HU-256: turnos reservados del alumno logueado que todavía no terminaron, del más cercano al más lejano. */
+export async function consultarMisTurnos() {
+  return request('/turnos/mis-turnos');
 }
 
 /** HU-254: reserva el turno para el alumno logueado. Si el backend la rechaza, el error trae el motivo en español. */
@@ -38,3 +43,15 @@ export function textoTurnosRestantes(cantidad, total = 0) {
 }
 
 export const textoLugaresLibres = (lugares) => (lugares === 1 ? '1 lugar libre' : `${lugares} lugares libres`);
+
+const sumarDias = (fechaISO, dias) => {
+  const [y, m, d] = fechaISO.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + dias)).toISOString().slice(0, 10);
+};
+
+/** "Hoy · Mar 13/10", "Mañana · Mié 14/10" o, para otro día, "Miércoles 14/10". hoy sale del backend. */
+export function etiquetaFechaTurno(fechaISO, hoy) {
+  if (fechaISO !== hoy && fechaISO !== sumarDias(hoy, 1)) return textoDiaCompleto(fechaISO);
+  const [, m, d] = fechaISO.split('-').map(Number);
+  return `${fechaISO === hoy ? 'Hoy' : 'Mañana'} · ${partesFecha(fechaISO).dia} ${d}/${m}`;
+}

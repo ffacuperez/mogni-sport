@@ -56,7 +56,7 @@ function BloqueFranja({ franja, desde, onEditar, onEliminar }) {
 }
 
 /** Grilla de lunes a domingo con cada franja ubicada según su horario. */
-function GrillaSemanal({ franjas, onEditar, onEliminar }) {
+function GrillaSemanal({ franjas, cupoMaximo, onEditar, onEliminar }) {
   const desde = Math.min(HORA_DESDE, ...franjas.map(f => Math.floor(aMinutos(f.horaInicio) / 60)));
   const hasta = Math.max(HORA_HASTA, ...franjas.map(f => Math.ceil(aMinutos(f.horaFin) / 60)));
   const horas = Array.from({ length: hasta - desde + 1 }, (_, i) => desde + i);
@@ -73,11 +73,20 @@ function GrillaSemanal({ franjas, onEditar, onEliminar }) {
         <div className={cx(columnas, 'mb-3')}>
           <span />
           {DIAS_SEMANA.map(dia => {
-            const tiene = franjas.some(f => f.diaSemana === dia.valor);
+            const turnosDelDia = franjas
+              .filter(f => f.diaSemana === dia.valor)
+              .reduce((total, f) => total + f.cantidadTurnos, 0);
             return (
-              <p key={dia.valor} className={cx('text-center text-sm font-semibold', tiene ? 'text-ink' : 'text-ink-muted')}>
-                {dia.nombre}
-              </p>
+              <div key={dia.valor} className="text-center">
+                <p className={cx('text-sm font-semibold', turnosDelDia > 0 ? 'text-ink' : 'text-ink-muted')}>{dia.nombre}</p>
+                {turnosDelDia > 0 && (
+                  <p className="mt-0.5 text-[11px] leading-snug text-ink-soft">
+                    {plural(turnosDelDia, 'turno', 'turnos')}
+                    <br />
+                    {plural(turnosDelDia * cupoMaximo, 'lugar', 'lugares')}
+                  </p>
+                )}
+              </div>
             );
           })}
         </div>
@@ -209,11 +218,11 @@ export default function HorariosGimnasio({ onToast }) {
           </p>
         </div>
 
-        <GrillaSemanal franjas={franjas} onEditar={(franja) => setModalFranja({ franja })} onEliminar={setAEliminar} />
+        <GrillaSemanal franjas={franjas} cupoMaximo={cupoMaximo} onEditar={(franja) => setModalFranja({ franja })} onEliminar={setAEliminar} />
 
         <p className="mt-4 flex items-center gap-2 text-sm text-ink-soft">
           <Repeat className="h-4 w-4 shrink-0" />
-          Las franjas se repiten todas las semanas. El sistema divide cada franja en turnos de 1 hora.
+          Las franjas se repiten todas las semanas. El sistema divide cada franja en turnos de 1 hora. Debajo de cada día: turnos y lugares totales (turnos × cupo máximo).
         </p>
       </Panel>
 

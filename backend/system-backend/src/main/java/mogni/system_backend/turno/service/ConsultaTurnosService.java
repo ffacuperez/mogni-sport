@@ -117,7 +117,7 @@ public class ConsultaTurnosService {
     }
 
     /** Solo los alumnos con la cuenta activa y modalidad presencial acceden a los turnos. */
-    private void validarAcceso(Alumno alumno) {
+    static void validarAcceso(Alumno alumno) {
         if (!alumno.getCuenta().isActiva()) {
             throw new AccesoDenegadoException("Tu cuenta está inactiva.");
         }

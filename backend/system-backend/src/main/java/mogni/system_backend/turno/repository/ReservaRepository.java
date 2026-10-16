@@ -15,6 +15,9 @@ public interface ReservaRepository extends JpaRepository<Reserva, Long> {
     /** Reservas de esos turnos con ese estado (para calcular los lugares libres). */
     List<Reserva> findByTurnoIdInAndEstado(Collection<Long> turnoIds, EstadoReserva estado);
 
+    /** Lugares ocupados de un turno (solo cuentan las reservas con ese estado). */
+    long countByTurnoIdAndEstado(Long turnoId, EstadoReserva estado);
+
     /** Reservas del alumno con ese estado en turnos entre dos fechas (para el contador semanal). */
     @EntityGraph(attributePaths = {"turno"})
     List<Reserva> findByAlumnoIdAndEstadoAndTurnoFechaBetween(Long alumnoId, EstadoReserva estado,

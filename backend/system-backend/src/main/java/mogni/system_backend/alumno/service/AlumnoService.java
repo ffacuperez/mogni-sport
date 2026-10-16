@@ -183,7 +183,13 @@ public class AlumnoService {
 
     private AlumnoResponse cambiarEstado(Long id, boolean activo) {
         Alumno alumno = buscarAlumnoOLanzarError(id);
-        alumno.getCuenta().setActiva(activo);
+        if (activo) {
+            alumno.getCuenta().setActiva(true);
+            alumno.getCuenta().setFechaBaja(null);
+        } else if (alumno.getCuenta().isActiva()) {
+            alumno.getCuenta().setActiva(false);
+            alumno.getCuenta().setFechaBaja(ZonaHoraria.hoy());
+        }
         return mapearAResponse(alumnoRepository.save(alumno));
     }
 
@@ -292,6 +298,7 @@ public class AlumnoService {
             alumno.getCuestionarioSalud(),
             alumno.getCuenta().getRol(),
             alumno.getCuenta().isActiva(),
+            alumno.getCuenta().getFechaBaja(),
             membresia != null ? membresia.getId() : null,
             membresia != null ? membresia.getNombre() : null,
             activa.map(Inscripcion::getFechaInicio).orElse(null),

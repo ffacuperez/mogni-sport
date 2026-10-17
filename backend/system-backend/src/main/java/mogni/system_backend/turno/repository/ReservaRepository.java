@@ -21,6 +21,10 @@ public interface ReservaRepository extends JpaRepository<Reserva, Long> {
     /** Reservas de esos turnos con ese estado (para calcular los lugares libres). */
     List<Reserva> findByTurnoIdInAndEstado(Collection<Long> turnoIds, EstadoReserva estado);
 
+    /** Igual que el anterior, con el alumno y el turno ya cargados (agenda del personal, MOGNI-257). */
+    @EntityGraph(attributePaths = {"alumno", "turno"})
+    List<Reserva> findWithAlumnoByTurnoIdInAndEstado(Collection<Long> turnoIds, EstadoReserva estado);
+
     /** Lugares ocupados de un turno (solo cuentan las reservas con ese estado). */
     long countByTurnoIdAndEstado(Long turnoId, EstadoReserva estado);
 

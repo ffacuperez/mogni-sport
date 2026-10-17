@@ -71,6 +71,8 @@ public class SecurityConfig {
                 .requestMatchers("/franjas/**", "/configuracion-gimnasio/**").hasRole("PROPIETARIO")
                 // Turnos disponibles (HU-259): solo alumnos; el servicio exige además cuenta activa y modalidad presencial
                 .requestMatchers("/turnos/**").hasRole("ALUMNO")
+                // Agenda de turnos (MOGNI-257): muestra alumnos y cuotas, solo para propietario y entrenador
+                .requestMatchers("/agenda/**").hasAnyRole("PROPIETARIO", "ENTRENADOR")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

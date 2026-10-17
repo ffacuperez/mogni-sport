@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
-import { Clock, CreditCard, Home as IconHome, LogOut, Users, Wallet } from 'lucide-react';
+import { Calendar, Clock, CreditCard, Home as IconHome, LogOut, Users, Wallet } from 'lucide-react';
 
 import Home from './home/pages/Home';
 import Login from './auth/pages/Login';
@@ -20,6 +20,7 @@ import RegistrarPagoModal from './cuota/pages/RegistrarPagoModal';
 import HistorialPagosModal from './cuota/pages/HistorialPagosModal';
 import HorariosGimnasio from './turno/pages/HorariosGimnasio';
 import TurnosAlumno from './turno/pages/TurnosAlumno';
+import Agenda from './turno/pages/Agenda';
 import ConfirmModal from './shared/components/ConfirmModal';
 import Toast from './shared/components/Toast';
 import { useToast } from './shared/hooks/useToast';
@@ -68,6 +69,8 @@ function MainApp({ onLogout }) {
   const navigate = useNavigate();
   // Cobranzas (HU-45) es solo del propietario; el backend también lo exige
   const esPropietario = getRol() === 'PROPIETARIO';
+  // Agenda de turnos (MOGNI-257): propietario y entrenador; el backend también lo exige
+  const puedeVerAgenda = esPropietario || getRol() === 'ENTRENADOR';
   const { pathname } = useLocation();
   const [alumnos, setAlumnos] = useState([]);
   const [membresias, setMembresias] = useState([]);
@@ -286,6 +289,7 @@ function MainApp({ onLogout }) {
 
   const rol = getRol();
   const navItems = [
+    ...(puedeVerAgenda ? [{ to: '/agenda', label: 'Agenda', icon: Calendar }] : []),
     { to: '/alumnos', label: 'Alumnos', icon: Users },
     { to: '/membresias', label: 'Membresías', icon: CreditCard, onClick: () => setSelectedMembresiaId(null) },
     // Cobranzas (HU-45) es solo del propietario
@@ -475,6 +479,10 @@ function MainApp({ onLogout }) {
               setFiltro={setFiltroCuota}
             />
           ) : <Navigate to="/alumnos" replace />} />
+
+          <Route path="agenda" element={puedeVerAgenda
+            ? <Agenda />
+            : <Navigate to="/alumnos" replace />} />
 
           <Route path="horarios" element={esPropietario
             ? <HorariosGimnasio onToast={displayToast} />

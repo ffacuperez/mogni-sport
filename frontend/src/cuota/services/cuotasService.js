@@ -22,8 +22,9 @@ function diasHasta(fechaISO) {
  * ATRASADA -> "Vencida"; PENDIENTE que vence en 5 días o menos -> "Próxima a vencer";
  * PAGADA o PENDIENTE con más de 5 días por delante -> "Al día" (no requiere ninguna acción todavía).
  * Si una cuota "Al día" está paga o no, lo indica `pagable` (y el aviso bajo la fecha).
+ * También lo usa la agenda (MOGNI-257) con la cuota cruda que manda el backend ({ estado, fechaVencimiento }).
  */
-function estadoVisible(cuota) {
+export function estadoVisible(cuota) {
   if (cuota.estado === 'ATRASADA') return 'Vencida';
   if (cuota.estado === 'PENDIENTE' && diasHasta(cuota.fechaVencimiento) <= DIAS_PROXIMO_A_VENCER) return 'Próxima a vencer';
   return 'Al día';

@@ -136,6 +136,15 @@ class SecurityRulesTest {
     }
 
     @Test
+    void agendaSoloParaPropietarioYEntrenador() throws Exception {
+        for (String ruta : new String[] {"/agenda/dia", "/agenda/semana"}) {
+            mockMvc.perform(get(ruta)).andExpect(status().isUnauthorized());
+            mockMvc.perform(get(ruta).with(user("a@x.com").roles("ALUMNO"))).andExpect(status().isForbidden());
+            mockMvc.perform(get(ruta).with(user("n@x.com").roles("NUTRICIONISTA"))).andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
     void preflightDesdeViteEsPermitidoSinAutenticar() throws Exception {
         mockMvc.perform(options("/alumnos")
                         .header("Origin", "http://localhost:5173")

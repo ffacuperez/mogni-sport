@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
-import { CreditCard, Home as IconHome, LogOut, Users, Wallet } from 'lucide-react';
+import { Clock, CreditCard, Home as IconHome, LogOut, Users, Wallet } from 'lucide-react';
 
 import Home from './home/pages/Home';
 import Login from './auth/pages/Login';
@@ -18,6 +18,8 @@ import MembresiaForm from './membresia/pages/MembresiaForm';
 import CuotasList from './cuota/pages/CuotasList';
 import RegistrarPagoModal from './cuota/pages/RegistrarPagoModal';
 import HistorialPagosModal from './cuota/pages/HistorialPagosModal';
+import HorariosGimnasio from './turno/pages/HorariosGimnasio';
+import TurnosAlumno from './turno/pages/TurnosAlumno';
 import ConfirmModal from './shared/components/ConfirmModal';
 import Toast from './shared/components/Toast';
 import { useToast } from './shared/hooks/useToast';
@@ -288,6 +290,8 @@ function MainApp({ onLogout }) {
     { to: '/membresias', label: 'Membresías', icon: CreditCard, onClick: () => setSelectedMembresiaId(null) },
     // Cobranzas (HU-45) es solo del propietario
     ...(esPropietario ? [{ to: '/cuotas', label: 'Cuotas', icon: Wallet, onClick: () => setSelectedCuotaId(null) }] : []),
+    // Franjas horarias y cupo (HU-252): solo el propietario
+    ...(esPropietario ? [{ to: '/horarios', label: 'Horarios', icon: Clock }] : []),
   ];
   const seccionActual = navItems.find(item => pathname.startsWith(item.to))?.label ?? 'Panel';
   // Guía 4.5: ítems de 44px, activo con borde izquierdo rojo de 3px sobre #3A3A3A
@@ -472,6 +476,10 @@ function MainApp({ onLogout }) {
             />
           ) : <Navigate to="/alumnos" replace />} />
 
+          <Route path="horarios" element={esPropietario
+            ? <HorariosGimnasio onToast={displayToast} />
+            : <Navigate to="/alumnos" replace />} />
+
           <Route path="*" element={<Navigate to="/alumnos" replace />} />
         </Routes>
 
@@ -588,7 +596,7 @@ export default function App() {
           : <Login onLogin={handleLogin} onBack={() => navigate('/')} />
       } />
 
-      {/* App del alumno: solo rol ALUMNO. Inicio, Turnos y Rutinas todavía no están desarrolladas */}
+      {/* App del alumno: solo rol ALUMNO. Inicio y Rutinas todavía no están desarrolladas */}
       <Route path="/mi-cuenta" element={
         <RequiereRol sesion={authSession} permitido={esAlumno}>
           <AlumnoLayout onLogout={handleLogout} />
@@ -596,7 +604,7 @@ export default function App() {
       }>
         <Route index element={<Navigate to="perfil" replace />} />
         <Route path="inicio" element={<SeccionProximamente titulo="Inicio" />} />
-        <Route path="turnos" element={<SeccionProximamente titulo="Turnos" />} />
+        <Route path="turnos" element={<TurnosAlumno />} />
         <Route path="rutinas" element={<SeccionProximamente titulo="Rutinas" />} />
         <Route path="perfil" element={<AlumnoPerfil />} />
         <Route path="notificaciones" element={<Notificaciones />} />

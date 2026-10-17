@@ -4,6 +4,8 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -96,6 +98,41 @@ class SecurityRulesTest {
         // El propietario pasa la regla de seguridad; 404 porque este id no existe en la base de prueba
         mockMvc.perform(get("/alumnos/999999/pagos").with(user("p@x.com").roles("PROPIETARIO")))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void franjasYCupoSoloParaElPropietario() throws Exception {
+        for (String ruta : new String[] {"/franjas", "/configuracion-gimnasio"}) {
+            mockMvc.perform(get(ruta)).andExpect(status().isUnauthorized());
+            mockMvc.perform(get(ruta).with(user("e@x.com").roles("ENTRENADOR"))).andExpect(status().isForbidden());
+            mockMvc.perform(get(ruta).with(user("n@x.com").roles("NUTRICIONISTA"))).andExpect(status().isForbidden());
+            mockMvc.perform(get(ruta).with(user("a@x.com").roles("ALUMNO"))).andExpect(status().isForbidden());
+            mockMvc.perform(get(ruta).with(user("p@x.com").roles("PROPIETARIO"))).andExpect(status().isOk());
+        }
+        mockMvc.perform(post("/franjas").with(user("e@x.com").roles("ENTRENADOR"))
+                        .contentType("application/json").content("{}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put("/configuracion-gimnasio/cupo-maximo").with(user("e@x.com").roles("ENTRENADOR"))
+                        .contentType("application/json").content("{}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(delete("/franjas/1").with(user("n@x.com").roles("NUTRICIONISTA")))
+                .andExpect(status().isForbidden());
+        // El propietario pasa la regla de seguridad; el cuerpo vacío lo rechaza la validación
+        mockMvc.perform(post("/franjas").with(user("p@x.com").roles("PROPIETARIO"))
+                        .contentType("application/json").content("{}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/configuracion-gimnasio/cupo-maximo").with(user("p@x.com").roles("PROPIETARIO"))
+                        .contentType("application/json").content("{\"cupoMaximo\":0}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void turnosDisponiblesSoloParaAlumnos() throws Exception {
+        mockMvc.perform(get("/turnos/disponibles")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/turnos/disponibles").with(user("p@x.com").roles("PROPIETARIO"))).andExpect(status().isForbidden());
+        mockMvc.perform(get("/turnos/disponibles").with(user("e@x.com").roles("ENTRENADOR"))).andExpect(status().isForbidden());
+        // Un ALUMNO pasa la regla de seguridad (404 porque esta cuenta de prueba no tiene alumno asociado)
+        mockMvc.perform(get("/turnos/disponibles").with(user("a@x.com").roles("ALUMNO"))).andExpect(status().isNotFound());
     }
 
     @Test

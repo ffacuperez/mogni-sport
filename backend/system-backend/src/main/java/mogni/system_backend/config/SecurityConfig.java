@@ -67,6 +67,10 @@ public class SecurityConfig {
                     .hasAnyRole("PROPIETARIO", "ENTRENADOR", "NUTRICIONISTA")
                 // Cobranzas: solo el propietario
                 .requestMatchers("/cuotas/**", "/pagos/**").hasRole("PROPIETARIO")
+                // Franjas horarias y cupo por turno (HU-252): solo el propietario, también para consultarlos
+                .requestMatchers("/franjas/**", "/configuracion-gimnasio/**").hasRole("PROPIETARIO")
+                // Turnos disponibles (HU-259): solo alumnos; el servicio exige además cuenta activa y modalidad presencial
+                .requestMatchers("/turnos/**").hasRole("ALUMNO")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

@@ -13,16 +13,18 @@ import mogni.system_backend.exception.ConflictoException;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.turno.dto.CancelacionResponse;
 import mogni.system_backend.turno.entity.EstadoReserva;
+import mogni.system_backend.turno.entity.ClaseExtra;
 import mogni.system_backend.turno.entity.Reserva;
 import mogni.system_backend.turno.entity.Turno;
+import mogni.system_backend.turno.repository.ClaseExtraRepository;
 import mogni.system_backend.turno.repository.ReservaRepository;
 
 /**
  * HU-255: el alumno cancela una reserva suya. La reserva no se borra: pasa a CANCELADA, así deja de ocupar lugar
  * en el turno (queda libre para otro alumno) y deja de contar para el límite semanal, sin tocar esa lógica.
  *
- * <p>Pendiente: devolver la clase extra si la reserva se hizo con una. Todavía no existe el concepto de clase extra
- * en el código (ni cómo se otorga ni cómo se marca una reserva que la usó).
+ * <p>Si se cancela una reserva hecha con una clase extra, el crédito vuelve a quedar disponible mientras siga
+ * vigente.
  */
 @Service
 public class CancelacionService {
@@ -32,10 +34,13 @@ public class CancelacionService {
 
     private final AlumnoRepository alumnoRepository;
     private final ReservaRepository reservaRepository;
+    private final ClaseExtraRepository claseExtraRepository;
 
-    public CancelacionService(AlumnoRepository alumnoRepository, ReservaRepository reservaRepository) {
+    public CancelacionService(AlumnoRepository alumnoRepository, ReservaRepository reservaRepository,
+                              ClaseExtraRepository claseExtraRepository) {
         this.alumnoRepository = alumnoRepository;
         this.reservaRepository = reservaRepository;
+        this.claseExtraRepository = claseExtraRepository;
     }
 
     /** true mientras falten 2 horas o más para el inicio (justo 2 horas antes todavía se puede). */
@@ -75,6 +80,10 @@ public class CancelacionService {
 
         reserva.setEstado(EstadoReserva.CANCELADA);
         reservaRepository.save(reserva);
+        claseExtraRepository.findByReservaUsoId(reserva.getId()).ifPresent(claseExtra -> {
+            claseExtra.setReservaUsoId(null);
+            claseExtraRepository.save(claseExtra);
+        });
         return new CancelacionResponse(
                 reserva.getId(),
                 turno.getId(),

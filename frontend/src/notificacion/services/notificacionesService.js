@@ -1,10 +1,14 @@
 import { request } from '../../shared/services/httpClient';
 
-// Las notificaciones las calcula el backend a partir de las cuotas (HU-250). Qué ya vio el alumno se guarda
-// solo en este navegador: es para el punto rojo y el contador, no cambia qué notificaciones existen.
+// Los avisos de cuota se calculan en el backend y los de turnos quedan persistidos allí. Qué ya vio el alumno
+// se guarda solo en este navegador: afecta el punto rojo y el contador, no qué notificaciones existen.
 const LEIDAS_KEY = 'mogni.notificacionesLeidas';
 
-const CATEGORIAS = { CUOTA_POR_VENCER: 'cuota', CUOTA_VENCIDA: 'cuota' };
+const CATEGORIAS = {
+  CUOTA_POR_VENCER: 'cuota',
+  CUOTA_VENCIDA: 'cuota',
+  TURNO_CANCELADO: 'turnos',
+};
 
 // La clave incluye el tipo: si una cuota "por vencer" ya vista pasa a "vencida", vuelve a aparecer como nueva
 const claveDe = (n) => `${n.id}:${n.tipo}`;
@@ -19,6 +23,8 @@ const fromApi = (n) => ({
   fecha: n.fecha,
   cuotaId: n.cuotaId,
   fechaVencimiento: n.fechaVencimiento,
+  turnoId: n.turnoId,
+  fechaTurno: n.fechaTurno,
 });
 
 export async function listarNotificaciones() {

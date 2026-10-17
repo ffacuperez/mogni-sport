@@ -9,6 +9,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -40,10 +41,12 @@ import mogni.system_backend.membresia.entity.Membresia;
 import mogni.system_backend.turno.dto.ReservaResponse;
 import mogni.system_backend.turno.entity.EstadoReserva;
 import mogni.system_backend.turno.entity.EstadoTurno;
+import mogni.system_backend.turno.entity.ClaseExtra;
 import mogni.system_backend.turno.entity.Reserva;
 import mogni.system_backend.turno.entity.Turno;
 import mogni.system_backend.turno.repository.ReservaRepository;
 import mogni.system_backend.turno.repository.TurnoRepository;
+import mogni.system_backend.turno.repository.ClaseExtraRepository;
 
 /**
  * HU-254. Los repositorios se simulan con listas en memoria, igual que en ConsultaTurnosServiceTest. La seguridad
@@ -67,6 +70,9 @@ class ReservaServiceTest {
 
     @Mock
     private ReservaRepository reservaRepository;
+
+    @Mock
+    private ClaseExtraRepository claseExtraRepository;
 
     @InjectMocks
     private ReservaService reservaService;
@@ -180,6 +186,23 @@ class ReservaServiceTest {
         reservar(turno);
 
         assertEquals(2, reservas.size());
+    }
+
+    @Test
+    void usaUnaClaseExtraCuandoYaAlcanzoElLimiteSemanalDeLaMembresia() {
+        yaReservado(alumno, turno(MARTES.minusDays(1), "08:00", 5), EstadoReserva.RESERVADA);
+        yaReservado(alumno, turno(MIERCOLES, "08:00", 5), EstadoReserva.RESERVADA);
+        yaReservado(alumno, turno(MIERCOLES.plusDays(1), "08:00", 5), EstadoReserva.RESERVADA);
+        Turno turnoExtra = turno(MARTES, "19:00", 5);
+        ClaseExtra claseExtra = new ClaseExtra(alumno, 90L, MARTES.minusDays(1), MARTES.plusDays(12));
+        when(claseExtraRepository.buscarDisponiblesConBloqueo(alumno.getId(), MARTES))
+                .thenReturn(List.of(claseExtra));
+
+        ReservaResponse response = reservar(turnoExtra);
+
+        assertEquals(0, response.getTurnosRestantesSemana());
+        assertEquals(response.getId(), claseExtra.getReservaUsoId());
+        verify(claseExtraRepository).save(claseExtra);
     }
 
     // --- Acceso ---

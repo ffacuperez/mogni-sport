@@ -21,11 +21,12 @@ import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
 import mogni.system_backend.notificacion.dto.NotificacionResponse;
 import mogni.system_backend.notificacion.dto.TipoNotificacion;
+import mogni.system_backend.notificacion.entity.AvisoTurno;
+import mogni.system_backend.notificacion.repository.AvisoTurnoRepository;
 
 /**
- * HU-250: notificaciones de cuota del alumno. No se guardan en la base: se calculan en cada consulta a partir
- * del estado de sus cuotas. Así una cuota impaga siempre tiene su notificación (y una sola), y cuando la cuota
- * pasa a PAGADA la notificación deja de existir sin que nadie tenga que borrarla.
+ * HU-250: notificaciones del alumno. Las de cuota se calculan en cada consulta; los avisos de cancelación de turnos
+ * se guardan para que sigan disponibles aunque la inscripción o la fecha del turno cambien.
  */
 @Service
 public class NotificacionService {
@@ -39,10 +40,13 @@ public class NotificacionService {
 
     private final AlumnoRepository alumnoRepository;
     private final CuotaRepository cuotaRepository;
+    private final AvisoTurnoRepository avisoTurnoRepository;
 
-    public NotificacionService(AlumnoRepository alumnoRepository, CuotaRepository cuotaRepository) {
+    public NotificacionService(AlumnoRepository alumnoRepository, CuotaRepository cuotaRepository,
+                               AvisoTurnoRepository avisoTurnoRepository) {
         this.alumnoRepository = alumnoRepository;
         this.cuotaRepository = cuotaRepository;
+        this.avisoTurnoRepository = avisoTurnoRepository;
     }
 
     /** Notificaciones vigentes del alumno logueado, de la más reciente a la más antigua. */
@@ -51,11 +55,32 @@ public class NotificacionService {
         Alumno alumno = alumnoRepository.findByCuentaEmailIgnoreCase(email)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No hay un alumno asociado a esta cuenta"));
         LocalDate hoy = ZonaHoraria.hoy();
-        return cuotaRepository.buscar(EstadoInscripcion.ACTIVA, null, alumno.getId()).stream()
+        List<NotificacionResponse> notificacionesCuotas =
+                cuotaRepository.buscar(EstadoInscripcion.ACTIVA, null, alumno.getId()).stream()
                 .map(cuota -> notificacionDe(cuota, hoy))
                 .flatMap(Optional::stream)
-                .sorted(Comparator.comparing(NotificacionResponse::getFecha).reversed())
                 .toList();
+        List<NotificacionResponse> notificacionesTurnos = avisoTurnoRepository
+                .findByAlumnoIdOrderByFechaDescIdDesc(alumno.getId()).stream()
+                .map(this::notificacionDe)
+                .toList();
+        return java.util.stream.Stream.concat(notificacionesCuotas.stream(), notificacionesTurnos.stream())
+                .sorted(Comparator.comparing(NotificacionResponse::getFecha).reversed()
+                        .thenComparing(NotificacionResponse::getId))
+                .toList();
+    }
+
+    private NotificacionResponse notificacionDe(AvisoTurno aviso) {
+        return new NotificacionResponse(
+                "turno-" + aviso.getId(),
+                TipoNotificacion.TURNO_CANCELADO,
+                aviso.getTitulo(),
+                aviso.getMensaje(),
+                aviso.getFecha(),
+                null,
+                null,
+                aviso.getTurnoId(),
+                aviso.getFechaTurno());
     }
 
     /** Notificación vigente de una cuota (vacía si está pagada o falta para su vencimiento). También la usan las push. */

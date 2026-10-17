@@ -28,6 +28,8 @@ import mogni.system_backend.inscripcion.entity.Inscripcion;
 import mogni.system_backend.membresia.entity.Membresia;
 import mogni.system_backend.notificacion.dto.NotificacionResponse;
 import mogni.system_backend.notificacion.dto.TipoNotificacion;
+import mogni.system_backend.notificacion.entity.AvisoTurno;
+import mogni.system_backend.notificacion.repository.AvisoTurnoRepository;
 import mogni.system_backend.notificacion.service.NotificacionService;
 
 /**
@@ -44,6 +46,9 @@ class NotificacionServiceTest {
 
     @Mock
     private CuotaRepository cuotaRepository;
+
+    @Mock
+    private AvisoTurnoRepository avisoTurnoRepository;
 
     @InjectMocks
     private NotificacionService notificacionService;
@@ -173,5 +178,22 @@ class NotificacionServiceTest {
         when(alumnoRepository.findByCuentaEmailIgnoreCase(EMAIL)).thenReturn(Optional.empty());
 
         assertThrows(RecursoNoEncontradoException.class, () -> notificacionService.listarDelAlumno(EMAIL));
+    }
+
+    @Test
+    void muestraEnLaAppLosAvisosPersistidosPorCancelacionDeTurno() {
+        when(alumnoRepository.findByCuentaEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(alumno));
+        AvisoTurno aviso = new AvisoTurno(alumno, 50L, 70L, hoy, hoy.plusDays(2),
+                "Turno cancelado por el gimnasio", "Recibiste una clase extra.");
+        aviso.setId(30L);
+        when(avisoTurnoRepository.findByAlumnoIdOrderByFechaDescIdDesc(1L)).thenReturn(List.of(aviso));
+
+        List<NotificacionResponse> resultado = notificacionService.listarDelAlumno(EMAIL);
+
+        assertEquals(1, resultado.size());
+        assertEquals(TipoNotificacion.TURNO_CANCELADO, resultado.get(0).getTipo());
+        assertEquals("turno-30", resultado.get(0).getId());
+        assertEquals(70L, resultado.get(0).getTurnoId());
+        assertEquals(hoy.plusDays(2), resultado.get(0).getFechaTurno());
     }
 }

@@ -34,7 +34,7 @@ class CustomUserDetailsServiceTest {
     @Test
     void conCambioPendienteNoRecibeLosPermisosDeSuRol() {
         when(cuentaRepository.findByEmailIgnoreCase("a@x.com"))
-                .thenReturn(Optional.of(new Cuenta(1L, "a@x.com", "hash", Rol.ALUMNO, true, true)));
+                .thenReturn(Optional.of(new Cuenta(1L, "a@x.com", "hash", Rol.ALUMNO, true, true, null)));
 
         assertEquals(List.of(CustomUserDetailsService.AUTORIDAD_CAMBIO_PENDIENTE),
                 autoridades(service.loadUserByUsername("a@x.com")));
@@ -43,7 +43,7 @@ class CustomUserDetailsServiceTest {
     @Test
     void sinCambioPendienteRecibeSuRol() {
         when(cuentaRepository.findByEmailIgnoreCase("p@x.com"))
-                .thenReturn(Optional.of(new Cuenta(2L, "p@x.com", "hash", Rol.PROPIETARIO, false, true)));
+                .thenReturn(Optional.of(new Cuenta(2L, "p@x.com", "hash", Rol.PROPIETARIO, false, true, null)));
 
         assertEquals(List.of("ROLE_PROPIETARIO"), autoridades(service.loadUserByUsername("p@x.com")));
     }

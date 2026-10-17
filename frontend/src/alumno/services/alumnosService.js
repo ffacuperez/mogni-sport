@@ -45,6 +45,7 @@ const fromApi = (a) => ({
   membresiaId: a.membresiaId ?? '',
   membresia: a.membresiaNombre ?? 'Sin membresía',
   estado: a.activo ? 'Activo' : 'Inactivo',
+  fechaBaja: a.fechaBaja ?? '',
   inscripcion: inscripcionFromApi(a.inscripcionActual),
 });
 

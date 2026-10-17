@@ -75,8 +75,6 @@ function MainApp({ onLogout }) {
 
   const [selectedMembresiaId, setSelectedMembresiaId] = useState(null);
   const [searchAlumno, setSearchAlumno] = useState('');
-  const [mostrarInactivos, setMostrarInactivos] = useState(false);
-  const [inactivosCargados, setInactivosCargados] = useState(false);
 
   // --- Cuotas (HU-45) ---
   const [cuotas, setCuotas] = useState([]);
@@ -98,9 +96,9 @@ function MainApp({ onLogout }) {
   const cerrarModal = () => setModalConfig(prev => ({ ...prev, isOpen: false }));
 
   useEffect(() => {
-    Promise.all([listarAlumnos(), listarMembresias()])
-      .then(([alumnosData, membresiasData]) => {
-        setAlumnos(alumnosData);
+    Promise.all([listarAlumnos(), listarAlumnos({ activo: false }), listarMembresias()])
+      .then(([alumnosActivos, alumnosInactivos, membresiasData]) => {
+        setAlumnos([...alumnosActivos, ...alumnosInactivos]);
         setMembresias(membresiasData);
       })
       .catch((error) => displayToast(error.message, true))
@@ -156,20 +154,6 @@ function MainApp({ onLogout }) {
         onConfirm();
       }
     });
-  };
-
-  // HU-246: por defecto solo activos. Los dados de baja se piden al backend la primera vez que se activa el filtro.
-  const handleToggleMostrarInactivos = async () => {
-    const mostrar = !mostrarInactivos;
-    setMostrarInactivos(mostrar);
-    if (!mostrar || inactivosCargados) return;
-    try {
-      const inactivos = await listarAlumnos({ activo: false });
-      setAlumnos(prev => [...prev, ...inactivos.filter(i => !prev.some(a => a.id === i.id))]);
-      setInactivosCargados(true);
-    } catch (error) {
-      displayToast(error.message, true);
-    }
   };
 
   const handleToggleEstadoAlumno = (alumno) => {
@@ -380,10 +364,9 @@ function MainApp({ onLogout }) {
               cargando={!cargado}
               onSelect={(id) => navigate(`/alumnos/${id}`)}
               onAdd={() => navigate('/alumnos/nuevo')}
+              onReactivate={handleToggleEstadoAlumno}
               search={searchAlumno}
               setSearch={setSearchAlumno}
-              mostrarInactivos={mostrarInactivos}
-              onToggleMostrarInactivos={handleToggleMostrarInactivos}
             />
           } />
 

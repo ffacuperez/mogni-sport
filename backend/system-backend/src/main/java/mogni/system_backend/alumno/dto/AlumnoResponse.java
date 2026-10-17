@@ -25,6 +25,7 @@ public class AlumnoResponse {
     private String cuestionarioSalud;
     private Rol rol;
     private boolean activo;
+    private LocalDate fechaBaja;
     private Long membresiaId;
     private String membresiaNombre;
     /** Inicio de la inscripción activa (null si no tiene). */

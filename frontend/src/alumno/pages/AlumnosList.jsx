@@ -1,10 +1,11 @@
 import { Plus } from 'lucide-react';
+import { useState } from 'react';
 
 import { describirMembresia, describirModalidad } from '../services/alumnosService';
 import { normalizar } from '../../shared/services/texto';
 import { Badge, Button, EmptyRow, PageHeader, Panel, Row, SearchInput, Table } from '../../shared/components/ui';
 
-const COLUMNAS = [
+const COLUMNAS_ACTIVOS = [
   { label: 'DNI' },
   { label: 'Apellido' },
   { label: 'Nombre' },
@@ -14,7 +15,14 @@ const COLUMNAS = [
   { label: 'Estado' },
 ];
 
-export default function AlumnosList({ alumnos, cargando, onSelect, onAdd, search, setSearch, mostrarInactivos, onToggleMostrarInactivos }) {
+const COLUMNAS_INACTIVOS = [
+  ...COLUMNAS_ACTIVOS.slice(0, -1),
+  { label: 'Acción' },
+];
+
+export default function AlumnosList({ alumnos, cargando, onSelect, onAdd, onReactivate, search, setSearch }) {
+  const [pestana, setPestana] = useState('activos');
+
   // HU-74: búsqueda parcial por nombre, apellido o DNI
   const termino = normalizar(search.trim());
   const coincide = (a) => !termino
@@ -23,19 +31,34 @@ export default function AlumnosList({ alumnos, cargando, onSelect, onAdd, search
     || normalizar(`${a.nombre} ${a.apellido}`).includes(termino)
     || a.dni.includes(termino);
 
-  // HU-246: por defecto solo activos; un alumno reactivado vuelve a verse sin activar el filtro
-  const filteredAlumnos = alumnos
-    .filter(a => mostrarInactivos || a.estado === 'Activo')
-    .filter(coincide);
+  const alumnosActivos = alumnos.filter(a => a.estado === 'Activo' && coincide(a));
+  const alumnosInactivos = alumnos.filter(a => a.estado !== 'Activo' && coincide(a));
+  const cantidadVisible = alumnosActivos.length + alumnosInactivos.length;
+  const alumnosMostrados = pestana === 'activos' ? alumnosActivos : alumnosInactivos;
+  const columnasMostradas = pestana === 'activos' ? COLUMNAS_ACTIVOS : COLUMNAS_INACTIVOS;
+  const estadoMostrado = pestana === 'activos' ? 'activos' : 'inactivos';
 
-  let vacio = 'No hay alumnos para mostrar.';
-  if (cargando) vacio = 'Cargando alumnos...';
-  else if (search.trim()) vacio = 'No se encontraron alumnos con ese nombre, apellido o DNI.';
+  const mensajeVacio = (estado) => {
+    if (cargando) return 'Cargando alumnos...';
+    if (search.trim()) return `No se encontraron alumnos ${estado} con ese nombre, apellido o DNI.`;
+    return `No hay alumnos ${estado} para mostrar.`;
+  };
+
+  const filasComunes = (alumno) => (
+    <>
+      <td className="px-3 tabular-nums text-ink-soft">{alumno.dni}</td>
+      <td className="px-3 font-semibold text-ink">{alumno.apellido}</td>
+      <td className="px-3">{alumno.nombre}</td>
+      <td className="px-3 text-ink-soft">{alumno.email}</td>
+      <td className="px-3">{describirMembresia(alumno)}</td>
+      <td className="px-3">{describirModalidad(alumno) || '—'}</td>
+    </>
+  );
 
   return (
     <div className="animate-fade-in">
       <PageHeader
-        eyebrow={`Gestión · ${filteredAlumnos.length} ${filteredAlumnos.length === 1 ? 'registro' : 'registros'}`}
+        eyebrow={`Gestión · ${cantidadVisible} ${cantidadVisible === 1 ? 'registro' : 'registros'}`}
         title="Alumnos"
         actions={
           <Button variant="primary" onClick={onAdd}>
@@ -44,41 +67,73 @@ export default function AlumnosList({ alumnos, cargando, onSelect, onAdd, search
         }
       />
 
-      <Panel className="p-4 sm:p-5">
-        <div className="mb-5 flex flex-col-reverse gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-ink-soft hover:text-ink">
-            <input
-              type="checkbox"
-              checked={mostrarInactivos}
-              onChange={onToggleMostrarInactivos}
-              className="h-4 w-4 cursor-pointer accent-primary"
-            />
-            Mostrar inactivos
-          </label>
+      <div className="mb-5">
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Buscar por nombre, apellido o DNI"
+          label="Buscar alumno por nombre, apellido o DNI"
+        />
+      </div>
 
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder="Buscar por nombre, apellido o DNI"
-            label="Buscar alumno por nombre, apellido o DNI"
-          />
-        </div>
+      <div className="mb-0 flex border-b border-line" role="tablist" aria-label="Estado de alumnos">
+        <button
+          type="button"
+          role="tab"
+          id="tab-alumnos-activos"
+          aria-selected={pestana === 'activos'}
+          aria-controls="panel-alumnos"
+          onClick={() => setPestana('activos')}
+          className={`-mb-px cursor-pointer border-b-2 px-5 py-3 text-sm font-semibold transition-colors ${
+            pestana === 'activos' ? 'border-primary text-primary' : 'border-transparent text-ink-soft hover:text-ink'
+          }`}
+        >
+          Activos ({alumnos.filter(a => a.estado === 'Activo').length})
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="tab-alumnos-inactivos"
+          aria-selected={pestana === 'inactivos'}
+          aria-controls="panel-alumnos"
+          onClick={() => setPestana('inactivos')}
+          className={`-mb-px cursor-pointer border-b-2 px-5 py-3 text-sm font-semibold transition-colors ${
+            pestana === 'inactivos' ? 'border-primary text-primary' : 'border-transparent text-ink-soft hover:text-ink'
+          }`}
+        >
+          Inactivos ({alumnos.filter(a => a.estado !== 'Activo').length})
+        </button>
+      </div>
 
-        <Table columns={COLUMNAS} cargando={cargando}>
-          {filteredAlumnos.map((alumno) => (
+      <Panel className="mt-6 p-4 sm:p-5" id="panel-alumnos" role="tabpanel" aria-labelledby={`tab-alumnos-${pestana}`}>
+        <Table columns={columnasMostradas} cargando={cargando}>
+          {alumnosMostrados.map((alumno) => (
             <Row key={alumno.id} onActivate={() => onSelect(alumno.id)} title="Ver detalle del alumno">
-              <td className="px-3 tabular-nums text-ink-soft">{alumno.dni}</td>
-              <td className="px-3 font-semibold text-ink">{alumno.apellido}</td>
-              <td className="px-3">{alumno.nombre}</td>
-              <td className="px-3 text-ink-soft">{alumno.email}</td>
-              <td className="px-3">{describirMembresia(alumno)}</td>
-              <td className="px-3">{describirModalidad(alumno) || '—'}</td>
-              <td className="px-3">
-                <Badge tone={alumno.estado === 'Activo' ? 'success' : 'error'}>{alumno.estado}</Badge>
-              </td>
+              {filasComunes(alumno)}
+              {pestana === 'activos' ? (
+                <td className="px-3">
+                  <Badge tone="success">{alumno.estado}</Badge>
+                </td>
+              ) : (
+                <td className="px-3">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onReactivate(alumno);
+                    }}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  >
+                    Reactivar
+                  </Button>
+                </td>
+              )}
             </Row>
           ))}
-          {filteredAlumnos.length === 0 && <EmptyRow colSpan={COLUMNAS.length}>{vacio}</EmptyRow>}
+          {alumnosMostrados.length === 0 && (
+            <EmptyRow colSpan={columnasMostradas.length}>{mensajeVacio(estadoMostrado)}</EmptyRow>
+          )}
         </Table>
       </Panel>
     </div>

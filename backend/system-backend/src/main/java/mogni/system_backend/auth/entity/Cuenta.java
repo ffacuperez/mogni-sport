@@ -1,5 +1,7 @@
 package mogni.system_backend.auth.entity;
 
+import java.time.LocalDate;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -40,4 +42,6 @@ public class Cuenta {
 
     @Column(nullable = false)
     private boolean activa = true;
+
+    private LocalDate fechaBaja;
 }

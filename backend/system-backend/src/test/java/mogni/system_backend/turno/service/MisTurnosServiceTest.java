@@ -86,7 +86,7 @@ class MisTurnosServiceTest {
         Alumno a = new Alumno();
         a.setId(id);
         a.setModalidad(modalidad);
-        a.setCuenta(new Cuenta(id, "a" + id + "@mail.com", "hash", Rol.ALUMNO, false, activa));
+        a.setCuenta(new Cuenta(id, "a" + id + "@mail.com", "hash", Rol.ALUMNO, false, activa, null));
         return a;
     }
 

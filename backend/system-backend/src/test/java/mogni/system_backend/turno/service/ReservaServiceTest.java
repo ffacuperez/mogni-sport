@@ -115,7 +115,7 @@ class ReservaServiceTest {
         Alumno a = new Alumno();
         a.setId(id);
         a.setModalidad(modalidad);
-        a.setCuenta(new Cuenta(id, "a" + id + "@mail.com", "hash", Rol.ALUMNO, false, activa));
+        a.setCuenta(new Cuenta(id, "a" + id + "@mail.com", "hash", Rol.ALUMNO, false, activa, null));
         if (frecuenciaSemanal != null) {
             Membresia membresia = new Membresia(1L, "Plan", 30000.0, frecuenciaSemanal, null);
             a.agregarInscripcion(new Inscripcion(1L, MARTES.minusMonths(1), null, EstadoInscripcion.ACTIVA, a, membresia));

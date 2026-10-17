@@ -119,7 +119,7 @@ class CancelacionServiceTest {
         Alumno a = new Alumno();
         a.setId(id);
         a.setModalidad(Modalidad.PRESENCIAL);
-        a.setCuenta(new Cuenta(id, email, "hash", Rol.ALUMNO, false, true));
+        a.setCuenta(new Cuenta(id, email, "hash", Rol.ALUMNO, false, true, null));
         Membresia membresia = new Membresia(1L, "Plan", 30000.0, 3, null);
         a.agregarInscripcion(new Inscripcion(1L, MARTES.minusMonths(1), null, EstadoInscripcion.ACTIVA, a, membresia));
         return a;

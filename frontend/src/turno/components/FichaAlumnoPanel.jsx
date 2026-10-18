@@ -116,9 +116,14 @@ export default function FichaAlumnoPanel({ alumnoAgenda, alumnos, alumnosCargado
           {!alumnosCargados ? <Cargando texto="Cargando datos del alumno" className="mt-10" /> : (
             <>
               <dl className="mt-3">
-                <Fila label="Membresía">{alumnoAgenda.membresiaNombre ?? 'Sin membresía'}</Fila>
+                <Fila label="Membresía">
+                  {alumnoAgenda.membresiaNombre ?? 'Sin membresía'}
+                  {/* Inicio de la inscripción activa */}
+                  {datos?.fechaIngreso && (
+                    <span className="block text-xs font-normal text-ink-muted">desde {textoMesYAnio(datos.fechaIngreso)}</span>
+                  )}
+                </Fila>
                 <Fila label="Edad">{edad != null ? `${edad} años` : <Vacio />}</Fila>
-                <Fila label="Alumno desde">{datos?.fechaIngreso ? textoMesYAnio(datos.fechaIngreso) : <Vacio />}</Fila>
                 <Fila label="Objetivo">{datos?.objetivo || <Vacio />}</Fila>
                 <Fila label="Cuota">
                   {cuota ? (

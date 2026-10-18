@@ -481,7 +481,7 @@ function MainApp({ onLogout }) {
           ) : <Navigate to="/alumnos" replace />} />
 
           <Route path="agenda" element={puedeVerAgenda
-            ? <Agenda />
+            ? <Agenda esPropietario={esPropietario} />
             : <Navigate to="/alumnos" replace />} />
 
           <Route path="horarios" element={esPropietario

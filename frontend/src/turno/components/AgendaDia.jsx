@@ -119,7 +119,7 @@ function EstadoVacio({ icono: Icono, titulo, texto }) {
   );
 }
 
-function DetalleTurno({ agenda, turno, onSeleccionarAlumno }) {
+function DetalleTurno({ agenda, turno, onSeleccionarAlumno, onCancelarTurno }) {
   const bloqueado = turno.estado === 'BLOQUEADO';
   const badge = bloqueado ? { tono: 'neutral', texto: 'Bloqueado' }
     : turno.estado === 'PASADO' ? { tono: 'neutral', texto: 'Pasado' }
@@ -178,10 +178,11 @@ function DetalleTurno({ agenda, turno, onSeleccionarAlumno }) {
       </div>
 
       <div className="mt-6 flex justify-end border-t border-line pt-4">
-        {/* TODO HU-258 (cancelar turnos): sin lógica ni endpoint en MOGNI-257 */}
-        <Button variant="secondary" disabled title="Disponible próximamente">
-          <CalendarX className="h-4 w-4" /> Cancelar este turno
-        </Button>
+        {onCancelarTurno && turno.estado !== 'PASADO' && turno.estado !== 'CANCELADO' && !turno.enCurso && (
+          <Button variant="danger" onClick={() => onCancelarTurno(turno)}>
+            <CalendarX className="h-4 w-4" /> Cancelar este turno
+          </Button>
+        )}
       </div>
     </Panel>
   );
@@ -191,7 +192,7 @@ function DetalleTurno({ agenda, turno, onSeleccionarAlumno }) {
  * MOGNI-257: vista Día de la agenda. Tarjetas de resumen, turnos agrupados en mañana y tarde, y el detalle del turno
  * seleccionado con sus alumnos. seleccion: horaInicio del turno elegido.
  */
-export default function AgendaDia({ agenda, seleccion, onSeleccionar, onSeleccionarAlumno }) {
+export default function AgendaDia({ agenda, seleccion, onSeleccionar, onSeleccionarAlumno, onCancelarTurno }) {
   const bloqueado = agenda.estadoDia === 'BLOQUEADO';
   const resumen = agenda.resumen;
   const turnoSeleccionado = agenda.turnos.find(t => t.horaInicio === seleccion);
@@ -231,7 +232,12 @@ export default function AgendaDia({ agenda, seleccion, onSeleccionar, onSeleccio
         <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
           <ListaTurnos agenda={agenda} seleccion={seleccion} onSeleccionar={onSeleccionar} />
           {turnoSeleccionado && (
-            <DetalleTurno agenda={agenda} turno={turnoSeleccionado} onSeleccionarAlumno={onSeleccionarAlumno} />
+            <DetalleTurno
+              agenda={agenda}
+              turno={turnoSeleccionado}
+              onSeleccionarAlumno={onSeleccionarAlumno}
+              onCancelarTurno={onCancelarTurno}
+            />
           )}
         </div>
       )}

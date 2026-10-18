@@ -34,6 +34,7 @@ import mogni.system_backend.inscripcion.entity.Inscripcion;
 import mogni.system_backend.membresia.entity.Membresia;
 import mogni.system_backend.turno.dto.CancelacionResponse;
 import mogni.system_backend.turno.entity.EstadoReserva;
+import mogni.system_backend.turno.repository.ClaseExtraRepository;
 import mogni.system_backend.turno.entity.EstadoTurno;
 import mogni.system_backend.turno.entity.Reserva;
 import mogni.system_backend.turno.entity.Turno;
@@ -62,6 +63,9 @@ class CancelacionServiceTest {
     @Mock
     private ReservaRepository reservaRepository;
 
+    @Mock
+    private ClaseExtraRepository claseExtraRepository;
+
     private CancelacionService cancelacionService;
     private ReservaService reservaService;
 
@@ -73,8 +77,8 @@ class CancelacionServiceTest {
 
     @BeforeEach
     void setUp() {
-        cancelacionService = new CancelacionService(alumnoRepository, reservaRepository);
-        reservaService = new ReservaService(alumnoRepository, turnoRepository, reservaRepository);
+        cancelacionService = new CancelacionService(alumnoRepository, reservaRepository, claseExtraRepository);
+        reservaService = new ReservaService(alumnoRepository, turnoRepository, reservaRepository, claseExtraRepository);
         alumno = alumno(10L, "a10@mail.com");
         otroAlumno = alumno(20L, "a20@mail.com");
 

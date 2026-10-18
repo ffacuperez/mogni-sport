@@ -14,6 +14,28 @@ export async function obtenerAgendaSemana(fecha) {
   return request(fecha ? `/agenda/semana?fecha=${fecha}` : '/agenda/semana');
 }
 
+export async function resumenCancelarTurno(fecha, horaInicio) {
+  return request(`/agenda/cancelacion/resumen?fecha=${fecha}&horaInicio=${encodeURIComponent(horaInicio)}`);
+}
+
+export async function resumenCancelarDia(fecha) {
+  return request(`/agenda/cancelacion/dia/resumen?fecha=${fecha}`);
+}
+
+export async function cancelarTurnoAgenda(fecha, horaInicio) {
+  return request('/agenda/cancelar-turno', {
+    method: 'POST',
+    body: { fecha, horaInicio },
+  });
+}
+
+export async function cancelarDiaAgenda(fecha) {
+  return request('/agenda/cancelar-dia', {
+    method: 'POST',
+    body: { fecha },
+  });
+}
+
 // --- Fechas (siempre a partir del "hoy" que manda el backend, no del reloj del navegador) ---
 
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];

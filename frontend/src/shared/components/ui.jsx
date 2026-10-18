@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X } from 'lucide-react';
 
 import { cx, FOCUS, inputClass, labelClass } from './clases';
@@ -243,7 +244,8 @@ export function Modal({ title, subtitle, onClose, size = 'sm', children, cerrabl
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, cerrable]);
 
-  return (
+  // Portal a body: si una página ancestro tiene transform (p. ej. animate-fade-in), el fixed quedaría encerrado en ella
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-fade-in"
       onMouseDown={(e) => { if (cerrable && e.target === e.currentTarget) onClose?.(); }}
@@ -270,7 +272,8 @@ export function Modal({ title, subtitle, onClose, size = 'sm', children, cerrabl
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useOutletContext } from 'react-router';
-import { Bell, BellOff, CalendarDays, ChevronLeft, CircleAlert, CreditCard, Info, TriangleAlert } from 'lucide-react';
+import { Bell, BellOff, CalendarDays, CalendarX, ChevronLeft, CircleAlert, CreditCard, Info, TriangleAlert } from 'lucide-react';
 
 import { Cargando } from '../../shared/components/ui';
 import { cx, FOCUS } from '../../shared/components/clases';
@@ -18,6 +18,7 @@ const FILTROS = [
 const ESTILOS = {
   CUOTA_POR_VENCER: { icono: TriangleAlert, tarjeta: 'border-warning bg-warning-bg', burbuja: 'bg-card text-warning-text' },
   CUOTA_VENCIDA: { icono: CircleAlert, tarjeta: 'border-error bg-error-bg', burbuja: 'bg-card text-error' },
+  TURNO_CANCELADO: { icono: CalendarX, tarjeta: 'border-info bg-info-bg', burbuja: 'bg-card text-info' },
 };
 
 // Fecha local en formato "2026-10-14", como las manda el backend
@@ -127,7 +128,7 @@ export default function Notificaciones() {
             <BellOff className="h-6 w-6" />
           </span>
           <p className="text-sm font-semibold text-ink">No tenés notificaciones</p>
-          <p className="max-w-60 text-xs text-ink-soft">Te avisamos acá cuando tu cuota esté por vencer.</p>
+          <p className="max-w-60 text-xs text-ink-soft">Te avisamos acá cuando haya novedades de tus turnos o cuotas.</p>
         </div>
       ) : (
         <ul className="space-y-3">

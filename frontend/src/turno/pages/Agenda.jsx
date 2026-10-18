@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CalendarDays, CalendarX, ChevronLeft, ChevronRight, CircleAlert } from 'lucide-react';
 
 import { Button, Cargando, PageHeader, Panel } from '../../shared/components/ui';
@@ -6,9 +7,13 @@ import { cx, FOCUS } from '../../shared/components/clases';
 import AgendaDia from '../components/AgendaDia';
 import AgendaSemana from '../components/AgendaSemana';
 import {
+  cancelarDiaAgenda,
+  cancelarTurnoAgenda,
   lunesDe,
   obtenerAgendaDia,
   obtenerAgendaSemana,
+  resumenCancelarDia,
+  resumenCancelarTurno,
   sumarDias,
   textoFechaLarga,
   textoSemana,
@@ -28,7 +33,7 @@ function turnoInicial(agenda) {
  * MOGNI-257: agenda de turnos del personal. Vista Día (alumnos de cada turno) y vista Semana (ocupación).
  * Se filtra por fecha con las flechas, el botón "Hoy" o el calendario. "Hoy" sale del backend.
  */
-export default function Agenda() {
+export default function Agenda({ esPropietario }) {
   const [vista, setVista] = useState('dia');
   // null hasta la primera respuesta: el backend decide qué día es hoy
   const [fecha, setFecha] = useState(null);
@@ -37,9 +42,13 @@ export default function Agenda() {
   const [datos, setDatos] = useState(null);
   const [error, setError] = useState(null);
   const [seleccion, setSeleccion] = useState(null);
+  const [confirmacion, setConfirmacion] = useState(null);
+  const [cancelando, setCancelando] = useState(false);
+  const [version, setVersion] = useState(0);
+  const [mensajeExito, setMensajeExito] = useState(null);
   const inputFecha = useRef(null);
 
-  const pedido = `${vista}|${fecha}`;
+  const pedido = `${vista}|${fecha}|${version}`;
   const cargando = datos?.pedido !== pedido && error?.pedido !== pedido;
 
   useEffect(() => {
@@ -48,6 +57,7 @@ export default function Agenda() {
       .then((respuesta) => {
         // Si mientras tanto se pidió otra fecha o vista, esta respuesta ya no sirve
         if (!vigente) return;
+        setError(null);
         setHoy(respuesta.hoy);
         setDatos({ pedido, vista, respuesta });
         if (vista === 'dia') {
@@ -80,6 +90,80 @@ export default function Agenda() {
     setSeleccion(horaInicio);
     setFecha(fechaTurno);
     setVista('dia');
+  };
+  const turnosCancelables = (agenda) => agenda.turnos.filter(
+    turno => turno.estado !== 'PASADO' && turno.estado !== 'CANCELADO' && !turno.enCurso,
+  );
+  const pedirCancelacionTurno = async (turno) => {
+    setMensajeExito(null);
+    setConfirmacion({
+      tipo: 'turno',
+      fecha: vistaLista.fecha,
+      horaInicio: turno.horaInicio,
+      cantidadTurnos: 1,
+      reservas: null,
+      cargando: true,
+      error: null,
+      tipoError: null,
+    });
+    try {
+      const resumen = await resumenCancelarTurno(vistaLista.fecha, turno.horaInicio);
+      setConfirmacion(actual => actual ? { ...actual, ...resumen, cargando: false, error: null, tipoError: null } : actual);
+    } catch (err) {
+      setConfirmacion(actual => actual
+        ? { ...actual, cargando: false, tipoError: 'resumen', error: `${err.message}${err.status ? ` (HTTP ${err.status})` : ''}` }
+        : actual);
+    }
+  };
+  const pedirCancelacionDia = async () => {
+    setMensajeExito(null);
+    setConfirmacion({
+      tipo: 'dia',
+      fecha: vistaLista.fecha,
+      reservas: null,
+      cargando: true,
+      error: null,
+      tipoError: null,
+    });
+    try {
+      const resumen = await resumenCancelarDia(vistaLista.fecha);
+      setConfirmacion(actual => actual ? { ...actual, ...resumen, cargando: false, error: null, tipoError: null } : actual);
+    } catch (err) {
+      setConfirmacion(actual => actual
+        ? { ...actual, cargando: false, tipoError: 'resumen', error: `${err.message}${err.status ? ` (HTTP ${err.status})` : ''}` }
+        : actual);
+    }
+  };
+  const confirmarCancelacion = async () => {
+    if (!confirmacion || cancelando) return;
+    setCancelando(true);
+    try {
+      const resultado = confirmacion.tipo === 'dia'
+        ? await cancelarDiaAgenda(confirmacion.fecha)
+        : await cancelarTurnoAgenda(confirmacion.fecha, confirmacion.horaInicio);
+      const turnosText = resultado.turnosCancelados === 1 ? '1 turno' : `${resultado.turnosCancelados} turnos`;
+      const reservasText = resultado.reservasCanceladas === 1 ? '1 reserva' : `${resultado.reservasCanceladas} reservas`;
+      setMensajeExito(`Se cancelaron ${turnosText} y ${reservasText}. Se acreditaron ${resultado.clasesExtraOtorgadas} clases extra.`);
+      setConfirmacion(null);
+      setError(null);
+      setVersion(actual => actual + 1);
+    } catch (err) {
+      setConfirmacion(actual => actual
+        ? { ...actual, tipoError: 'cancelacion', error: `${err.message}${err.status ? ` (HTTP ${err.status})` : ''}` }
+        : actual);
+    } finally {
+      setCancelando(false);
+    }
+  };
+
+  const reintentarResumen = () => {
+    if (!confirmacion || confirmacion.cargando) return;
+    if (confirmacion.tipo === 'dia') {
+      pedirCancelacionDia();
+    } else {
+      const turno = vistaLista?.turnos.find(item => item.horaInicio === confirmacion.horaInicio);
+      if (turno) pedirCancelacionTurno(turno);
+    }
   };
 
   let titulo = '…';
@@ -140,9 +224,13 @@ export default function Agenda() {
               />
             </span>
 
-            {vista === 'dia' && (
-              // TODO HU-258 (cancelar turnos): sin lógica ni endpoint en MOGNI-257
-              <Button variant="secondary" disabled title="Disponible próximamente" className="h-10">
+            {vista === 'dia' && esPropietario && (
+              <Button
+                variant="danger"
+                className="h-10"
+                onClick={pedirCancelacionDia}
+                disabled={!vistaLista || turnosCancelables(vistaLista).length === 0}
+              >
                 <CalendarX className="h-4 w-4" /> Cancelar día
               </Button>
             )}
@@ -156,6 +244,11 @@ export default function Agenda() {
           <span className="text-sm">{error.mensaje}</span>
         </div>
       )}
+      {mensajeExito && (
+        <p role="status" className="mb-6 rounded-lg border border-success bg-success-bg p-4 text-sm text-success">
+          {mensajeExito}
+        </p>
+      )}
 
       {!vistaLista && cargando && <Cargando texto="Cargando agenda" />}
 
@@ -163,13 +256,73 @@ export default function Agenda() {
         <div className={cx('relative transition-opacity', cargando && 'opacity-60')} aria-busy={cargando}>
           {cargando && <div className="loading-bar absolute inset-x-0 -top-3 h-0.5" role="progressbar" aria-label="Cargando" />}
           {vista === 'dia' ? (
-            <AgendaDia agenda={vistaLista} seleccion={seleccion} onSeleccionar={setSeleccion} />
+            <AgendaDia
+              agenda={vistaLista}
+              seleccion={seleccion}
+              onSeleccionar={setSeleccion}
+              onCancelarTurno={esPropietario ? pedirCancelacionTurno : undefined}
+            />
           ) : (
             <Panel className="p-4 sm:p-5">
               <AgendaSemana semana={vistaLista} onAbrirTurno={abrirTurno} />
             </Panel>
           )}
         </div>
+      )}
+
+      {/* Portal a body: el animate-fade-in de la página (transform) haría que el fixed quede encerrado en el contenido */}
+      {confirmacion && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="presentation">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirmar-cancelacion-titulo"
+            className="w-full max-w-md rounded-xl border border-line bg-card p-6 shadow-xl"
+          >
+            <h2 id="confirmar-cancelacion-titulo" className="text-lg font-bold text-ink">
+              {confirmacion.tipo === 'dia' ? 'Cancelar turnos del día' : 'Cancelar turno'}
+            </h2>
+            {/* Si falló el resumen no hay cantidades para mostrar: queda solo el error */}
+            {confirmacion.tipoError !== 'resumen' && (
+              <p className="mt-3 text-sm leading-relaxed text-ink-soft">
+                {confirmacion.cargando
+                  ? 'Consultando las reservas activas…'
+                  : confirmacion.tipo === 'dia'
+                    ? `Se cancelarán ${confirmacion.turnosAfectados} turnos futuros y ${confirmacion.reservasAfectadas} reservas activas del ${textoFechaLarga(confirmacion.fecha)}.`
+                    : `Se cancelará el turno de las ${confirmacion.horaInicio} del ${textoFechaLarga(confirmacion.fecha)} y ${confirmacion.reservasAfectadas} reservas activas.`}
+                {!confirmacion.cargando && (
+                  <> Cada alumno afectado recibirá una clase extra válida durante esta semana o la siguiente, además de una notificación en la app.</>
+                )}
+              </p>
+            )}
+            {confirmacion.error && (
+              <div role="alert" className="mt-3 rounded-lg border border-line bg-error-bg p-3 text-sm text-error">
+                <p>{confirmacion.error}</p>
+                <p className="mt-1">No se canceló ningún turno. Intentá nuevamente.</p>
+              </div>
+            )}
+            <div className="mt-6 flex justify-end gap-2">
+              {confirmacion.error && !confirmacion.cargando && (
+                <Button
+                  variant="secondary"
+                  onClick={confirmacion.tipoError === 'resumen' ? reintentarResumen : confirmarCancelacion}
+                  disabled={cancelando}
+                >
+                  {confirmacion.tipoError === 'resumen' ? 'Reintentar consulta' : 'Reintentar cancelación'}
+                </Button>
+              )}
+              <Button variant="ghost" onClick={() => setConfirmacion(null)} disabled={cancelando}>Volver</Button>
+              <Button
+                variant="danger"
+                onClick={confirmarCancelacion}
+                disabled={confirmacion.cargando || cancelando || confirmacion.tipoError === 'resumen'}
+              >
+                {cancelando ? 'Cancelando…' : 'Confirmar cancelación'}
+              </Button>
+            </div>
+          </section>
+        </div>,
+        document.body,
       )}
     </div>
   );

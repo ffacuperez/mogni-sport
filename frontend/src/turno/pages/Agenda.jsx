@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CalendarDays, CalendarX, ChevronLeft, ChevronRight, CircleAlert } from 'lucide-react';
 
 import { Button, Cargando, PageHeader, Panel } from '../../shared/components/ui';
@@ -269,7 +270,8 @@ export default function Agenda({ esPropietario }) {
         </div>
       )}
 
-      {confirmacion && (
+      {/* Portal a body: el animate-fade-in de la página (transform) haría que el fixed quede encerrado en el contenido */}
+      {confirmacion && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="presentation">
           <section
             role="dialog"
@@ -280,20 +282,23 @@ export default function Agenda({ esPropietario }) {
             <h2 id="confirmar-cancelacion-titulo" className="text-lg font-bold text-ink">
               {confirmacion.tipo === 'dia' ? 'Cancelar turnos del día' : 'Cancelar turno'}
             </h2>
-            <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-              {confirmacion.cargando
-                ? 'Consultando las reservas activas…'
-                : confirmacion.tipo === 'dia'
-                  ? `Se cancelarán ${confirmacion.turnosAfectados} turnos futuros y ${confirmacion.reservasAfectadas} reservas activas del ${textoFechaLarga(confirmacion.fecha)}.`
-                  : `Se cancelará el turno de las ${confirmacion.horaInicio} del ${textoFechaLarga(confirmacion.fecha)} y ${confirmacion.reservasAfectadas} reservas activas.`}
-              {!confirmacion.cargando && (
-                <> Cada alumno afectado recibirá una clase extra válida durante esta semana o la siguiente, además de una notificación en la app.</>
-              )}
-            </p>
+            {/* Si falló el resumen no hay cantidades para mostrar: queda solo el error */}
+            {confirmacion.tipoError !== 'resumen' && (
+              <p className="mt-3 text-sm leading-relaxed text-ink-soft">
+                {confirmacion.cargando
+                  ? 'Consultando las reservas activas…'
+                  : confirmacion.tipo === 'dia'
+                    ? `Se cancelarán ${confirmacion.turnosAfectados} turnos futuros y ${confirmacion.reservasAfectadas} reservas activas del ${textoFechaLarga(confirmacion.fecha)}.`
+                    : `Se cancelará el turno de las ${confirmacion.horaInicio} del ${textoFechaLarga(confirmacion.fecha)} y ${confirmacion.reservasAfectadas} reservas activas.`}
+                {!confirmacion.cargando && (
+                  <> Cada alumno afectado recibirá una clase extra válida durante esta semana o la siguiente, además de una notificación en la app.</>
+                )}
+              </p>
+            )}
             {confirmacion.error && (
               <div role="alert" className="mt-3 rounded-lg border border-line bg-error-bg p-3 text-sm text-error">
                 <p>{confirmacion.error}</p>
-                <p className="mt-1">No se canceló ningún turno. Verificá que el backend desplegado tenga disponibles las rutas de cancelación e intentá nuevamente.</p>
+                <p className="mt-1">No se canceló ningún turno. Intentá nuevamente.</p>
               </div>
             )}
             <div className="mt-6 flex justify-end gap-2">
@@ -316,7 +321,8 @@ export default function Agenda({ esPropietario }) {
               </Button>
             </div>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

@@ -279,6 +279,7 @@ export default function Agenda({ esPropietario, alumnos, alumnosCargados }) {
           alumnoAgenda={alumnoFicha}
           alumnos={alumnos}
           alumnosCargados={alumnosCargados}
+          hoy={hoy}
           onClose={() => setAlumnoFicha(null)}
         />
       )}

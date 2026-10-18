@@ -7,8 +7,7 @@ import { Badge, Button, Cargando } from '../../shared/components/ui';
 import { cx, FOCUS } from '../../shared/components/clases';
 import { WHATSAPP_PATH } from '../../shared/components/iconoWhatsApp';
 import { linkWhatsApp } from '../../shared/services/telefono';
-import { describirModalidad } from '../../alumno/services/alumnosService';
-import { estadoCuotaAgenda } from '../services/agendaService';
+import { edadAl, estadoCuotaAgenda, textoMesYAnio } from '../services/agendaService';
 
 const iniciales = (alumno) => `${alumno.nombre?.[0] ?? ''}${alumno.apellido?.[0] ?? ''}`.toUpperCase();
 
@@ -54,13 +53,15 @@ function BotonWhatsApp({ telefono }) {
 /**
  * MOGNI-260: ficha rápida del alumno desde la agenda, en un panel lateral. Cierra con Escape o con un clic afuera.
  * alumnoAgenda: ítem del turno (nombre, membresía y cuota, lo mismo que muestra la fila).
- * alumnos: listado de MainApp (DNI, modalidad, objetivo, antecedentes y celular).
+ * alumnos: listado de MainApp (DNI, fecha de nacimiento, fecha de ingreso, objetivo, antecedentes y celular).
+ * hoy: fecha de hoy según el backend (para calcular la edad).
  */
-export default function FichaAlumnoPanel({ alumnoAgenda, alumnos, alumnosCargados, onClose }) {
+export default function FichaAlumnoPanel({ alumnoAgenda, alumnos, alumnosCargados, hoy, onClose }) {
   const botonCerrar = useRef(null);
   const datos = alumnos.find(a => a.id === alumnoAgenda.alumnoId);
   const cuota = estadoCuotaAgenda(alumnoAgenda.cuota);
-  const modalidad = datos ? describirModalidad(datos) : '';
+  // La edad guardada en el backend solo se actualiza al editar el alumno: se calcula con la fecha de nacimiento
+  const edad = datos?.fechaNacimiento && hoy ? edadAl(datos.fechaNacimiento, hoy) : null;
   const nombre = `${alumnoAgenda.nombre} ${alumnoAgenda.apellido}`;
 
   useEffect(() => {
@@ -116,7 +117,8 @@ export default function FichaAlumnoPanel({ alumnoAgenda, alumnos, alumnosCargado
             <>
               <dl className="mt-3">
                 <Fila label="Membresía">{alumnoAgenda.membresiaNombre ?? 'Sin membresía'}</Fila>
-                <Fila label="Modalidad">{modalidad ? <Badge>{modalidad}</Badge> : <Vacio />}</Fila>
+                <Fila label="Edad">{edad != null ? `${edad} años` : <Vacio />}</Fila>
+                <Fila label="Alumno desde">{datos?.fechaIngreso ? textoMesYAnio(datos.fechaIngreso) : <Vacio />}</Fila>
                 <Fila label="Objetivo">{datos?.objetivo || <Vacio />}</Fila>
                 <Fila label="Cuota">
                   {cuota ? (

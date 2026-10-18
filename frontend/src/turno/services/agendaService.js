@@ -83,6 +83,20 @@ export function textoSemana(desdeISO, hastaISO) {
   return `${inicio} al ${hasta.d} de ${MESES[hasta.m - 1]}`;
 }
 
+/** "2026-03-09" -> "marzo 2026" */
+export function textoMesYAnio(fechaISO) {
+  const { y, m } = partes(fechaISO);
+  return `${MESES[m - 1]} ${y}`;
+}
+
+/** Años cumplidos a la fecha hoyISO: ("1999-05-20", "2026-10-18") -> 27 */
+export function edadAl(fechaNacimientoISO, hoyISO) {
+  const nacimiento = partes(fechaNacimientoISO);
+  const hoy = partes(hoyISO);
+  const yaCumplio = hoy.m > nacimiento.m || (hoy.m === nacimiento.m && hoy.d >= nacimiento.d);
+  return hoy.y - nacimiento.y - (yaCumplio ? 0 : 1);
+}
+
 /** Turnos de la mañana (antes de las 12) y de la tarde. */
 export const esDeManiana = (turno) => turno.horaInicio < '12:00';
 

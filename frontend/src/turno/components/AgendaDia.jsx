@@ -158,7 +158,6 @@ function DetalleTurno({ agenda, turno, onSeleccionarAlumno, onCancelarTurno }) {
             {turno.alumnos.map(alumno => {
               const cuota = estadoCuotaAgenda(alumno.cuota);
               return (
-                // TODO MOGNI-XXX (ficha rápida del alumno): abrir la ficha al hacer clic en la fila
                 <Row key={alumno.reservaId} onActivate={onSeleccionarAlumno ? () => onSeleccionarAlumno(alumno) : undefined}>
                   <td className="px-3">
                     <span className="flex items-center gap-3">

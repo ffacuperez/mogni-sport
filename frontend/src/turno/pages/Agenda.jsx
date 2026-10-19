@@ -6,6 +6,7 @@ import { Button, Cargando, PageHeader, Panel } from '../../shared/components/ui'
 import { cx, FOCUS } from '../../shared/components/clases';
 import AgendaDia from '../components/AgendaDia';
 import AgendaSemana from '../components/AgendaSemana';
+import FichaAlumnoPanel from '../components/FichaAlumnoPanel';
 import {
   cancelarDiaAgenda,
   cancelarTurnoAgenda,
@@ -33,7 +34,7 @@ function turnoInicial(agenda) {
  * MOGNI-257: agenda de turnos del personal. Vista Día (alumnos de cada turno) y vista Semana (ocupación).
  * Se filtra por fecha con las flechas, el botón "Hoy" o el calendario. "Hoy" sale del backend.
  */
-export default function Agenda({ esPropietario }) {
+export default function Agenda({ esPropietario, alumnos, alumnosCargados }) {
   const [vista, setVista] = useState('dia');
   // null hasta la primera respuesta: el backend decide qué día es hoy
   const [fecha, setFecha] = useState(null);
@@ -46,6 +47,8 @@ export default function Agenda({ esPropietario }) {
   const [cancelando, setCancelando] = useState(false);
   const [version, setVersion] = useState(0);
   const [mensajeExito, setMensajeExito] = useState(null);
+  // MOGNI-260: alumno del turno cuya ficha rápida está abierta (no cambia el turno seleccionado)
+  const [alumnoFicha, setAlumnoFicha] = useState(null);
   const inputFecha = useRef(null);
 
   const pedido = `${vista}|${fecha}|${version}`;
@@ -260,6 +263,7 @@ export default function Agenda({ esPropietario }) {
               agenda={vistaLista}
               seleccion={seleccion}
               onSeleccionar={setSeleccion}
+              onSeleccionarAlumno={setAlumnoFicha}
               onCancelarTurno={esPropietario ? pedirCancelacionTurno : undefined}
             />
           ) : (
@@ -268,6 +272,16 @@ export default function Agenda({ esPropietario }) {
             </Panel>
           )}
         </div>
+      )}
+
+      {alumnoFicha && (
+        <FichaAlumnoPanel
+          alumnoAgenda={alumnoFicha}
+          alumnos={alumnos}
+          alumnosCargados={alumnosCargados}
+          hoy={hoy}
+          onClose={() => setAlumnoFicha(null)}
+        />
       )}
 
       {/* Portal a body: el animate-fade-in de la página (transform) haría que el fixed quede encerrado en el contenido */}

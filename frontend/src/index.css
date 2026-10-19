@@ -51,6 +51,7 @@
   --animate-pop-in: pop-in 0.2s ease-out both;
   --animate-slide-down: slide-down 0.25s ease-out both;
   --animate-slide-up: slide-up 0.25s ease-out both;
+  --animate-slide-in-right: slide-in-right 0.25s ease-out both;
   --animate-scan: scan 1.2s linear infinite;
 
   @keyframes fade-in {
@@ -67,6 +68,10 @@
   }
   @keyframes slide-up {
     from { transform: translateY(100%); }
+    to { transform: none; }
+  }
+  @keyframes slide-in-right {
+    from { transform: translateX(100%); }
     to { transform: none; }
   }
   @keyframes scan {

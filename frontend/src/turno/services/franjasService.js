@@ -13,6 +13,9 @@ export const DIAS_SEMANA = [
   { valor: 'SUNDAY', corto: 'Dom', nombre: 'Domingo', singular: 'domingo', plural: 'domingos' },
 ];
 
+/** Días en los que se pueden definir franjas: de lunes a viernes (los fines de semana no hay clases). */
+export const DIAS_CON_FRANJAS = DIAS_SEMANA.filter(d => d.valor !== 'SATURDAY' && d.valor !== 'SUNDAY');
+
 export const diaSemana = (valor) => DIAS_SEMANA.find(d => d.valor === valor);
 
 /** "16:30" -> 990 */
@@ -39,11 +42,14 @@ export function etiquetaTurno({ horaInicio, horaFin }) {
   return `${corta(horaInicio)}–${corta(horaFin)}`;
 }
 
+const MENSAJE_FIN_DE_SEMANA = 'Las franjas solo se pueden definir de lunes a viernes.';
+
 /**
  * Mismas validaciones que el backend, para avisar mientras se completa el formulario.
  * Devuelve el mensaje de error o null. idAExcluir: la franja que se está modificando.
  */
 export function validarFranja({ diaSemana: dia, horaInicio, horaFin }, franjas, idAExcluir) {
+  if (dia && !DIAS_CON_FRANJAS.some(d => d.valor === dia)) return MENSAJE_FIN_DE_SEMANA;
   const inicio = aMinutos(horaInicio);
   const fin = aMinutos(horaFin);
   if (fin <= inicio) return 'La hora de fin debe ser posterior a la de inicio.';
@@ -54,6 +60,24 @@ export function validarFranja({ diaSemana: dia, horaInicio, horaFin }, franjas, 
     return `Esta franja se superpone con ${superpuesta.horaInicio} – ${superpuesta.horaFin} del ${diaSemana(dia).singular}.`;
   }
   return null;
+}
+
+/**
+ * Valida la misma franja en varios días a la vez. Devuelve los mensajes sin repetir: los errores de horario son
+ * iguales para todos los días, y cada superposición nombra el día en que ocurre.
+ */
+export function validarFranjas({ diasSemana, horaInicio, horaFin }, franjas, idAExcluir) {
+  const mensajes = diasSemana
+    .map(dia => validarFranja({ diaSemana: dia, horaInicio, horaFin }, franjas, idAExcluir))
+    .filter(Boolean);
+  return [...new Set(mensajes)];
+}
+
+/** Nombres en plural, de lunes a viernes: "lunes", "lunes y martes", "lunes, martes y miércoles". */
+export function textoDias(valores) {
+  const nombres = DIAS_SEMANA.filter(d => valores.includes(d.valor)).map(d => d.plural);
+  if (nombres.length <= 1) return nombres.join('');
+  return `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1]}`;
 }
 
 const toApi = (form) => ({ diaSemana: form.diaSemana, horaInicio: form.horaInicio, horaFin: form.horaFin });

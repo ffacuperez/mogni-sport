@@ -87,6 +87,9 @@ public class FranjaHorariaService {
     }
 
     private void validar(DayOfWeek dia, LocalTime inicio, LocalTime fin, Long idAExcluir) {
+        if (dia == DayOfWeek.SATURDAY || dia == DayOfWeek.SUNDAY) {
+            throw new RegistroInvalidoException("Las franjas solo se pueden definir de lunes a viernes.");
+        }
         if (!fin.isAfter(inicio)) {
             throw new RegistroInvalidoException("La hora de fin debe ser posterior a la de inicio.");
         }

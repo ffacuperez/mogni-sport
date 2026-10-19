@@ -3,17 +3,19 @@ import { CircleAlert, Repeat } from 'lucide-react';
 
 import { Button, Field, Modal } from '../../shared/components/ui';
 import { cx, FOCUS, inputClass } from '../../shared/components/clases';
-import { calcularTurnos, DIAS_SEMANA, diaSemana, etiquetaTurno, validarFranja } from '../services/franjasService';
+import { calcularTurnos, DIAS_CON_FRANJAS, etiquetaTurno, textoDias, validarFranjas } from '../services/franjasService';
 
 /**
- * Alta y modificación de una franja (HU-252). Valida mientras se completa con los mismos mensajes que el
- * backend; si igual el backend rechaza el guardado, su mensaje se muestra acá mismo.
- * onGuardar(datos) devuelve una promesa: si falla, el modal queda abierto con el error.
+ * Alta y modificación de una franja (HU-252). Al crear se pueden elegir varios días: se crea una franja por día con
+ * el mismo horario. Al modificar se edita una sola franja, así que se elige un único día. Valida mientras se
+ * completa con los mismos mensajes que el backend; si igual el backend rechaza el guardado, su mensaje se muestra
+ * acá mismo.
+ * onGuardar({ diasSemana, horaInicio, horaFin }) devuelve una promesa: si falla, el modal queda abierto con el error.
  */
 export default function FranjaModal({ franja, franjas, onGuardar, onCancelar }) {
   const esEdicion = Boolean(franja);
   const [datos, setDatos] = useState({
-    diaSemana: franja?.diaSemana ?? '',
+    diasSemana: franja ? [franja.diaSemana] : [],
     horaInicio: franja?.horaInicio ?? '',
     horaFin: franja?.horaFin ?? '',
   });
@@ -24,16 +26,27 @@ export default function FranjaModal({ franja, franjas, onGuardar, onCancelar }) 
     setDatos(prev => ({ ...prev, [campo]: valor }));
     setErrorServidor(null);
   };
+  // Al crear, cada click marca o desmarca el día; al modificar, elige el único día de la franja
+  const alternarDia = (valor) => {
+    setDatos(prev => ({
+      ...prev,
+      diasSemana: esEdicion ? [valor] : prev.diasSemana.includes(valor)
+        ? prev.diasSemana.filter(d => d !== valor)
+        : [...prev.diasSemana, valor],
+    }));
+    setErrorServidor(null);
+  };
 
-  const completo = Boolean(datos.diaSemana && datos.horaInicio && datos.horaFin);
+  const completo = Boolean(datos.diasSemana.length && datos.horaInicio && datos.horaFin);
   const horasCargadas = Boolean(datos.horaInicio && datos.horaFin);
-  const errorValidacion = horasCargadas ? validarFranja(datos, franjas, franja?.id) : null;
-  const error = errorValidacion ?? errorServidor;
-  const valido = completo && !errorValidacion;
+  const erroresValidacion = horasCargadas ? validarFranjas(datos, franjas, franja?.id) : [];
+  const errores = erroresValidacion.length ? erroresValidacion : (errorServidor ? [errorServidor] : []);
+  const valido = completo && erroresValidacion.length === 0;
   const turnos = valido ? calcularTurnos(datos.horaInicio, datos.horaFin) : [];
+  const cantidadDias = datos.diasSemana.length;
   // La superposición marca las dos horas; los demás errores, la de fin
-  const marcarInicio = Boolean(errorValidacion?.startsWith('Esta franja se superpone'));
-  const marcarFin = Boolean(errorValidacion);
+  const marcarInicio = erroresValidacion.some(e => e.startsWith('Esta franja se superpone'));
+  const marcarFin = erroresValidacion.length > 0;
 
   const guardar = async (e) => {
     e.preventDefault();
@@ -54,15 +67,18 @@ export default function FranjaModal({ franja, franjas, onGuardar, onCancelar }) 
     <Modal title={esEdicion ? 'Editar franja horaria' : 'Nueva franja horaria'} onClose={onCancelar} size="lg" cerrable={!enviando}>
       <form onSubmit={guardar} noValidate>
         <fieldset className="mb-5">
-          <legend className="mb-2 text-sm font-medium text-ink">Día</legend>
+          <legend className="mb-2 text-sm font-medium text-ink">
+            {esEdicion ? 'Día' : 'Días'}
+            {!esEdicion && <span className="ml-2 text-xs font-normal text-ink-soft">Podés elegir varios</span>}
+          </legend>
           <div className="flex flex-wrap gap-2">
-            {DIAS_SEMANA.map(dia => {
-              const elegido = datos.diaSemana === dia.valor;
+            {DIAS_CON_FRANJAS.map(dia => {
+              const elegido = datos.diasSemana.includes(dia.valor);
               return (
                 <button
                   key={dia.valor}
                   type="button"
-                  onClick={() => cambiar('diaSemana', dia.valor)}
+                  onClick={() => alternarDia(dia.valor)}
                   aria-pressed={elegido}
                   className={cx(
                     'min-w-14 flex-1 cursor-pointer rounded-full border px-3 py-2 text-sm font-medium transition-colors',
@@ -88,16 +104,20 @@ export default function FranjaModal({ franja, franjas, onGuardar, onCancelar }) 
           </Field>
         </div>
 
-        {error && (
-          <p role="alert" className="mt-4 flex items-start gap-2 text-sm font-medium text-error">
-            <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" /> {error}
-          </p>
+        {errores.length > 0 && (
+          <div role="alert" className="mt-4 space-y-1">
+            {errores.map(mensaje => (
+              <p key={mensaje} className="flex items-start gap-2 text-sm font-medium text-error">
+                <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" /> {mensaje}
+              </p>
+            ))}
+          </div>
         )}
 
         {valido && (
           <div className="mt-5 rounded-lg bg-row-hover p-4">
             <p className="text-sm font-semibold text-ink">
-              Esta franja tiene {turnos.length} {turnos.length === 1 ? 'turno' : 'turnos'} de 1 hora
+              {cantidadDias > 1 ? 'Cada franja tiene' : 'Esta franja tiene'} {turnos.length} {turnos.length === 1 ? 'turno' : 'turnos'} de 1 hora
             </p>
             <ul className="mt-3 flex flex-wrap gap-2">
               {turnos.map(turno => (
@@ -107,22 +127,22 @@ export default function FranjaModal({ franja, franjas, onGuardar, onCancelar }) 
               ))}
             </ul>
             <p className="mt-3 text-xs leading-relaxed text-ink-soft">
-              Los cambios se aplican a los turnos que todavía no fueron generados. Los turnos de hoy y mañana que ya
-              estén publicados no cambian.
+              Los cambios se aplican a todos los turnos, incluyendo los de hoy y mañana. Si hay reservas afectadas,
+              se cancelan con clase extra.
             </p>
           </div>
         )}
 
-        {datos.diaSemana && (
+        {cantidadDias > 0 && (
           <p className="mt-4 flex items-center gap-2 text-sm text-ink-soft">
-            <Repeat className="h-4 w-4 shrink-0" /> Esta franja se repite todos los {diaSemana(datos.diaSemana).plural}.
+            <Repeat className="h-4 w-4 shrink-0" /> Esta franja se repite todos los {textoDias(datos.diasSemana)}.
           </p>
         )}
 
         <div className="mt-6 flex justify-end gap-3 border-t border-line pt-5">
           <Button variant="ghost" onClick={onCancelar} disabled={enviando}>Cancelar</Button>
           <Button type="submit" variant="primary" disabled={!valido || enviando}>
-            {enviando ? 'Guardando...' : 'Guardar franja'}
+            {enviando ? 'Guardando...' : cantidadDias > 1 ? `Guardar ${cantidadDias} franjas` : 'Guardar franja'}
           </Button>
         </div>
       </form>

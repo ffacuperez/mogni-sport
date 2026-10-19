@@ -15,6 +15,7 @@ import {
   etiquetaTurno,
   listarFranjas,
   obtenerConfiguracionGimnasio,
+  textoDias,
 } from '../services/franjasService';
 import FranjaModal from './FranjaModal';
 import CupoModal from './CupoModal';
@@ -148,12 +149,35 @@ export default function HorariosGimnasio({ onToast }) {
   // Se vuelve a pedir la lista para que quede ordenada igual que en el backend
   const recargarFranjas = async () => setFranjas(await listarFranjas());
 
+  // Una franja por cada día elegido, con el mismo horario. Si una falla a mitad de camino, las ya creadas quedan
+  // guardadas: se recarga la lista y el error dice cuáles son, así el modal las marca como superpuestas al reintentar.
+  const crearFranjas = async ({ diasSemana, horaInicio, horaFin }) => {
+    const creadas = [];
+    for (const dia of diasSemana) {
+      try {
+        await crearFranja({ diaSemana: dia, horaInicio, horaFin });
+        creadas.push(dia);
+      } catch (err) {
+        if (creadas.length === 0) throw err;
+        await recargarFranjas().catch(() => {});
+        throw new Error(`Se crearon las franjas de ${textoDias(creadas)}, pero no se pudo crear la de ${textoDias([dia])}: ${err.message}`);
+      }
+    }
+    return creadas.length;
+  };
+
   const guardarFranja = async (datos) => {
     const franja = modalFranja.franja;
-    if (franja) await actualizarFranja(franja.id, datos);
-    else await crearFranja(datos);
+    let mensaje;
+    if (franja) {
+      await actualizarFranja(franja.id, { ...datos, diaSemana: datos.diasSemana[0] });
+      mensaje = 'La franja fue modificada correctamente.';
+    } else {
+      const cantidad = await crearFranjas(datos);
+      mensaje = cantidad === 1 ? 'La franja fue creada correctamente.' : `Se crearon ${cantidad} franjas correctamente.`;
+    }
     setModalFranja(null);
-    onToast(franja ? 'La franja fue modificada correctamente.' : 'La franja fue creada correctamente.');
+    onToast(mensaje);
     await recargarFranjas().catch((err) => onToast(err.message, true));
   };
 

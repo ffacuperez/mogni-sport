@@ -394,6 +394,41 @@ class ReconciliacionTurnosServiceTest {
     }
 
     @Test
+    void elCupoSoloCambiaEnLosTurnosCuyaHoraDeInicioEsPosteriorAAhora() {
+        Turno yaPaso = turno("08:00", 5, EstadoTurno.DISPONIBLE, null);
+        Turno enCurso = turno("14:00", 5, EstadoTurno.DISPONIBLE, null);
+        Turno empiezaJustoAhora = turno("15:00", 5, EstadoTurno.DISPONIBLE, null);
+        Turno proximo = turno("15:01", 5, EstadoTurno.DISPONIBLE, null);
+        Turno masTarde = turno("18:00", 5, EstadoTurno.DISPONIBLE, null);
+
+        int actualizados = service.aplicarCupoEnFecha(MARTES, 12, MARTES.atTime(15, 0));
+
+        assertEquals(5, yaPaso.getCupoMaximo());
+        assertEquals(5, enCurso.getCupoMaximo());
+        // Un turno que empieza exactamente ahora ya empezó
+        assertEquals(5, empiezaJustoAhora.getCupoMaximo());
+        assertEquals(12, proximo.getCupoMaximo());
+        assertEquals(12, masTarde.getCupoMaximo());
+        assertEquals(2, actualizados);
+        verify(turnoRepository, never()).save(yaPaso);
+        verify(turnoRepository, never()).save(enCurso);
+        verify(turnoRepository, never()).save(empiezaJustoAhora);
+    }
+
+    @Test
+    void elCupoNoCambiaEnNingunTurnoDeUnaFechaQueYaPaso() {
+        Turno manana = turno("08:00", 5, EstadoTurno.DISPONIBLE, null);
+        Turno tarde = turno("20:00", 5, EstadoTurno.DISPONIBLE, null);
+
+        int actualizados = service.aplicarCupoEnFecha(MARTES, 12, MARTES.plusDays(1).atTime(7, 0));
+
+        assertEquals(5, manana.getCupoMaximo());
+        assertEquals(5, tarde.getCupoMaximo());
+        assertEquals(0, actualizados);
+        verify(turnoRepository, never()).findByIdConBloqueo(anyLong());
+    }
+
+    @Test
     void recuentaLasReservasConElTurnoBloqueado() {
         Turno turno = turno("08:00", 5, EstadoTurno.DISPONIBLE, null);
         // Entra una reserva entre que se eligió el turno y se lo bloqueó

@@ -41,19 +41,18 @@ export function Button({ variant = 'secondary', size = 'md', className, type = '
 }
 
 /**
- * Logo: "M" estilizada en rojo + wordmark. onDark: sobre el sidebar oscuro (texto blanco).
- * Cuando exista el logo definitivo, se reemplaza solo acá.
+ * Logo: isotipo (logo.svg, cuadrado 600x600 con su propio fondo rojo redondeado) + wordmark.
+ * onDark: sobre el sidebar oscuro (texto blanco).
  */
 export function Logo({ size = 'md', onDark = false, className }) {
   const grande = size === 'lg';
   return (
     <div className={cx('flex items-center gap-2.5 select-none', className)}>
-      <span className={cx(
-        'flex items-center justify-center rounded-lg bg-primary font-black text-on-dark',
-        grande ? 'h-12 w-12 text-2xl' : 'h-9 w-9 text-lg',
-      )}>
-        M
-      </span>
+      <img
+        src="/logo.svg"
+        alt=""
+        className={cx('shrink-0 object-contain', grande ? 'h-12 w-12' : 'h-9 w-9')}
+      />
       <span className="leading-none">
         <span className={cx('block font-extrabold tracking-tight', onDark ? 'text-on-dark' : 'text-ink', grande ? 'text-2xl' : 'text-base')}>MOGNI</span>
         <span className={cx('block font-semibold tracking-[0.3em] text-primary', onDark && 'text-primary-light', grande ? 'mt-1 text-xs' : 'mt-0.5 text-[10px]')}>SPORT</span>

@@ -136,6 +136,16 @@ class SecurityRulesTest {
     }
 
     @Test
+    void soloElPropietarioPuedeReactivarUnTurnoCancelado() throws Exception {
+        String ruta = "/turnos/999999/revertir-cancelacion";
+        mockMvc.perform(put(ruta)).andExpect(status().isUnauthorized());
+        mockMvc.perform(put(ruta).with(user("a@x.com").roles("ALUMNO"))).andExpect(status().isForbidden());
+        mockMvc.perform(put(ruta).with(user("e@x.com").roles("ENTRENADOR"))).andExpect(status().isForbidden());
+        // El PROPIETARIO pasa la regla de seguridad (404 porque ese turno no existe)
+        mockMvc.perform(put(ruta).with(user("p@x.com").roles("PROPIETARIO"))).andExpect(status().isNotFound());
+    }
+
+    @Test
     void agendaSoloParaPropietarioYEntrenador() throws Exception {
         for (String ruta : new String[] {"/agenda/dia", "/agenda/semana"}) {
             mockMvc.perform(get(ruta)).andExpect(status().isUnauthorized());

@@ -1,4 +1,4 @@
-import { CalendarX, CalendarOff, Lock, Users } from 'lucide-react';
+import { CalendarCheck, CalendarX, CalendarOff, Lock, Users } from 'lucide-react';
 
 import { Badge, Button, Panel, Row, Table } from '../../shared/components/ui';
 import { cx, FOCUS } from '../../shared/components/clases';
@@ -119,7 +119,7 @@ function EstadoVacio({ icono: Icono, titulo, texto }) {
   );
 }
 
-function DetalleTurno({ agenda, turno, onSeleccionarAlumno, onCancelarTurno }) {
+function DetalleTurno({ agenda, turno, onSeleccionarAlumno, onCancelarTurno, onReactivarTurno }) {
   const bloqueado = turno.estado === 'BLOQUEADO';
   const badge = bloqueado ? { tono: 'neutral', texto: 'Bloqueado' }
     : turno.estado === 'PASADO' ? { tono: 'neutral', texto: 'Pasado' }
@@ -129,7 +129,13 @@ function DetalleTurno({ agenda, turno, onSeleccionarAlumno, onCancelarTurno }) {
   if (bloqueado) {
     vacio = { icono: Lock, titulo: 'Todavía no hay alumnos anotados', texto: `Las reservas para este día se habilitan el ${textoDiaYFecha(agenda.fechaHabilitacion)}.` };
   } else if (turno.estado === 'CANCELADO') {
-    vacio = { icono: CalendarX, titulo: 'Turno cancelado', texto: 'Este turno fue cancelado por el gimnasio.' };
+    vacio = {
+      icono: CalendarX,
+      titulo: 'Turno cancelado',
+      texto: turno.canceladoPorFranja
+        ? 'Este turno se canceló porque su horario ya no está en la agenda.'
+        : 'Este turno fue cancelado por el gimnasio.',
+    };
   } else if (turno.alumnos.length === 0) {
     vacio = turno.estado === 'PASADO'
       ? { icono: Users, titulo: 'Sin reservas', texto: 'Nadie reservó este turno.' }
@@ -182,6 +188,11 @@ function DetalleTurno({ agenda, turno, onSeleccionarAlumno, onCancelarTurno }) {
             <CalendarX className="h-4 w-4" /> Cancelar este turno
           </Button>
         )}
+        {onReactivarTurno && turno.puedeReactivarse && (
+          <Button variant="secondary" onClick={() => onReactivarTurno(turno)}>
+            <CalendarCheck className="h-4 w-4" /> Reactivar turno
+          </Button>
+        )}
       </div>
     </Panel>
   );
@@ -191,7 +202,7 @@ function DetalleTurno({ agenda, turno, onSeleccionarAlumno, onCancelarTurno }) {
  * MOGNI-257: vista Día de la agenda. Tarjetas de resumen, turnos agrupados en mañana y tarde, y el detalle del turno
  * seleccionado con sus alumnos. seleccion: horaInicio del turno elegido.
  */
-export default function AgendaDia({ agenda, seleccion, onSeleccionar, onSeleccionarAlumno, onCancelarTurno }) {
+export default function AgendaDia({ agenda, seleccion, onSeleccionar, onSeleccionarAlumno, onCancelarTurno, onReactivarTurno }) {
   const bloqueado = agenda.estadoDia === 'BLOQUEADO';
   const resumen = agenda.resumen;
   const turnoSeleccionado = agenda.turnos.find(t => t.horaInicio === seleccion);
@@ -236,6 +247,7 @@ export default function AgendaDia({ agenda, seleccion, onSeleccionar, onSeleccio
               turno={turnoSeleccionado}
               onSeleccionarAlumno={onSeleccionarAlumno}
               onCancelarTurno={onCancelarTurno}
+              onReactivarTurno={onReactivarTurno}
             />
           )}
         </div>

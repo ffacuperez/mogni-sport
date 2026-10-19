@@ -121,6 +121,8 @@ class CancelacionGimnasioServiceTest {
         var resultado = service.cancelarTurno(HOY, "11:30", AHORA);
 
         assertEquals(EstadoTurno.CANCELADO, turno.getEstado());
+        // La cancelación del propietario es manual: la reconciliación de franjas nunca la revierte
+        assertEquals(mogni.system_backend.turno.entity.MotivoCancelacionTurno.MANUAL, turno.getMotivoCancelacion());
         assertEquals(2, resultado.getReservasCanceladas());
         assertEquals(2, resultado.getClasesExtraOtorgadas());
         assertTrue(reservas.stream().allMatch(r -> r.getEstado() == EstadoReserva.CANCELADA_POR_GIMNASIO));

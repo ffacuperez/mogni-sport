@@ -20,6 +20,7 @@ import mogni.system_backend.turno.dto.CancelacionGimnasioResumenResponse;
 import mogni.system_backend.turno.entity.ClaseExtra;
 import mogni.system_backend.turno.entity.EstadoReserva;
 import mogni.system_backend.turno.entity.EstadoTurno;
+import mogni.system_backend.turno.entity.MotivoCancelacionTurno;
 import mogni.system_backend.turno.entity.Reserva;
 import mogni.system_backend.turno.entity.Turno;
 import mogni.system_backend.turno.repository.ClaseExtraRepository;
@@ -105,7 +106,7 @@ public class CancelacionGimnasioService {
         Turno bloqueado = turnoRepository.findByIdConBloqueo(turno.getId())
                 .orElseThrow(() -> new RecursoNoEncontradoException("No existe ese turno para la fecha indicada."));
         validarNoIniciado(bloqueado, ahora);
-        return cancelar(bloqueado, ahora);
+        return cancelar(bloqueado, ahora, MotivoCancelacionTurno.MANUAL);
     }
 
     CancelacionGimnasioResponse cancelarDia(LocalDate fecha, LocalDateTime ahora) {
@@ -124,7 +125,7 @@ public class CancelacionGimnasioService {
             if (bloqueado.getEstado() == EstadoTurno.CANCELADO) {
                 continue;
             }
-            CancelacionGimnasioResponse resultado = cancelar(bloqueado, ahora);
+            CancelacionGimnasioResponse resultado = cancelar(bloqueado, ahora, MotivoCancelacionTurno.MANUAL);
             turnosCancelados += resultado.getTurnosCancelados();
             reservasCanceladas += resultado.getReservasCanceladas();
             clasesOtorgadas += resultado.getClasesExtraOtorgadas();
@@ -132,7 +133,11 @@ public class CancelacionGimnasioService {
         return new CancelacionGimnasioResponse(turnosCancelados, reservasCanceladas, clasesOtorgadas);
     }
 
-    private CancelacionGimnasioResponse cancelar(Turno turno, LocalDateTime ahora) {
+    /**
+     * Cancela el turno (que ya tiene que venir bloqueado), pasa sus reservas a CANCELADA_POR_GIMNASIO y les da a los
+     * alumnos una clase extra y un aviso. Lo usa la cancelación manual y la reconciliación de franjas.
+     */
+    public CancelacionGimnasioResponse cancelar(Turno turno, LocalDateTime ahora, MotivoCancelacionTurno motivo) {
         validarNoIniciado(turno, ahora);
         if (turno.getEstado() == EstadoTurno.CANCELADO) {
             throw new ConflictoException("Este turno ya fue cancelado por el gimnasio.");
@@ -140,7 +145,7 @@ public class CancelacionGimnasioService {
 
         List<Reserva> reservas = reservaRepository.findWithAlumnoByTurnoIdInAndEstado(
                 List.of(turno.getId()), EstadoReserva.RESERVADA);
-        turno.setEstado(EstadoTurno.CANCELADO);
+        turno.cancelar(motivo);
         turnoRepository.save(turno);
         LocalDate desde = turno.getFecha().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         LocalDate hasta = desde.plusDays(13);

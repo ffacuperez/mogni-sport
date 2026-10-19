@@ -16,6 +16,10 @@ import mogni.system_backend.turno.entity.Turno;
 public interface TurnoRepository extends JpaRepository<Turno, Long> {
     List<Turno> findByFechaOrderByHoraInicioAsc(LocalDate fecha);
 
+    /** Fechas desde la indicada que ya tienen turnos generados (las que hay que reconciliar al cambiar la agenda). */
+    @Query("select distinct t.fecha from Turno t where t.fecha >= :desde order by t.fecha")
+    List<LocalDate> findFechasConTurnosDesde(@Param("desde") LocalDate desde);
+
     /**
      * El turno con la fila bloqueada hasta el fin de la transacción (SELECT ... FOR UPDATE): dos reservas del
      * mismo turno se hacen una detrás de otra, así nunca se supera el cupo.

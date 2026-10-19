@@ -13,6 +13,7 @@ import {
   lunesDe,
   obtenerAgendaDia,
   obtenerAgendaSemana,
+  reactivarTurno,
   resumenCancelarDia,
   resumenCancelarTurno,
   sumarDias,
@@ -45,6 +46,9 @@ export default function Agenda({ esPropietario, alumnos, alumnosCargados }) {
   const [seleccion, setSeleccion] = useState(null);
   const [confirmacion, setConfirmacion] = useState(null);
   const [cancelando, setCancelando] = useState(false);
+  // Turno cancelado que el propietario está por reactivar (pide confirmación antes de avisar a los alumnos)
+  const [reactivacion, setReactivacion] = useState(null);
+  const [reactivando, setReactivando] = useState(false);
   const [version, setVersion] = useState(0);
   const [mensajeExito, setMensajeExito] = useState(null);
   // MOGNI-260: alumno del turno cuya ficha rápida está abierta (no cambia el turno seleccionado)
@@ -159,6 +163,29 @@ export default function Agenda({ esPropietario, alumnos, alumnosCargados }) {
     }
   };
 
+  const pedirReactivacion = (turno) => {
+    setMensajeExito(null);
+    setReactivacion({ turnoId: turno.turnoId, fecha: vistaLista.fecha, horaInicio: turno.horaInicio, error: null });
+  };
+  const confirmarReactivacion = async () => {
+    if (!reactivacion || reactivando) return;
+    setReactivando(true);
+    try {
+      const resultado = await reactivarTurno(reactivacion.turnoId);
+      const avisados = resultado.alumnosAvisados === 1 ? '1 alumno' : `${resultado.alumnosAvisados} alumnos`;
+      setMensajeExito(`Se reactivó el turno de las ${reactivacion.horaInicio}.${resultado.alumnosAvisados > 0 ? ` Se avisó a ${avisados} con reserva cancelada.` : ''}`);
+      setReactivacion(null);
+      setError(null);
+      setVersion(actual => actual + 1);
+    } catch (err) {
+      setReactivacion(actual => actual
+        ? { ...actual, error: `${err.message}${err.status ? ` (HTTP ${err.status})` : ''}` }
+        : actual);
+    } finally {
+      setReactivando(false);
+    }
+  };
+
   const reintentarResumen = () => {
     if (!confirmacion || confirmacion.cargando) return;
     if (confirmacion.tipo === 'dia') {
@@ -265,6 +292,7 @@ export default function Agenda({ esPropietario, alumnos, alumnosCargados }) {
               onSeleccionar={setSeleccion}
               onSeleccionarAlumno={setAlumnoFicha}
               onCancelarTurno={esPropietario ? pedirCancelacionTurno : undefined}
+              onReactivarTurno={esPropietario ? pedirReactivacion : undefined}
             />
           ) : (
             <Panel className="p-4 sm:p-5">
@@ -332,6 +360,36 @@ export default function Agenda({ esPropietario, alumnos, alumnosCargados }) {
                 disabled={confirmacion.cargando || cancelando || confirmacion.tipoError === 'resumen'}
               >
                 {cancelando ? 'Cancelando…' : 'Confirmar cancelación'}
+              </Button>
+            </div>
+          </section>
+        </div>,
+        document.body,
+      )}
+
+      {reactivacion && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="presentation">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirmar-reactivacion-titulo"
+            className="w-full max-w-md rounded-xl border border-line bg-card p-6 shadow-xl"
+          >
+            <h2 id="confirmar-reactivacion-titulo" className="text-lg font-bold text-ink">Reactivar turno</h2>
+            <p className="mt-3 text-sm leading-relaxed text-ink-soft">
+              {`El turno de las ${reactivacion.horaInicio} del ${textoFechaLarga(reactivacion.fecha)} volverá a estar disponible para reservar.`}
+              {' '}Las reservas canceladas no se restauran: los alumnos conservan su clase extra, reciben un aviso en la app y tienen que reservar de nuevo si quieren.
+            </p>
+            {reactivacion.error && (
+              <div role="alert" className="mt-3 rounded-lg border border-line bg-error-bg p-3 text-sm text-error">
+                <p>{reactivacion.error}</p>
+                <p className="mt-1">No se reactivó el turno.</p>
+              </div>
+            )}
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setReactivacion(null)} disabled={reactivando}>Volver</Button>
+              <Button onClick={confirmarReactivacion} disabled={reactivando}>
+                {reactivando ? 'Reactivando…' : 'Confirmar reactivación'}
               </Button>
             </div>
           </section>

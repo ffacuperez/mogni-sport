@@ -46,7 +46,7 @@ public class FranjaHorariaController {
         return ResponseEntity.ok(franjaHorariaService.actualizarFranja(id, request));
     }
 
-    /** Siempre se permite: los turnos ya generados se mantienen. */
+    /** Siempre se permite: los turnos que quedan sin franja se cancelan al reconciliar (con sus reservas). */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminarFranja(@PathVariable Long id) {
         franjaHorariaService.eliminarFranja(id);

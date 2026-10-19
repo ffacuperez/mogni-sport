@@ -22,6 +22,8 @@ import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
 import mogni.system_backend.notificacion.dto.NotificacionResponse;
 import mogni.system_backend.notificacion.dto.TipoNotificacion;
 import mogni.system_backend.notificacion.entity.AvisoTurno;
+import mogni.system_backend.notificacion.entity.AvisoTurnoReactivado;
+import mogni.system_backend.notificacion.repository.AvisoTurnoReactivadoRepository;
 import mogni.system_backend.notificacion.repository.AvisoTurnoRepository;
 
 /**
@@ -41,12 +43,15 @@ public class NotificacionService {
     private final AlumnoRepository alumnoRepository;
     private final CuotaRepository cuotaRepository;
     private final AvisoTurnoRepository avisoTurnoRepository;
+    private final AvisoTurnoReactivadoRepository avisoTurnoReactivadoRepository;
 
     public NotificacionService(AlumnoRepository alumnoRepository, CuotaRepository cuotaRepository,
-                               AvisoTurnoRepository avisoTurnoRepository) {
+                               AvisoTurnoRepository avisoTurnoRepository,
+                               AvisoTurnoReactivadoRepository avisoTurnoReactivadoRepository) {
         this.alumnoRepository = alumnoRepository;
         this.cuotaRepository = cuotaRepository;
         this.avisoTurnoRepository = avisoTurnoRepository;
+        this.avisoTurnoReactivadoRepository = avisoTurnoReactivadoRepository;
     }
 
     /** Notificaciones vigentes del alumno logueado, de la más reciente a la más antigua. */
@@ -64,7 +69,12 @@ public class NotificacionService {
                 .findByAlumnoIdOrderByFechaDescIdDesc(alumno.getId()).stream()
                 .map(this::notificacionDe)
                 .toList();
-        return java.util.stream.Stream.concat(notificacionesCuotas.stream(), notificacionesTurnos.stream())
+        List<NotificacionResponse> notificacionesReactivados = avisoTurnoReactivadoRepository
+                .findByAlumnoIdOrderByFechaDescIdDesc(alumno.getId()).stream()
+                .map(this::notificacionDe)
+                .toList();
+        return java.util.stream.Stream.of(notificacionesCuotas, notificacionesTurnos, notificacionesReactivados)
+                .flatMap(List::stream)
                 .sorted(Comparator.comparing(NotificacionResponse::getFecha).reversed()
                         .thenComparing(NotificacionResponse::getId))
                 .toList();
@@ -74,6 +84,19 @@ public class NotificacionService {
         return new NotificacionResponse(
                 "turno-" + aviso.getId(),
                 TipoNotificacion.TURNO_CANCELADO,
+                aviso.getTitulo(),
+                aviso.getMensaje(),
+                aviso.getFecha(),
+                null,
+                null,
+                aviso.getTurnoId(),
+                aviso.getFechaTurno());
+    }
+
+    private NotificacionResponse notificacionDe(AvisoTurnoReactivado aviso) {
+        return new NotificacionResponse(
+                "turno-reactivado-" + aviso.getId(),
+                TipoNotificacion.TURNO_REACTIVADO,
                 aviso.getTitulo(),
                 aviso.getMensaje(),
                 aviso.getFecha(),

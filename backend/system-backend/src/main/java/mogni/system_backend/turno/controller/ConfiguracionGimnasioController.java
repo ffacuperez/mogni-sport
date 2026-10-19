@@ -28,7 +28,7 @@ public class ConfiguracionGimnasioController {
         return ResponseEntity.ok(configuracionGimnasioService.obtenerConfiguracion());
     }
 
-    /** No toca los turnos ya generados: cada uno conserva su cupo. */
+    /** El nuevo cupo lo toman los turnos futuros sin reservas; los que ya tienen reservas conservan el suyo. */
     @PutMapping("/cupo-maximo")
     public ResponseEntity<ConfiguracionGimnasioResponse> cambiarCupoMaximo(@Valid @RequestBody CupoMaximoRequest request) {
         return ResponseEntity.ok(configuracionGimnasioService.cambiarCupoMaximo(request.getCupoMaximo()));

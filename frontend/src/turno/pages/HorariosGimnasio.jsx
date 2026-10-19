@@ -122,7 +122,8 @@ function GrillaSemanal({ franjas, cupoMaximo, onEditar, onEliminar }) {
 
 /**
  * HU-252: configuración de las franjas horarias semanales y del cupo máximo por turno. Solo propietario.
- * Los cambios no tocan los turnos ya generados (hoy y mañana, si alguien ya los consultó).
+ * Los cambios se reflejan en los turnos ya generados (hoy y mañana, si alguien ya los consultó): se crean los que faltan
+ * y se cancelan los que quedan sin franja (los alumnos con reserva reciben una clase extra y un aviso).
  */
 export default function HorariosGimnasio({ onToast }) {
   const [franjas, setFranjas] = useState([]);
@@ -244,7 +245,7 @@ export default function HorariosGimnasio({ onToast }) {
         isOpen={Boolean(aEliminar)}
         title="Eliminar franja"
         message={aEliminar
-          ? `¿Eliminar la franja del ${diaSemana(aEliminar.diaSemana).singular} de ${aEliminar.horaInicio} a ${aEliminar.horaFin}? Los turnos que ya fueron generados se mantienen.`
+          ? `¿Eliminar la franja del ${diaSemana(aEliminar.diaSemana).singular} de ${aEliminar.horaInicio} a ${aEliminar.horaFin}? Se cancelarán los turnos de hoy y mañana que queden sin franja, y los alumnos con reserva recibirán una clase extra y un aviso.`
           : ''}
         danger
         onConfirm={confirmarEliminacion}

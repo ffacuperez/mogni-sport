@@ -70,7 +70,7 @@ export async function actualizarFranja(id, form) {
   return request(`/franjas/${id}`, { method: 'PUT', body: toApi(form) });
 }
 
-/** Siempre se permite: los turnos ya generados se mantienen. */
+/** Siempre se permite: los turnos que quedan sin franja se cancelan al reconciliar (con sus reservas). */
 export async function eliminarFranja(id) {
   return request(`/franjas/${id}`, { method: 'DELETE' });
 }

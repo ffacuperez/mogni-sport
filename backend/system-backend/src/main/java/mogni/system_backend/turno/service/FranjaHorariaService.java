@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,8 +25,9 @@ import mogni.system_backend.turno.repository.FranjaHorariaRepository;
 
 /**
  * HU-252: alta, modificación, baja y listado de las franjas horarias semanales.
- * Modificar o eliminar una franja nunca toca los turnos ya generados (no dependen de la franja),
- * por eso se permite siempre, aunque haya reservas.
+ * Crear, modificar o eliminar una franja reconcilia los turnos ya generados de hoy en adelante
+ * (ReconciliacionTurnosService, después de confirmar el cambio): se permite siempre, aunque haya reservas;
+ * las de los turnos que dejan de existir se cancelan con clase extra y aviso al alumno.
  */
 @Service
 public class FranjaHorariaService {
@@ -34,9 +36,12 @@ public class FranjaHorariaService {
     private static final DateTimeFormatter HORA = DateTimeFormatter.ofPattern("HH:mm");
 
     private final FranjaHorariaRepository franjaHorariaRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public FranjaHorariaService(FranjaHorariaRepository franjaHorariaRepository) {
+    public FranjaHorariaService(FranjaHorariaRepository franjaHorariaRepository,
+                               ApplicationEventPublisher eventPublisher) {
         this.franjaHorariaRepository = franjaHorariaRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     /** Todas las franjas, de lunes a domingo y por hora de inicio. */
@@ -54,7 +59,9 @@ public class FranjaHorariaService {
         LocalTime fin = sinSegundos(request.getHoraFin());
         validar(request.getDiaSemana(), inicio, fin, null);
         FranjaHoraria franja = new FranjaHoraria(request.getDiaSemana(), inicio, fin);
-        return mapearAResponse(franjaHorariaRepository.save(franja));
+        FranjaHorariaResponse response = mapearAResponse(franjaHorariaRepository.save(franja));
+        eventPublisher.publishEvent(new FranjasModificadasEvent());
+        return response;
     }
 
     /** Se puede cambiar también el día. La superposición se valida sin contar la propia franja. */
@@ -67,16 +74,22 @@ public class FranjaHorariaService {
         franja.setDiaSemana(request.getDiaSemana());
         franja.setHoraInicio(inicio);
         franja.setHoraFin(fin);
-        return mapearAResponse(franjaHorariaRepository.save(franja));
+        FranjaHorariaResponse response = mapearAResponse(franjaHorariaRepository.save(franja));
+        eventPublisher.publishEvent(new FranjasModificadasEvent());
+        return response;
     }
 
-    /** Borrado físico. Siempre se permite: los turnos ya generados (y sus reservas) se mantienen. */
+    /** Borrado físico. Siempre se permite: los turnos sin franja se cancelan al reconciliar (con sus reservas). */
     @Transactional
     public void eliminarFranja(Long id) {
         franjaHorariaRepository.delete(buscarFranjaOLanzarError(id));
+        eventPublisher.publishEvent(new FranjasModificadasEvent());
     }
 
     private void validar(DayOfWeek dia, LocalTime inicio, LocalTime fin, Long idAExcluir) {
+        if (dia == DayOfWeek.SATURDAY || dia == DayOfWeek.SUNDAY) {
+            throw new RegistroInvalidoException("Las franjas solo se pueden definir de lunes a viernes.");
+        }
         if (!fin.isAfter(inicio)) {
             throw new RegistroInvalidoException("La hora de fin debe ser posterior a la de inicio.");
         }

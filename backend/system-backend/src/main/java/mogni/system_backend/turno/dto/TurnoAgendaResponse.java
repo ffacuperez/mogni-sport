@@ -20,6 +20,10 @@ public class TurnoAgendaResponse {
     private int ocupados;
     private int libres;
     private EstadoTurnoAgenda estado;
+    /** El propietario puede reactivarlo: cancelado a propósito, sin empezar y ya generado (con id). */
+    private boolean puedeReactivarse;
+    /** Cancelado porque su horario salió de la agenda (no se reactiva a mano). */
+    private boolean canceladoPorFranja;
     /** Si está transcurriendo ahora (badge "Ahora"). */
     private boolean enCurso;
     /** Alumnos con reserva activa, por apellido y nombre. En la vista semanal siempre vacío. */

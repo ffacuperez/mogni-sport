@@ -29,6 +29,8 @@ import mogni.system_backend.membresia.entity.Membresia;
 import mogni.system_backend.notificacion.dto.NotificacionResponse;
 import mogni.system_backend.notificacion.dto.TipoNotificacion;
 import mogni.system_backend.notificacion.entity.AvisoTurno;
+import mogni.system_backend.notificacion.entity.AvisoTurnoReactivado;
+import mogni.system_backend.notificacion.repository.AvisoTurnoReactivadoRepository;
 import mogni.system_backend.notificacion.repository.AvisoTurnoRepository;
 import mogni.system_backend.notificacion.service.NotificacionService;
 
@@ -49,6 +51,9 @@ class NotificacionServiceTest {
 
     @Mock
     private AvisoTurnoRepository avisoTurnoRepository;
+
+    @Mock
+    private AvisoTurnoReactivadoRepository avisoTurnoReactivadoRepository;
 
     @InjectMocks
     private NotificacionService notificacionService;
@@ -193,6 +198,23 @@ class NotificacionServiceTest {
         assertEquals(1, resultado.size());
         assertEquals(TipoNotificacion.TURNO_CANCELADO, resultado.get(0).getTipo());
         assertEquals("turno-30", resultado.get(0).getId());
+        assertEquals(70L, resultado.get(0).getTurnoId());
+        assertEquals(hoy.plusDays(2), resultado.get(0).getFechaTurno());
+    }
+
+    @Test
+    void muestraEnLaAppElAvisoDeTurnoReactivado() {
+        when(alumnoRepository.findByCuentaEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(alumno));
+        AvisoTurnoReactivado aviso = new AvisoTurnoReactivado(alumno, 50L, 70L, hoy, hoy.plusDays(2),
+                "Turno disponible nuevamente", "El turno volvió a estar disponible.");
+        aviso.setId(31L);
+        when(avisoTurnoReactivadoRepository.findByAlumnoIdOrderByFechaDescIdDesc(1L)).thenReturn(List.of(aviso));
+
+        List<NotificacionResponse> resultado = notificacionService.listarDelAlumno(EMAIL);
+
+        assertEquals(1, resultado.size());
+        assertEquals(TipoNotificacion.TURNO_REACTIVADO, resultado.get(0).getTipo());
+        assertEquals("turno-reactivado-31", resultado.get(0).getId());
         assertEquals(70L, resultado.get(0).getTurnoId());
         assertEquals(hoy.plusDays(2), resultado.get(0).getFechaTurno());
     }

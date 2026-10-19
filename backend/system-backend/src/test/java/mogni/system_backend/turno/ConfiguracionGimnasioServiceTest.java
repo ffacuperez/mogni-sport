@@ -18,6 +18,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -27,12 +28,16 @@ import mogni.system_backend.turno.dto.CupoMaximoRequest;
 import mogni.system_backend.turno.entity.ConfiguracionGimnasio;
 import mogni.system_backend.turno.repository.ConfiguracionGimnasioRepository;
 import mogni.system_backend.turno.service.ConfiguracionGimnasioService;
+import mogni.system_backend.turno.service.CupoModificadoEvent;
 
 @ExtendWith(MockitoExtension.class)
 class ConfiguracionGimnasioServiceTest {
 
     @Mock
     private ConfiguracionGimnasioRepository configuracionGimnasioRepository;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private ConfiguracionGimnasioService configuracionGimnasioService;
@@ -46,6 +51,8 @@ class ConfiguracionGimnasioServiceTest {
 
         assertEquals(12, configuracionGimnasioService.cambiarCupoMaximo(12).getCupoMaximo());
         assertEquals(12, configuracion.getCupoMaximo());
+        // Los turnos futuros sin reservas toman el cupo nuevo después de confirmar el cambio
+        verify(eventPublisher).publishEvent(new CupoModificadoEvent(12));
     }
 
     // Pruebas 15 y 16
@@ -57,6 +64,7 @@ class ConfiguracionGimnasioServiceTest {
 
         assertEquals("El cupo máximo tiene que ser un número entero mayor a 0.", ex.getMessage());
         verify(configuracionGimnasioRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
     @Test

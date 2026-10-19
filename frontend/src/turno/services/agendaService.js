@@ -36,6 +36,14 @@ export async function cancelarDiaAgenda(fecha) {
   });
 }
 
+/**
+ * Reactiva un turno que el propietario había cancelado a propósito. Los alumnos con reserva cancelada reciben un
+ * aviso y conservan su clase extra; las reservas no se restauran.
+ */
+export async function reactivarTurno(turnoId) {
+  return request(`/turnos/${turnoId}/revertir-cancelacion`, { method: 'PUT' });
+}
+
 // --- Fechas (siempre a partir del "hoy" que manda el backend, no del reloj del navegador) ---
 
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];

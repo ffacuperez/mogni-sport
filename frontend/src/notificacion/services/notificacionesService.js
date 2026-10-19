@@ -8,6 +8,7 @@ const CATEGORIAS = {
   CUOTA_POR_VENCER: 'cuota',
   CUOTA_VENCIDA: 'cuota',
   TURNO_CANCELADO: 'turnos',
+  TURNO_REACTIVADO: 'turnos',
 };
 
 // La clave incluye el tipo: si una cuota "por vencer" ya vista pasa a "vencida", vuelve a aparecer como nueva

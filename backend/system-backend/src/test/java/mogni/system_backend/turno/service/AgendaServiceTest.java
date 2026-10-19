@@ -50,6 +50,7 @@ import mogni.system_backend.turno.dto.TurnoAgendaResponse;
 import mogni.system_backend.turno.entity.EstadoReserva;
 import mogni.system_backend.turno.entity.EstadoTurno;
 import mogni.system_backend.turno.entity.FranjaHoraria;
+import mogni.system_backend.turno.entity.MotivoCancelacionTurno;
 import mogni.system_backend.turno.entity.Reserva;
 import mogni.system_backend.turno.entity.Turno;
 import mogni.system_backend.turno.repository.FranjaHorariaRepository;
@@ -495,6 +496,41 @@ class AgendaServiceTest {
         assertEquals(EstadoTurnoAgenda.CANCELADO, buscar(agenda.getTurnos(), "08:00").getEstado());
         assertEquals(1, agenda.getResumen().getCantidadTurnos());
         assertEquals(10, agenda.getResumen().getLugaresLibres());
+    }
+
+    @Test
+    void un_turno_cancelado_a_proposito_que_no_empezo_se_puede_reactivar() {
+        turno(VIERNES, "08:00", 10, EstadoTurno.CANCELADO);
+        turno(VIERNES, "09:00", 10);
+
+        AgendaDiaResponse agenda = agendaService.consultarDia(VIERNES, AHORA);
+
+        assertTrue(buscar(agenda.getTurnos(), "08:00").isPuedeReactivarse());
+        assertFalse(buscar(agenda.getTurnos(), "08:00").isCanceladoPorFranja());
+        // Un turno que no está cancelado no se reactiva
+        assertFalse(buscar(agenda.getTurnos(), "09:00").isPuedeReactivarse());
+    }
+
+    @Test
+    void un_turno_cancelado_por_cambio_de_franja_no_se_reactiva_a_mano() {
+        LocalTime inicio = LocalTime.parse("08:00");
+        Turno huerfano = new Turno(proximoId++, VIERNES, inicio, inicio.plusHours(1), 10, EstadoTurno.CANCELADO,
+                MotivoCancelacionTurno.FRANJA_ELIMINADA);
+        turnosPorFecha.computeIfAbsent(VIERNES, f -> new ArrayList<>()).add(huerfano);
+
+        TurnoAgendaResponse respuesta = buscar(agendaService.consultarDia(VIERNES, AHORA).getTurnos(), "08:00");
+
+        assertFalse(respuesta.isPuedeReactivarse());
+        assertTrue(respuesta.isCanceladoPorFranja());
+    }
+
+    @Test
+    void un_turno_cancelado_que_ya_empezo_no_se_puede_reactivar() {
+        turno(JUEVES, "09:00", 10, EstadoTurno.CANCELADO);
+
+        AgendaDiaResponse agenda = agendaService.consultarDia(JUEVES, AHORA);
+
+        assertFalse(buscar(agenda.getTurnos(), "09:00").isPuedeReactivarse());
     }
 
     // --- Cuota del alumno ---

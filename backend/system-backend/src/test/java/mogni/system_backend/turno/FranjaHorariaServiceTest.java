@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -14,9 +15,12 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
@@ -25,12 +29,16 @@ import mogni.system_backend.turno.dto.FranjaHorariaResponse;
 import mogni.system_backend.turno.entity.FranjaHoraria;
 import mogni.system_backend.turno.repository.FranjaHorariaRepository;
 import mogni.system_backend.turno.service.FranjaHorariaService;
+import mogni.system_backend.turno.service.FranjasModificadasEvent;
 
 @ExtendWith(MockitoExtension.class)
 class FranjaHorariaServiceTest {
 
     @Mock
     private FranjaHorariaRepository franjaHorariaRepository;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private FranjaHorariaService franjaHorariaService;
@@ -67,6 +75,7 @@ class FranjaHorariaServiceTest {
         assertEquals("08:00", response.getHoraInicio());
         assertEquals("12:00", response.getHoraFin());
         assertEquals(4, response.getCantidadTurnos());
+        verify(eventPublisher).publishEvent(new FranjasModificadasEvent());
         assertEquals("08:00", response.getTurnos().get(0).getHoraInicio());
         assertEquals("09:00", response.getTurnos().get(0).getHoraFin());
         assertEquals("12:00", response.getTurnos().get(3).getHoraFin());
@@ -82,6 +91,7 @@ class FranjaHorariaServiceTest {
         FranjaHorariaResponse response = franjaHorariaService.crearFranja(request(DayOfWeek.MONDAY, "16:00", "20:00"));
 
         assertEquals(4, response.getCantidadTurnos());
+        verify(eventPublisher).publishEvent(new FranjasModificadasEvent());
     }
 
     // Prueba 3
@@ -98,6 +108,44 @@ class FranjaHorariaServiceTest {
         assertEquals("19:30", response.getTurnos().get(2).getHoraFin());
     }
 
+    @ParameterizedTest
+    @EnumSource(value = DayOfWeek.class, names = {"SATURDAY", "SUNDAY"})
+    void crearFranja_enFinDeSemanaFalla(DayOfWeek dia) {
+        RegistroInvalidoException ex = assertThrows(RegistroInvalidoException.class,
+                () -> franjaHorariaService.crearFranja(request(dia, "08:00", "12:00")));
+
+        assertEquals("Las franjas solo se pueden definir de lunes a viernes.", ex.getMessage());
+        verify(franjaHorariaRepository, never()).save(any());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = DayOfWeek.class, names = {"SATURDAY", "SUNDAY"})
+    void actualizarFranja_moverloAFinDeSemanaFalla(DayOfWeek dia) {
+        FranjaHoraria lunes = franja(1L, DayOfWeek.MONDAY, "08:00", "12:00");
+        when(franjaHorariaRepository.findById(1L)).thenReturn(Optional.of(lunes));
+
+        RegistroInvalidoException ex = assertThrows(RegistroInvalidoException.class,
+                () -> franjaHorariaService.actualizarFranja(1L, request(dia, "08:00", "12:00")));
+
+        assertEquals("Las franjas solo se pueden definir de lunes a viernes.", ex.getMessage());
+        // La franja queda como estaba
+        assertEquals(DayOfWeek.MONDAY, lunes.getDiaSemana());
+        verify(franjaHorariaRepository, never()).save(any());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void crearFranja_deLunesAViernesEsValida() {
+        guardarDevuelveLoMismo();
+        for (DayOfWeek dia : List.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY,
+                DayOfWeek.FRIDAY)) {
+            when(franjaHorariaRepository.findByDiaSemanaOrderByHoraInicioAsc(dia)).thenReturn(List.of());
+
+            assertEquals(dia, franjaHorariaService.crearFranja(request(dia, "08:00", "12:00")).getDiaSemana());
+        }
+    }
+
     // Prueba 4
     @Test
     void crearFranja_queNoEsMultiploDeUnaHoraFalla() {
@@ -105,6 +153,7 @@ class FranjaHorariaServiceTest {
                 () -> franjaHorariaService.crearFranja(request(DayOfWeek.MONDAY, "08:00", "12:30")));
 
         assertEquals("La franja tiene que durar horas completas (los turnos son de 1 hora).", ex.getMessage());
+        verifyNoInteractions(eventPublisher);
         verify(franjaHorariaRepository, never()).save(any());
     }
 
@@ -112,9 +161,9 @@ class FranjaHorariaServiceTest {
     @Test
     void crearFranja_conFinAnteriorOIgualAlInicioFalla() {
         RegistroInvalidoException anterior = assertThrows(RegistroInvalidoException.class,
-                () -> franjaHorariaService.crearFranja(request(DayOfWeek.SUNDAY, "16:00", "15:00")));
+                () -> franjaHorariaService.crearFranja(request(DayOfWeek.FRIDAY, "16:00", "15:00")));
         RegistroInvalidoException igual = assertThrows(RegistroInvalidoException.class,
-                () -> franjaHorariaService.crearFranja(request(DayOfWeek.SUNDAY, "16:00", "16:00")));
+                () -> franjaHorariaService.crearFranja(request(DayOfWeek.FRIDAY, "16:00", "16:00")));
 
         assertEquals("La hora de fin debe ser posterior a la de inicio.", anterior.getMessage());
         assertEquals("La hora de fin debe ser posterior a la de inicio.", igual.getMessage());
@@ -175,6 +224,7 @@ class FranjaHorariaServiceTest {
         assertEquals(5, response.getCantidadTurnos());
         assertEquals("12:00", response.getTurnos().get(4).getHoraInicio());
         assertEquals("13:00", response.getTurnos().get(4).getHoraFin());
+        verify(eventPublisher).publishEvent(new FranjasModificadasEvent());
     }
 
     @Test
@@ -196,7 +246,7 @@ class FranjaHorariaServiceTest {
                 () -> franjaHorariaService.actualizarFranja(99L, request(DayOfWeek.MONDAY, "08:00", "12:00")));
     }
 
-    // Pruebas 11 y 12: eliminar siempre se permite (los turnos generados no dependen de la franja)
+    // Pruebas 11 y 12: eliminar siempre se permite; los turnos sin franja se reconcilian después de confirmar
     @Test
     void eliminarFranja_borraLaFranja() {
         FranjaHoraria franja = franja(1L, DayOfWeek.MONDAY, "08:00", "12:00");
@@ -205,6 +255,7 @@ class FranjaHorariaServiceTest {
         franjaHorariaService.eliminarFranja(1L);
 
         verify(franjaHorariaRepository).delete(franja);
+        verify(eventPublisher).publishEvent(new FranjasModificadasEvent());
     }
 
     // Prueba 9: la vista semanal recibe las franjas ordenadas de lunes a domingo y por hora

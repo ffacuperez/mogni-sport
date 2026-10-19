@@ -55,7 +55,7 @@ export default function CupoModal({ cupoActual, onGuardar, onCancelar }) {
 
         <p className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-ink-soft">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
-          El nuevo cupo se aplica a los turnos que todavía no fueron generados. Los turnos ya publicados mantienen su cupo.
+          El nuevo cupo se aplica a los turnos que todavía no empezaron y no tienen reservas. Los turnos con reservas mantienen su cupo.
         </p>
 
         <div className="mt-6 flex justify-end gap-3">

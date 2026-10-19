@@ -214,6 +214,10 @@ public class AgendaService {
         boolean enCurso = !cancelado && esHoy
                 && !turno.getHoraInicio().isAfter(horaActual) && turno.getHoraFin().isAfter(horaActual);
 
+        // Los turnos calculados (sin id) nunca están cancelados; el motivo FRANJA_ELIMINADA lo maneja la reconciliación
+        boolean puedeReactivarse = cancelado && turno.getId() != null && !turno.fueCanceladoPorFranja()
+                && turno.getFecha().atTime(turno.getHoraInicio()).isAfter(ahora);
+
         EstadoTurnoAgenda estado;
         if (cancelado) {
             estado = EstadoTurnoAgenda.CANCELADO;
@@ -237,6 +241,8 @@ public class AgendaService {
                 ocupados,
                 libres,
                 estado,
+                puedeReactivarse,
+                cancelado && turno.fueCanceladoPorFranja(),
                 enCurso,
                 alumnos);
     }

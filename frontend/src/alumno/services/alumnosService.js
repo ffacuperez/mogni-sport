@@ -47,6 +47,9 @@ const fromApi = (a) => ({
   estado: a.activo ? 'Activo' : 'Inactivo',
   fechaBaja: a.fechaBaja ?? '',
   inscripcion: inscripcionFromApi(a.inscripcionActual),
+  // Solo para inactivos: si al reactivarlo hay que cobrar la primera cuota o todavía tiene días pagos
+  reactivacionRequierePago: a.reactivacionRequierePago ?? null,
+  vencimientoUltimaCuota: a.vencimientoUltimaCuota ?? '',
 });
 
 // Formulario -> body que espera el backend (Registrar/ActualizarAlumnoRequest)
@@ -59,9 +62,12 @@ const toApi = (form) => ({
   telefono: form.telefono || null,
   sexo: form.sexo || null,
   modalidad: form.modalidad || null,
+  // Al editar, null = no cambiar la membresía (ya no existe "sin membresía")
   membresiaId: form.membresiaId ? Number(form.membresiaId) : null,
   objetivo: form.objetivo || null,
   cuestionarioSalud: form.antecedentes || null,
+  // MOGNI-73: medio de pago de la primera cuota (solo en el alta)
+  medioDePago: form.medioDePago || null,
 });
 
 /** Sin parámetro el backend devuelve solo activos; { activo: false } trae los dados de baja. */
@@ -93,6 +99,24 @@ export async function darDeBajaAlumno(id) {
   return fromApi(await request(`${BASE_PATH}/${id}`, { method: 'DELETE' }));
 }
 
-export async function reactivarAlumno(id) {
-  return fromApi(await request(`${BASE_PATH}/${id}/reactivar`, { method: 'PUT' }));
+/**
+ * MOGNI-246: si el alumno todavía tiene días pagos se reactiva sin datos; si no, hay que mandar la membresía y el
+ * medio de pago de la primera cuota (como en un alta).
+ */
+export async function reactivarAlumno(id, { membresiaId, medioDePago } = {}) {
+  const body = membresiaId ? { membresiaId: Number(membresiaId), medioDePago } : undefined;
+  return fromApi(await request(`${BASE_PATH}/${id}/reactivar`, { method: 'PUT', body }));
+}
+
+/** Vista previa del cambio de membresía (reglas M1 a M9): si se permite, desde cuándo y cuánto hay que cobrar. */
+export async function previsualizarCambioMembresia(id, membresiaId) {
+  const v = await request(`${BASE_PATH}/${id}/cambio-membresia?membresiaId=${membresiaId}`);
+  const numero = (valor) => (valor != null ? Number(valor) : null);
+  return {
+    ...v,
+    precioPagado: numero(v.precioPagado),
+    precioNuevo: numero(v.precioNuevo),
+    precioFinal: numero(v.precioFinal),
+    diferenciaACobrar: numero(v.diferenciaACobrar),
+  };
 }

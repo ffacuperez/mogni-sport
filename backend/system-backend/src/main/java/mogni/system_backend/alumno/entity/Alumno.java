@@ -23,6 +23,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import mogni.system_backend.auth.entity.Cuenta;
+import mogni.system_backend.cuota.entity.Cuota;
 import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
 import mogni.system_backend.inscripcion.entity.Inscripcion;
 
@@ -85,6 +86,18 @@ public class Alumno {
         return inscripciones.stream()
                 .filter(i -> i.getEstado() == EstadoInscripcion.ACTIVA)
                 .max(Comparator.comparing(Inscripcion::getFechaInicio));
+    }
+
+    /** Última cuota de la inscripción ACTIVA: con ella se calcula la situación de pago. */
+    public Optional<Cuota> buscarUltimaCuotaActiva() {
+        return buscarInscripcionActiva().flatMap(Inscripcion::buscarUltimaCuota);
+    }
+
+    /** Última cuota de cualquier inscripción (por ejemplo, para saber si un alumno inactivo todavía tiene días pagos). */
+    public Optional<Cuota> buscarUltimaCuota() {
+        return inscripciones.stream()
+                .flatMap(inscripcion -> inscripcion.getCuotas().stream())
+                .max(Inscripcion.ORDEN_CUOTAS);
     }
 
     /** La inscripción ACTIVA si tiene; si no, la más reciente (CANCELADA). Vacío si nunca tuvo. */

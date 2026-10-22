@@ -92,11 +92,12 @@ export default function AlumnoDetalle({ alumno, onBack, onEdit, onEditMembresia,
               Inscripción {inscripcion.estado.toLowerCase()}
             </Badge>
           )}
-          accion={
+          // La membresía de un alumno inactivo se elige al reactivarlo (regla M9)
+          accion={isActivo && (
             <Button variant="secondary" size="sm" onClick={onEditMembresia}>
               <RefreshCw className="h-3.5 w-3.5" /> Modificar membresía
             </Button>
-          }
+          )}
         >
           {inscripcion ? (
             <dl className="grid grid-cols-1 gap-5 md:grid-cols-2">

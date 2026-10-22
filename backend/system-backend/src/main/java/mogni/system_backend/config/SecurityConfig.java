@@ -63,6 +63,8 @@ public class SecurityConfig {
                 .requestMatchers("/notificaciones/**").hasRole("ALUMNO")
                 // Historial de pagos (HU-48): solo el propietario, también antes de /alumnos/**
                 .requestMatchers(HttpMethod.GET, "/alumnos/*/pagos").hasRole("PROPIETARIO")
+                // Vista previa de la renovación (MOGNI-45): es parte del registro de pago, solo el propietario
+                .requestMatchers(HttpMethod.GET, "/alumnos/*/renovacion").hasRole("PROPIETARIO")
                 .requestMatchers("/alumnos/**", "/membresias/**")
                     .hasAnyRole("PROPIETARIO", "ENTRENADOR", "NUTRICIONISTA")
                 // Cobranzas: solo el propietario

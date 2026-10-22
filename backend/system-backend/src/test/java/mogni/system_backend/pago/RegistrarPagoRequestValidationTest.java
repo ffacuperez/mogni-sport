@@ -31,7 +31,7 @@ class RegistrarPagoRequestValidationTest {
 
     private RegistrarPagoRequest requestValido() {
         RegistrarPagoRequest request = new RegistrarPagoRequest();
-        request.setCuotaId(1L);
+        request.setAlumnoId(1L);
         request.setMedioDePago(MedioDePago.EFECTIVO);
         return request;
     }
@@ -42,9 +42,9 @@ class RegistrarPagoRequestValidationTest {
     }
 
     @Test
-    void sinCuotaFalla() {
+    void sinAlumnoFalla() {
         RegistrarPagoRequest request = requestValido();
-        request.setCuotaId(null);
+        request.setAlumnoId(null);
         assertFalse(validator.validate(request).isEmpty());
     }
 

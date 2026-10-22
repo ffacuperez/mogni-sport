@@ -18,9 +18,13 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import mogni.system_backend.alumno.dto.ActualizarAlumnoRequest;
 import mogni.system_backend.alumno.dto.AlumnoResponse;
+import mogni.system_backend.alumno.dto.CambioMembresiaResponse;
+import mogni.system_backend.alumno.dto.ReactivarAlumnoRequest;
 import mogni.system_backend.alumno.dto.RegistrarAlumnoRequest;
 import mogni.system_backend.alumno.service.AlumnoService;
+import mogni.system_backend.cuota.service.PuestaAlDiaService;
 import mogni.system_backend.pago.dto.HistorialPagoResponse;
+import mogni.system_backend.pago.dto.RenovacionResponse;
 import mogni.system_backend.pago.service.PagoService;
 
 @RestController
@@ -29,10 +33,13 @@ public class AlumnoController {
 
     private final AlumnoService alumnoService;
     private final PagoService pagoService;
+    private final PuestaAlDiaService puestaAlDiaService;
 
-    public AlumnoController(AlumnoService alumnoService, PagoService pagoService) {
+    public AlumnoController(AlumnoService alumnoService, PagoService pagoService,
+                            PuestaAlDiaService puestaAlDiaService) {
         this.alumnoService = alumnoService;
         this.pagoService = pagoService;
+        this.puestaAlDiaService = puestaAlDiaService;
     }
 
     @PostMapping
@@ -41,10 +48,14 @@ public class AlumnoController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    /**
+     * Por defecto solo activos; ?activo=false devuelve los dados de baja. Antes se pone al día (bajas automáticas por
+     * mora), en su propia transacción.
+     */
     @GetMapping
-    /** Por defecto solo activos; ?activo=false devuelve los dados de baja. */
     public ResponseEntity<List<AlumnoResponse>> listarAlumnos(
             @RequestParam(defaultValue = "true") boolean activo) {
+        puestaAlDiaService.ponerAlDia();
         return ResponseEntity.ok(alumnoService.listarAlumnos(activo));
     }
 
@@ -72,9 +83,24 @@ public class AlumnoController {
         return ResponseEntity.ok(alumnoService.darDeBajaAlumno(id));
     }
 
+    /** El cuerpo (membresía y medio de pago) solo es obligatorio si el alumno ya no tiene días pagos. */
     @PutMapping("/{id}/reactivar")
-    public ResponseEntity<AlumnoResponse> reactivarAlumno(@PathVariable Long id) {
-        return ResponseEntity.ok(alumnoService.reactivarAlumno(id));
+    public ResponseEntity<AlumnoResponse> reactivarAlumno(@PathVariable Long id,
+            @RequestBody(required = false) ReactivarAlumnoRequest request) {
+        return ResponseEntity.ok(alumnoService.reactivarAlumno(id, request));
+    }
+
+    /** Vista previa del cambio de membresía (aviso de confirmación antes de guardar). */
+    @GetMapping("/{id}/cambio-membresia")
+    public ResponseEntity<CambioMembresiaResponse> previsualizarCambioMembresia(
+            @PathVariable Long id, @RequestParam Long membresiaId) {
+        return ResponseEntity.ok(alumnoService.previsualizarCambioMembresia(id, membresiaId));
+    }
+
+    /** MOGNI-45: vista previa de la renovación (período, precio, recargo y total). Solo PROPIETARIO (ver SecurityConfig). */
+    @GetMapping("/{id}/renovacion")
+    public ResponseEntity<RenovacionResponse> previsualizarRenovacion(@PathVariable Long id) {
+        return ResponseEntity.ok(pagoService.previsualizarRenovacion(id));
     }
 
     /** HU-48: historial de pagos del alumno, del más reciente al más antiguo. Solo PROPIETARIO (ver SecurityConfig). */

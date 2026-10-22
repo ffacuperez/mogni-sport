@@ -1,50 +1,58 @@
 package mogni.system_backend.cuota.repository;
 
-import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.BinaryOperator;
+import java.util.stream.Collectors;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.LockModeType;
 import mogni.system_backend.cuota.entity.Cuota;
-import mogni.system_backend.cuota.entity.EstadoCuota;
 import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
+import mogni.system_backend.inscripcion.entity.Inscripcion;
 
 public interface CuotaRepository extends JpaRepository<Cuota, Long> {
 
-    /** Bloquea la cuota hasta el fin de la transacción, para que dos pagos simultáneos no la cobren dos veces. */
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select c from Cuota c where c.id = :id")
-    Optional<Cuota> findByIdParaActualizar(@Param("id") Long id);
-
-    /** Cuotas de inscripciones en el estado indicado y alumnos con cuenta activa; estado y alumnoId son opcionales. */
+    /**
+     * Cuotas con el vencimiento más reciente de la inscripción en ese estado de cada alumno con cuenta activa
+     * (alumnoId es opcional). Trae inscripción, alumno, cuenta y membresías en una sola consulta. Si un alumno tiene
+     * dos cuotas con el mismo vencimiento vienen las dos: usar {@link #buscarUltimasCuotas()}.
+     */
     @Query("""
             select c from Cuota c
             join fetch c.inscripcion i
             join fetch i.alumno a
             join fetch a.cuenta cu
             join fetch i.membresia
+            left join fetch c.membresia
             where i.estado = :estadoInscripcion
               and cu.activa = true
-              and (:estado is null or c.estado = :estado)
               and (:alumnoId is null or a.id = :alumnoId)
-            order by c.fechaVencimiento, a.apellido, a.nombre
+              and c.fechaVencimiento = (
+                  select max(c2.fechaVencimiento) from Cuota c2
+                  where c2.inscripcion = i)
             """)
-    List<Cuota> buscar(@Param("estadoInscripcion") EstadoInscripcion estadoInscripcion,
-                       @Param("estado") EstadoCuota estado,
-                       @Param("alumnoId") Long alumnoId);
+    List<Cuota> buscarConVencimientoMasReciente(@Param("estadoInscripcion") EstadoInscripcion estadoInscripcion,
+                                                @Param("alumnoId") Long alumnoId);
 
-    /** Pasa de PENDIENTE a ATRASADA todas las cuotas cuyo vencimiento es anterior a hoy. */
-    @Transactional
-    @Modifying
-    @Query("update Cuota c set c.estado = :atrasada where c.estado = :pendiente and c.fechaVencimiento < :hoy")
-    int marcarAtrasadas(@Param("hoy") LocalDate hoy,
-                        @Param("pendiente") EstadoCuota pendiente,
-                        @Param("atrasada") EstadoCuota atrasada);
+    /** Última cuota de la inscripción activa de cada alumno activo, por id de alumno. */
+    default Map<Long, Cuota> buscarUltimasCuotas() {
+        return unaPorAlumno(buscarConVencimientoMasReciente(EstadoInscripcion.ACTIVA, null));
+    }
+
+    /** Última cuota de la inscripción activa del alumno (vacío si está inactivo o no tiene cuotas). */
+    default Optional<Cuota> buscarUltimaCuota(Long alumnoId) {
+        return Optional.ofNullable(
+                unaPorAlumno(buscarConVencimientoMasReciente(EstadoInscripcion.ACTIVA, alumnoId)).get(alumnoId));
+    }
+
+    private static Map<Long, Cuota> unaPorAlumno(Collection<Cuota> cuotas) {
+        BinaryOperator<Cuota> laUltima = (a, b) -> Inscripcion.ORDEN_CUOTAS.compare(a, b) >= 0 ? a : b;
+        return cuotas.stream()
+                .collect(Collectors.toMap(cuota -> cuota.getInscripcion().getAlumno().getId(), cuota -> cuota, laUltima));
+    }
 }

@@ -10,6 +10,7 @@ import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
 import lombok.Setter;
 import mogni.system_backend.alumno.entity.Modalidad;
+import mogni.system_backend.pago.entity.MedioDePago;
 
 @Getter
 @Setter
@@ -43,6 +44,10 @@ public class RegistrarAlumnoRequest {
 
     @NotNull(message = "Debe asignarse una membresía al inscribir al alumno")
     private Long membresiaId;
+
+    /** Medio con el que paga la primera cuota: el alta siempre se hace con la primera cuota pagada (MOGNI-73). */
+    @NotNull(message = "Debe seleccionarse el medio de pago de la primera cuota")
+    private MedioDePago medioDePago;
 
     private String objetivo;
 

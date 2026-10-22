@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import mogni.system_backend.cuota.service.PuestaAlDiaService;
 import mogni.system_backend.turno.dto.CancelacionResponse;
 import mogni.system_backend.turno.dto.MisTurnosResponse;
 import mogni.system_backend.turno.dto.ReservaResponse;
@@ -31,13 +32,16 @@ public class TurnoController {
     private final ReservaService reservaService;
     private final MisTurnosService misTurnosService;
     private final CancelacionService cancelacionService;
+    private final PuestaAlDiaService puestaAlDiaService;
 
     public TurnoController(ConsultaTurnosService consultaTurnosService, ReservaService reservaService,
-                           MisTurnosService misTurnosService, CancelacionService cancelacionService) {
+                           MisTurnosService misTurnosService, CancelacionService cancelacionService,
+                           PuestaAlDiaService puestaAlDiaService) {
         this.consultaTurnosService = consultaTurnosService;
         this.reservaService = reservaService;
         this.misTurnosService = misTurnosService;
         this.cancelacionService = cancelacionService;
+        this.puestaAlDiaService = puestaAlDiaService;
     }
 
     /** ?fecha=YYYY-MM-DD (hoy o mañana). Sin fecha, hoy. */
@@ -45,6 +49,8 @@ public class TurnoController {
     public ResponseEntity<TurnosDisponiblesResponse> consultarTurnosDisponibles(
             Authentication authentication,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
+        // Antes de consultar y de reservar se pone al día (mora y baja automática), en su propia transacción
+        puestaAlDiaService.ponerAlDia();
         return ResponseEntity.ok(consultaTurnosService.consultarTurnosDisponibles(authentication.getName(), fecha));
     }
 
@@ -57,6 +63,7 @@ public class TurnoController {
     /** HU-254: reserva el turno para el alumno logueado. Sin cuerpo: el alumno sale del token. */
     @PostMapping("/{id}/reservar")
     public ResponseEntity<ReservaResponse> reservarTurno(Authentication authentication, @PathVariable Long id) {
+        puestaAlDiaService.ponerAlDia();
         return ResponseEntity.status(HttpStatus.CREATED).body(reservaService.reservar(authentication.getName(), id));
     }
 

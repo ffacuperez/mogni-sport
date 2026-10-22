@@ -431,4 +431,40 @@ class ReservaServiceTest {
         orden.verify(turnoRepository).findByIdConBloqueo(turno.getId());
         orden.verify(reservaRepository).save(any(Reserva.class));
     }
+
+    // --- Cuota en mora (MOGNI-254) ---
+
+    /** El alumno queda con una cuota que vence {@code dias} días después del martes (negativo = ya venció). */
+    private void cuotaQueVenceEn(int dias) {
+        alumno.buscarInscripcionActiva().orElseThrow().agregarCuota(MARTES.plusDays(dias).minusDays(30));
+    }
+
+    @Test
+    void alumnoEnMoraNoPuedeReservar() {
+        cuotaQueVenceEn(-2);
+        Turno turno = turno(MARTES, "19:00", 5);
+
+        AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class, () -> reservar(turno));
+
+        assertEquals("Tenés la cuota en mora: regularizá el pago para reservar turnos.", ex.getMessage());
+        assertTrue(reservas.isEmpty());
+    }
+
+    @Test
+    void alumnoVencidoDentroDeLas24HorasTodaviaPuedeReservar() {
+        cuotaQueVenceEn(-1);
+        Turno turno = turno(MARTES, "19:00", 5);
+
+        assertEquals(EstadoReserva.RESERVADA, reservar(turno).getEstado());
+    }
+
+    @Test
+    void alRenovarPuedeVolverAReservarEnElMomento() {
+        cuotaQueVenceEn(-5);
+        // Renovó en mora: la cuota nueva empieza hoy
+        alumno.buscarInscripcionActiva().orElseThrow().agregarCuota(MARTES);
+        Turno turno = turno(MARTES, "19:00", 5);
+
+        assertEquals(EstadoReserva.RESERVADA, reservar(turno).getEstado());
+    }
 }

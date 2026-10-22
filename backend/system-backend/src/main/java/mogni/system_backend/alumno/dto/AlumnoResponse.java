@@ -32,4 +32,11 @@ public class AlumnoResponse {
     private LocalDate fechaInicioInscripcion;
     /** Inscripción activa o, si no tiene, la última (con su estado). Null si nunca tuvo. */
     private InscripcionResponse inscripcionActual;
+    /** Solo para alumnos inactivos: vencimiento de su última cuota (de cualquier inscripción); null si no tiene. */
+    private LocalDate vencimientoUltimaCuota;
+    /**
+     * Solo para alumnos inactivos: true si al reactivarlo hay que elegir membresía y cobrar la primera cuota; false si
+     * su última cuota todavía cubre hoy y se reactiva su misma inscripción. Null si está activo.
+     */
+    private Boolean reactivacionRequierePago;
 }

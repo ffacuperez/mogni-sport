@@ -2,12 +2,9 @@ package mogni.system_backend.cuota.entity;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.YearMonth;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -20,7 +17,16 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import mogni.system_backend.inscripcion.entity.Inscripcion;
+import mogni.system_backend.membresia.entity.Membresia;
 
+/**
+ * Un período de 30 días ya pagado (regla C1): se crea solo al pagar (alta, renovación o reactivación), siempre
+ * junto con su único pago, así que no tiene estado. Lo que cambia con el tiempo es la situación de pago del alumno
+ * ({@link SituacionPago}), que se calcula con el vencimiento de su última cuota.
+ *
+ * <p>Las columnas viejas {@code estado} y {@code periodo} siguen en la base (las usan otras ramas) pero ya no se
+ * cargan: ver {@code MigracionCuotasPeriodoPagado}.
+ */
 @Entity
 @Table(name = "cuotas")
 @Getter
@@ -28,8 +34,6 @@ import mogni.system_backend.inscripcion.entity.Inscripcion;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Cuota {
-
-    public static final int DIAS_VENCIMIENTO = 30;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -39,39 +43,36 @@ public class Cuota {
     @JoinColumn(name = "inscripcion_id", nullable = false)
     private Inscripcion inscripcion;
 
-    /** Mes que cubre la cuota, formato "2026-10". */
-    @Column(nullable = false, length = 7)
-    private String periodo;
+    /** Membresía que cubrió este período (C4): el historial la muestra aunque después cambie. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "membresia_id")
+    private Membresia membresia;
 
-    @Column(nullable = false, precision = 12, scale = 2)
-    private BigDecimal montoEsperado;
+    /** Sin NOT NULL en la base (Postgres no deja agregarlo con filas existentes); siempre lo carga el código. */
+    @Column(name = "fecha_inicio")
+    private LocalDate fechaInicio;
 
+    /** Fin del período: inicio + 30 días. */
     @Column(nullable = false)
     private LocalDate fechaVencimiento;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private EstadoCuota estado = EstadoCuota.PENDIENTE;
+    /** Precio vigente de la membresía al pagar, sin recargo. La columna conserva su nombre viejo. */
+    @Column(name = "monto_esperado", nullable = false, precision = 12, scale = 2)
+    private BigDecimal precio;
 
-    /** Primera cuota de una inscripción: PENDIENTE, al precio actual de la membresía, vence a 30 días del inicio. */
-    public static Cuota primeraDe(Inscripcion inscripcion) {
+    /** Cuota de 30 días desde {@code inicio}, al precio actual de la membresía. */
+    public static Cuota nueva(Inscripcion inscripcion, Membresia membresia, LocalDate inicio) {
         Cuota cuota = new Cuota();
         cuota.setInscripcion(inscripcion);
-        cuota.setPeriodo(YearMonth.from(inscripcion.getFechaInicio()).toString());
-        cuota.setMontoEsperado(BigDecimal.valueOf(inscripcion.getMembresia().getPrecioActual()));
-        cuota.setFechaVencimiento(inscripcion.getFechaInicio().plusDays(DIAS_VENCIMIENTO));
-        cuota.setEstado(EstadoCuota.PENDIENTE);
+        cuota.setMembresia(membresia);
+        cuota.setFechaInicio(inicio);
+        cuota.setFechaVencimiento(inicio.plusDays(ReglasCuota.DIAS_CUOTA));
+        cuota.setPrecio(BigDecimal.valueOf(membresia.getPrecioActual()).setScale(2));
         return cuota;
     }
 
-    /**
-     * Primera cuota de una inscripción creada por un cambio de membresía, cuando a la cuota paga de la
-     * inscripción anterior todavía le quedaban días de vigencia: vence 30 días después de ESE vencimiento
-     * (no de hoy), para no perder los días ya pagados.
-     */
-    public static Cuota primeraDe(Inscripcion inscripcion, LocalDate fechaVencimientoAnterior) {
-        Cuota cuota = primeraDe(inscripcion);
-        cuota.setFechaVencimiento(fechaVencimientoAnterior.plusDays(DIAS_VENCIMIENTO));
-        return cuota;
+    /** Membresía de la cuota; las cuotas viejas sin migrar usan la de su inscripción. */
+    public Membresia membresiaCubierta() {
+        return membresia != null ? membresia : inscripcion.getMembresia();
     }
 }

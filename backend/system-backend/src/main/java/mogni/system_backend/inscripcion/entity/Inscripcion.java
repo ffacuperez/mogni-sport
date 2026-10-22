@@ -2,7 +2,9 @@ package mogni.system_backend.inscripcion.entity;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -53,6 +55,10 @@ public class Inscripcion {
     @JoinColumn(name = "membresia_id", nullable = false)
     private Membresia membresia;
 
+    /** Orden de las cuotas de un alumno: por vencimiento y, a igual vencimiento, por id. */
+    public static final Comparator<Cuota> ORDEN_CUOTAS = Comparator.comparing(Cuota::getFechaVencimiento)
+            .thenComparing(Cuota::getId, Comparator.nullsLast(Comparator.naturalOrder()));
+
     @OneToMany(mappedBy = "inscripcion", cascade = CascadeType.ALL)
     private List<Cuota> cuotas = new ArrayList<>();
 
@@ -66,17 +72,33 @@ public class Inscripcion {
         this.membresia = membresia;
     }
 
-    public void generarPrimeraCuota() {
-        cuotas.add(Cuota.primeraDe(this));
+    /** Crea una cuota pagada de 30 días desde {@code inicio}, con la membresía de esta inscripción. */
+    public Cuota agregarCuota(LocalDate inicio) {
+        Cuota cuota = Cuota.nueva(this, membresia, inicio);
+        cuotas.add(cuota);
+        return cuota;
     }
 
-    /** Ver {@link Cuota#primeraDe(Inscripcion, LocalDate)}. */
-    public void generarPrimeraCuota(LocalDate fechaVencimientoAnterior) {
-        cuotas.add(Cuota.primeraDe(this, fechaVencimientoAnterior));
+    /** Mueve una cuota de otra inscripción a esta (cambio de membresía, regla M4). */
+    public void recibirCuota(Cuota cuota) {
+        cuota.getInscripcion().getCuotas().remove(cuota);
+        cuota.setInscripcion(this);
+        cuotas.add(cuota);
+    }
+
+    /** La de vencimiento más reciente (a igual vencimiento, la última creada). Vacío si no tiene cuotas. */
+    public Optional<Cuota> buscarUltimaCuota() {
+        return cuotas.stream().max(ORDEN_CUOTAS);
     }
 
     public void cancelar(LocalDate fecha) {
         this.estado = EstadoInscripcion.CANCELADA;
         this.fechaFin = fecha;
+    }
+
+    /** Vuelve a ACTIVA (reactivación de un alumno que todavía tiene días pagos). */
+    public void reactivar() {
+        this.estado = EstadoInscripcion.ACTIVA;
+        this.fechaFin = null;
     }
 }

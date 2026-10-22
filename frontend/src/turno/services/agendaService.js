@@ -111,8 +111,8 @@ export const esDeManiana = (turno) => turno.horaInicio < '12:00';
 // --- Estados ---
 
 /**
- * Cuota del alumno en la agenda: mismo cálculo que la pantalla de Cuotas (HU-46), a partir de la cuota cruda que
- * manda el backend. En la agenda "Próxima a vencer" se muestra como "Por vencer". null si no tiene cuota.
+ * Cuota del alumno en la agenda: la misma situación de pago que la pantalla de Cuotas (HU-46), calculada por el
+ * backend con su última cuota. En la agenda "Próxima a vencer" se muestra como "Por vencer". null si no tiene cuota.
  */
 export function estadoCuotaAgenda(cuota) {
   if (!cuota) return null;

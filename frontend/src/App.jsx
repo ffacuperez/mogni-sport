@@ -9,6 +9,7 @@ import AlumnosList from './alumno/pages/AlumnosList';
 import AlumnoForm from './alumno/pages/AlumnoForm';
 import AlumnoDetalle from './alumno/pages/AlumnoDetalle';
 import AlumnoMembresiaForm from './alumno/pages/AlumnoMembresiaForm';
+import ReactivarAlumnoModal from './alumno/pages/ReactivarAlumnoModal';
 import AlumnoLayout from './alumno/pages/AlumnoLayout';
 import AlumnoPerfil from './alumno/pages/AlumnoPerfil';
 import SeccionProximamente from './alumno/pages/SeccionProximamente';
@@ -42,7 +43,14 @@ import {
   eliminarMembresia,
   listarMembresias,
 } from './membresia/services/membresiasService';
-import { listarCuotas, obtenerHistorialDePagos, registrarPago } from './cuota/services/cuotasService';
+import {
+  formatearFecha,
+  formatearMonto,
+  labelMedioDePago,
+  listarCuotas,
+  obtenerHistorialDePagos,
+  registrarPago,
+} from './cuota/services/cuotasService';
 
 // Las pantallas con :id en la URL esperan a tener el alumno. Si no está en la lista (p. ej. se recargó
 // la página en un alumno dado de baja) se pide al backend.
@@ -82,6 +90,7 @@ function MainApp({ onLogout }) {
   // --- Cuotas (HU-45) ---
   const [cuotas, setCuotas] = useState([]);
   const [cargandoCuotas, setCargandoCuotas] = useState(false);
+  // Una fila por alumno: se selecciona por alumnoId
   const [selectedCuotaId, setSelectedCuotaId] = useState(null);
   const [searchCuota, setSearchCuota] = useState('');
   const [filtroCuota, setFiltroCuota] = useState('Todas');
@@ -91,6 +100,9 @@ function MainApp({ onLogout }) {
   const [alumnoHistorial, setAlumnoHistorial] = useState(null);
   const [pagosHistorial, setPagosHistorial] = useState([]);
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
+
+  // --- Reactivación con pago (MOGNI-246) ---
+  const [alumnoAReactivar, setAlumnoAReactivar] = useState(null);
 
   const [modalConfig, setModalConfig] = useState({ isOpen: false, title: '', message: '', danger: false, onConfirm: null });
   const [toast, mostrarToast] = useToast();
@@ -159,35 +171,63 @@ function MainApp({ onLogout }) {
     });
   };
 
-  const handleToggleEstadoAlumno = (alumno) => {
+  const reemplazarAlumno = (actualizado) => setAlumnos(prev => prev.map(a => a.id === actualizado.id ? actualizado : a));
 
-    const isActivo = alumno.estado === 'Activo';
-    const actionText = isActivo ? 'dar de baja' : 'activar';
-    const newEstado = isActivo ? 'Inactivo' : 'Activo';
+  // MOGNI-246: la baja cancela la inscripción y los turnos; la reactivación cobra la primera cuota salvo que todavía
+  // tenga días pagos (en ese caso vuelve con su misma inscripción, sin cobrar)
+  const handleToggleEstadoAlumno = (alumno) => {
+    const nombre = `${alumno.nombre} ${alumno.apellido}`;
+
+    if (alumno.estado === 'Activo') {
+      showModal(
+        'Confirmar baja',
+        `¿Estás seguro de que deseas dar de baja al alumno ${nombre}? Se cancelarán su inscripción y sus turnos reservados que todavía no empezaron. Si ya pagó el mes siguiente, no se devuelve.`,
+        async () => {
+          // Se queda en el detalle, que ya muestra el estado actualizado
+          await ejecutar(async () => reemplazarAlumno(await darDeBajaAlumno(alumno.id)),
+            'El alumno ha sido dado de baja correctamente.');
+        },
+        { danger: true }
+      );
+      return;
+    }
+
+    if (alumno.reactivacionRequierePago) {
+      setAlumnoAReactivar(alumno);
+      return;
+    }
 
     showModal(
-      'Confirmar Acción',
-      `¿Estás seguro de que deseas ${actionText} al alumno ${alumno.nombre} ${alumno.apellido}?`,
+      'Confirmar reactivación',
+      `${nombre} todavía tiene días pagos hasta el ${formatearFecha(alumno.vencimientoUltimaCuota)}: se reactiva con su misma membresía, sin cobrar nada. ¿Confirmás?`,
       async () => {
-        // Se queda en el detalle, que ya muestra el estado actualizado
-        await ejecutar(async () => {
-          const actualizado = isActivo ? await darDeBajaAlumno(alumno.id) : await reactivarAlumno(alumno.id);
-          setAlumnos(prev => prev.map(a => a.id === actualizado.id ? actualizado : a));
-        }, `El alumno ha sido ${newEstado === 'Activo' ? 'activado' : 'dado de baja'} correctamente.`);
-      },
-      { danger: isActivo }
+        await ejecutar(async () => reemplazarAlumno(await reactivarAlumno(alumno.id)),
+          'El alumno ha sido activado correctamente.');
+      }
     );
+  };
+
+  const handleReactivarConPago = async (datos) => {
+    const ok = await ejecutar(async () => reemplazarAlumno(await reactivarAlumno(alumnoAReactivar.id, datos)),
+      'El alumno fue reactivado y el pago de la primera cuota quedó registrado.');
+    if (ok) setAlumnoAReactivar(null);
   };
 
   const handleSaveAlumno = (formData, isEdit) => {
     // HU-247: si cambia el DNI se avisa que también cambia la contraseña inicial. Cancelar no guarda nada.
     const original = isEdit ? alumnos.find(a => a.id === formData.id) : null;
     const dniCambio = Boolean(original) && original.dni !== formData.dni;
-    let mensaje = '¿Desea confirmar el alta del nuevo alumno?';
+    let mensaje;
     if (isEdit) {
       mensaje = dniCambio
         ? 'Cambiar el DNI también cambiará la contraseña inicial del alumno si aún no la modificó. ¿Estás seguro?'
         : '¿Desea confirmar los cambios en el alumno?';
+    } else {
+      // MOGNI-73: el alta registra el pago de la primera cuota, que no se puede deshacer
+      const membresia = membresias.find(m => String(m.id) === String(formData.membresiaId));
+      const monto = membresia ? `${formatearMonto(membresia.precio)} ` : '';
+      mensaje = `¿Desea confirmar el alta del nuevo alumno? Se registrará el pago de la primera cuota (${monto}en ${
+        labelMedioDePago(formData.medioDePago).toLowerCase()}). El pago no se puede deshacer.`;
     }
     showModal(
       isEdit ? (dniCambio ? 'Confirmar cambio de DNI' : 'Confirmar Cambios') : 'Confirmar Alta',
@@ -202,13 +242,18 @@ function MainApp({ onLogout }) {
     );
   };
 
-  // Cambio de membresía de un alumno: el backend cancela la inscripción activa y crea una nueva
-  const handleSaveMembresiaAlumno = (formData) => {
+  // Cambio de membresía (reglas M1 a M9): el aviso sale de la vista previa del backend (qué cambia y cuánto cobrar)
+  const handleSaveMembresiaAlumno = (formData, vista) => {
+    let cobro = '';
+    if (vista.precioFinal != null) {
+      cobro = vista.sinReembolso || vista.diferenciaACobrar === 0
+        ? ` No hay que cobrar nada${vista.sinReembolso ? ' (sin reembolso: la cuota queda en ' + formatearMonto(vista.precioFinal) + ')' : ''}.`
+        : ` Cobrar ${formatearMonto(vista.diferenciaACobrar)} (la cuota pasa de ${formatearMonto(vista.precioPagado)} a ${formatearMonto(vista.precioFinal)}).`;
+    }
+    const hasta = vista.hasta ? `; la cuota vigente sigue hasta el ${formatearFecha(vista.hasta)}` : '';
     showModal(
       'Confirmar cambio de membresía',
-      formData.membresiaId
-        ? '¿Desea cambiar la membresía del alumno? Se cancelará la inscripción activa y se creará una nueva; los días ya pagados de la cuota actual se respetan.'
-        : '¿Desea dejar al alumno sin membresía? Se cancelará la inscripción activa.',
+      `Pasa de ${vista.membresiaActual ?? 'sin membresía'} a ${vista.membresiaNueva} desde hoy (${formatearFecha(vista.desde)})${hasta}.${cobro}`,
       async () => {
         const ok = await ejecutar(async () => {
           const guardado = await actualizarAlumno(formData.id, formData);
@@ -243,13 +288,12 @@ function MainApp({ onLogout }) {
     );
   };
 
-  // HU-45: registra el pago en el backend (la cuota pasa a PAGADA) y refresca la lista.
+  // MOGNI-45: renovación (el backend crea la cuota del período siguiente y su pago) y refresca la lista.
   // Si falla, el modal queda abierto para corregir los datos.
   const handleRegistrarPago = async (datos) => {
     const ok = await ejecutar(() => registrarPago(datos), 'El pago fue registrado correctamente.');
     if (ok) {
       setCuotaAPagar(null);
-      setSelectedCuotaId(null);
       cargarCuotas();
     }
   };
@@ -508,6 +552,16 @@ function MainApp({ onLogout }) {
           cuota={cuotaAPagar}
           onConfirm={handleRegistrarPago}
           onCancel={() => setCuotaAPagar(null)}
+          onError={(msg) => displayToast(msg, true)}
+        />
+      )}
+
+      {alumnoAReactivar && (
+        <ReactivarAlumnoModal
+          alumno={alumnoAReactivar}
+          membresias={membresias}
+          onConfirm={handleReactivarConPago}
+          onCancel={() => setAlumnoAReactivar(null)}
           onError={(msg) => displayToast(msg, true)}
         />
       )}

@@ -20,7 +20,7 @@ import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.cuota.entity.Cuota;
-import mogni.system_backend.cuota.entity.EstadoCuota;
+import mogni.system_backend.cuota.entity.ReglasCuota;
 import mogni.system_backend.cuota.repository.CuotaRepository;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
@@ -69,26 +69,25 @@ class NotificacionServiceTest {
         alumno.setApellido("Fernández");
     }
 
-    private Cuota cuota(Long id, EstadoCuota estado, LocalDate vencimiento) {
+    /** Última cuota del alumno, que vence el día indicado (la situación de pago se calcula con esa fecha). */
+    private Cuota cuota(Long id, LocalDate vencimiento) {
         Membresia membresia = new Membresia(7L, "HIIT", 25000.0, 3, null);
-        Inscripcion inscripcion = new Inscripcion(5L, vencimiento.minusDays(Cuota.DIAS_VENCIMIENTO), null,
+        Inscripcion inscripcion = new Inscripcion(5L, vencimiento.minusDays(60), null,
                 EstadoInscripcion.ACTIVA, alumno, membresia);
-        Cuota cuota = Cuota.primeraDe(inscripcion);
+        Cuota cuota = inscripcion.agregarCuota(vencimiento.minusDays(ReglasCuota.DIAS_CUOTA));
         cuota.setId(id);
-        cuota.setEstado(estado);
-        cuota.setFechaVencimiento(vencimiento);
         return cuota;
     }
 
-    private List<NotificacionResponse> notificacionesCon(Cuota... cuotas) {
+    private List<NotificacionResponse> notificacionesCon(Cuota ultima) {
         when(alumnoRepository.findByCuentaEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(alumno));
-        when(cuotaRepository.buscar(EstadoInscripcion.ACTIVA, null, 1L)).thenReturn(List.of(cuotas));
+        when(cuotaRepository.buscarUltimaCuota(1L)).thenReturn(Optional.ofNullable(ultima));
         return notificacionService.listarDelAlumno(EMAIL);
     }
 
     @Test
-    void cuota_pendiente_que_vence_en_5_dias_o_menos_notifica_que_esta_por_vencer() {
-        List<NotificacionResponse> resultado = notificacionesCon(cuota(10L, EstadoCuota.PENDIENTE, hoy.plusDays(5)));
+    void proxima_a_vencer_en_5_dias_notifica_que_esta_por_vencer() {
+        List<NotificacionResponse> resultado = notificacionesCon(cuota(10L, hoy.plusDays(5)));
 
         assertEquals(1, resultado.size());
         NotificacionResponse notificacion = resultado.get(0);
@@ -99,66 +98,57 @@ class NotificacionServiceTest {
     }
 
     @Test
-    void cuota_pendiente_que_vence_hoy_dice_hoy() {
-        NotificacionResponse notificacion = notificacionesCon(cuota(10L, EstadoCuota.PENDIENTE, hoy)).get(0);
+    void cuota_que_vence_hoy_dice_hoy() {
+        NotificacionResponse notificacion = notificacionesCon(cuota(10L, hoy)).get(0);
 
         assertEquals(TipoNotificacion.CUOTA_POR_VENCER, notificacion.getTipo());
         assertTrue(notificacion.getMensaje().contains("vence hoy"));
     }
 
     @Test
-    void cuota_pendiente_que_vence_en_mas_de_5_dias_no_notifica() {
-        assertTrue(notificacionesCon(cuota(10L, EstadoCuota.PENDIENTE, hoy.plusDays(6))).isEmpty());
+    void al_dia_con_mas_de_5_dias_no_notifica() {
+        assertTrue(notificacionesCon(cuota(10L, hoy.plusDays(6))).isEmpty());
     }
 
     @Test
-    void cuota_atrasada_notifica_que_esta_vencida() {
-        List<NotificacionResponse> resultado = notificacionesCon(cuota(10L, EstadoCuota.ATRASADA, hoy.minusDays(1)));
+    void vencida_notifica_que_esta_vencida() {
+        List<NotificacionResponse> resultado = notificacionesCon(cuota(10L, hoy.minusDays(1)));
 
         assertEquals(1, resultado.size());
         assertEquals(TipoNotificacion.CUOTA_VENCIDA, resultado.get(0).getTipo());
     }
 
     @Test
-    void cuota_pendiente_con_vencimiento_pasado_notifica_vencida_aunque_la_tarea_diaria_no_haya_corrido() {
-        NotificacionResponse notificacion = notificacionesCon(cuota(10L, EstadoCuota.PENDIENTE, hoy.minusDays(1))).get(0);
-
-        assertEquals(TipoNotificacion.CUOTA_VENCIDA, notificacion.getTipo());
-    }
-
-    @Test
-    void la_notificacion_persiste_mientras_la_cuota_no_esta_pagada() {
-        // Vencida hace dos meses y sigue sin pagarse: la notificación sigue estando
-        List<NotificacionResponse> resultado = notificacionesCon(cuota(10L, EstadoCuota.ATRASADA, hoy.minusDays(60)));
+    void en_mora_sigue_notificando_vencida_sin_tipo_nuevo() {
+        // El tipo CUOTA_EN_MORA queda para la rama de notificaciones (sección 15 del rediseño)
+        List<NotificacionResponse> resultado = notificacionesCon(cuota(10L, hoy.minusDays(60)));
 
         assertEquals(1, resultado.size());
         assertEquals(TipoNotificacion.CUOTA_VENCIDA, resultado.get(0).getTipo());
     }
 
     @Test
-    void la_notificacion_desaparece_cuando_la_cuota_pasa_a_pagada() {
-        Cuota cuota = cuota(10L, EstadoCuota.ATRASADA, hoy.minusDays(3));
-        when(alumnoRepository.findByCuentaEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(alumno));
-        when(cuotaRepository.buscar(EstadoInscripcion.ACTIVA, null, 1L)).thenReturn(List.of(cuota));
-        assertEquals(1, notificacionService.listarDelAlumno(EMAIL).size());
+    void la_notificacion_desaparece_al_renovar() {
+        Cuota vencida = cuota(10L, hoy.minusDays(3));
+        assertEquals(1, notificacionesCon(vencida).size());
 
-        cuota.setEstado(EstadoCuota.PAGADA); // lo que hace PagoService.registrarPago
+        // Al renovar, la última cuota pasa a ser la nueva (vence en 30 días)
+        Cuota nueva = vencida.getInscripcion().agregarCuota(hoy);
+        nueva.setId(11L);
+        when(cuotaRepository.buscarUltimaCuota(1L)).thenReturn(Optional.of(nueva));
 
         assertTrue(notificacionService.listarDelAlumno(EMAIL).isEmpty());
     }
 
     @Test
-    void cuota_pagada_no_notifica_aunque_su_fecha_este_cerca_o_haya_pasado() {
-        assertTrue(notificacionesCon(
-                cuota(10L, EstadoCuota.PAGADA, hoy.plusDays(2)),
-                cuota(11L, EstadoCuota.PAGADA, hoy.minusDays(10))).isEmpty());
+    void sin_cuotas_no_notifica() {
+        assertTrue(notificacionesCon(null).isEmpty());
     }
 
     @Test
     void no_se_duplica_la_notificacion_para_la_misma_cuota() {
-        Cuota cuota = cuota(10L, EstadoCuota.ATRASADA, hoy.minusDays(3));
         when(alumnoRepository.findByCuentaEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(alumno));
-        when(cuotaRepository.buscar(EstadoInscripcion.ACTIVA, null, 1L)).thenReturn(List.of(cuota));
+        when(cuotaRepository.buscarUltimaCuota(1L)).thenReturn(Optional.of(cuota(10L, hoy.minusDays(3))));
 
         // Consultas repetidas (cada vez que el alumno entra) devuelven siempre la misma, una sola vez
         List<NotificacionResponse> primera = notificacionService.listarDelAlumno(EMAIL);
@@ -167,15 +157,6 @@ class NotificacionServiceTest {
         assertEquals(1, primera.size());
         assertEquals(1, segunda.size());
         assertEquals(primera.get(0).getId(), segunda.get(0).getId());
-    }
-
-    @Test
-    void varias_cuotas_impagas_ordenadas_de_la_mas_reciente_a_la_mas_antigua() {
-        List<NotificacionResponse> resultado = notificacionesCon(
-                cuota(10L, EstadoCuota.ATRASADA, hoy.minusDays(30)),
-                cuota(11L, EstadoCuota.PENDIENTE, hoy.plusDays(3)));
-
-        assertEquals(List.of("cuota-11", "cuota-10"), resultado.stream().map(NotificacionResponse::getId).toList());
     }
 
     @Test

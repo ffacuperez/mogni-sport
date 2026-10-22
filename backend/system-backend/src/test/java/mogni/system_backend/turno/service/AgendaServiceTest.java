@@ -35,7 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.cuota.entity.Cuota;
-import mogni.system_backend.cuota.entity.EstadoCuota;
+import mogni.system_backend.cuota.entity.SituacionPago;
 import mogni.system_backend.cuota.repository.CuotaRepository;
 import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
 import mogni.system_backend.inscripcion.entity.Inscripcion;
@@ -118,10 +118,12 @@ class AgendaServiceTest {
                 .thenAnswer(inv -> reservasDe(inv.getArgument(0), inv.getArgument(1)));
         lenient().when(reservaRepository.findByTurnoIdInAndEstado(anyCollection(), any(EstadoReserva.class)))
                 .thenAnswer(inv -> reservasDe(inv.getArgument(0), inv.getArgument(1)));
-        lenient().when(cuotaRepository.buscar(any(), any(), any()))
+        // Simula la consulta: la última cuota (vencimiento más reciente) de cada alumno con inscripción activa
+        lenient().when(cuotaRepository.buscarUltimasCuotas())
                 .thenAnswer(inv -> cuotas.stream()
-                        .filter(c -> c.getInscripcion().getEstado() == inv.<EstadoInscripcion>getArgument(0))
-                        .toList());
+                        .filter(c -> c.getInscripcion().getEstado() == EstadoInscripcion.ACTIVA)
+                        .collect(java.util.stream.Collectors.toMap(c -> c.getInscripcion().getAlumno().getId(), c -> c,
+                                (a, b) -> a.getFechaVencimiento().isAfter(b.getFechaVencimiento()) ? a : b)));
     }
 
     // --- Armado del escenario ---
@@ -160,11 +162,10 @@ class AgendaServiceTest {
         return alumno;
     }
 
-    private Cuota cuota(Alumno alumno, EstadoCuota estado, LocalDate vencimiento) {
+    private Cuota cuota(Alumno alumno, LocalDate vencimiento) {
         Cuota cuota = new Cuota();
         cuota.setId(proximoId++);
         cuota.setInscripcion(alumno.buscarInscripcionActiva().orElseThrow());
-        cuota.setEstado(estado);
         cuota.setFechaVencimiento(vencimiento);
         cuotas.add(cuota);
         return cuota;
@@ -207,8 +208,8 @@ class AgendaServiceTest {
         Alumno sofia = alumno("Sofía", "Ruiz", "Musculación 3x");
         Alumno martin = alumno("Martín", "Fernández", "HIIT");
         Alumno valentina = alumno("Valentina", "López", "Musculación 3x");
-        cuota(martin, EstadoCuota.PENDIENTE, LocalDate.of(2026, 10, 18));
-        cuota(sofia, EstadoCuota.PAGADA, LocalDate.of(2026, 11, 2));
+        cuota(martin, LocalDate.of(2026, 10, 18));
+        cuota(sofia, LocalDate.of(2026, 11, 2));
         reservar(sofia, once, EstadoReserva.RESERVADA);
         Reserva reservaMartin = reservar(martin, once, EstadoReserva.RESERVADA);
         reservar(valentina, diez, EstadoReserva.RESERVADA);
@@ -228,7 +229,7 @@ class AgendaServiceTest {
         assertEquals(martin.getId(), primero.getAlumnoId());
         assertEquals("Martín", primero.getNombre());
         assertEquals("HIIT", primero.getMembresiaNombre());
-        assertEquals(EstadoCuota.PENDIENTE, primero.getCuota().getEstado());
+        assertEquals(SituacionPago.PROXIMA_A_VENCER, primero.getCuota().getSituacion());
         assertEquals(LocalDate.of(2026, 10, 18), primero.getCuota().getFechaVencimiento());
     }
 
@@ -536,19 +537,19 @@ class AgendaServiceTest {
     // --- Cuota del alumno ---
 
     @Test
-    void el_alumno_muestra_su_cuota_mas_reciente_con_los_datos_guardados() {
+    void el_alumno_muestra_la_situacion_de_su_ultima_cuota() {
         Turno turno = turno(JUEVES, "18:00", 10);
         Alumno conCuotas = alumno("Martín", "Fernández", "HIIT");
-        cuota(conCuotas, EstadoCuota.PAGADA, LocalDate.of(2026, 9, 18));
-        cuota(conCuotas, EstadoCuota.ATRASADA, LocalDate.of(2026, 10, 10));
+        cuota(conCuotas, LocalDate.of(2026, 9, 18));
+        cuota(conCuotas, LocalDate.of(2026, 10, 10));
         Alumno sinCuotas = alumno("Sofía", "Ruiz", "Full 5x");
         reservar(conCuotas, turno, EstadoReserva.RESERVADA);
         reservar(sinCuotas, turno, EstadoReserva.RESERVADA);
 
         List<AlumnoAgendaResponse> alumnos = buscar(agendaService.consultarDia(JUEVES, AHORA).getTurnos(), "18:00").getAlumnos();
 
-        // Datos crudos: "Vencida" lo calcula el frontend
-        assertEquals(EstadoCuota.ATRASADA, alumnos.get(0).getCuota().getEstado());
+        // La situación se calcula con la última cuota (venció el 10/10: en mora)
+        assertEquals(SituacionPago.EN_MORA, alumnos.get(0).getCuota().getSituacion());
         assertEquals(LocalDate.of(2026, 10, 10), alumnos.get(0).getCuota().getFechaVencimiento());
         // Sin cuotas: la membresía sale de la inscripción activa
         assertNull(alumnos.get(1).getCuota());

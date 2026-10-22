@@ -1,6 +1,7 @@
 import { formatearFecha, formatearMonto, formatearPeriodo, labelMedioDePago } from '../services/cuotasService';
 import { Button, Cargando, Modal } from '../../shared/components/ui';
 
+/** HU-48: cada pago con el período que cubrió, su membresía y el desglose si tuvo recargo. */
 export default function HistorialPagosModal({ alumno, pagos, cargando, onClose }) {
   if (!alumno) return null;
 
@@ -18,11 +19,11 @@ export default function HistorialPagosModal({ alumno, pagos, cargando, onClose }
           Este alumno no tiene pagos registrados.
         </p>
       ) : (
-        <div className="max-h-80 overflow-y-auto rounded-lg border border-line">
+        <div className="max-h-96 overflow-auto rounded-lg border border-line">
           <table className="w-full text-left text-sm">
             <thead className="sticky top-0 bg-thead">
               <tr>
-                {['Fecha', 'Periodo', 'Monto', 'Medio de pago'].map((th) => (
+                {['Fecha', 'Período', 'Membresía', 'Monto', 'Medio'].map((th) => (
                   <th key={th} scope="col" className="h-12 px-3 text-[13px] font-semibold text-ink-soft">{th}</th>
                 ))}
               </tr>
@@ -30,10 +31,18 @@ export default function HistorialPagosModal({ alumno, pagos, cargando, onClose }
             <tbody className="divide-y divide-line-soft bg-card">
               {pagos.map((pago) => (
                 <tr key={pago.id}>
-                  <td className="h-12 whitespace-nowrap px-3 tabular-nums text-ink">{formatearFecha(pago.fecha)}</td>
-                  <td className="h-12 whitespace-nowrap px-3 tabular-nums text-ink">{formatearPeriodo(pago.periodo)}</td>
-                  <td className="h-12 whitespace-nowrap px-3 font-semibold tabular-nums text-success">{formatearMonto(pago.monto)}</td>
-                  <td className="h-12 whitespace-nowrap px-3 text-ink-soft">{labelMedioDePago(pago.medioDePago)}</td>
+                  <td className="whitespace-nowrap px-3 py-3 tabular-nums text-ink">{formatearFecha(pago.fecha)}</td>
+                  <td className="px-3 py-3 tabular-nums text-ink">{formatearPeriodo(pago.inicio, pago.vencimiento)}</td>
+                  <td className="px-3 py-3 text-ink">{pago.membresia}</td>
+                  <td className="px-3 py-3 tabular-nums">
+                    <span className="font-semibold text-success">{formatearMonto(pago.monto)}</span>
+                    {pago.recargo > 0 && (
+                      <span className="block text-xs text-ink-soft">
+                        (cuota {formatearMonto(pago.precio)} + recargo {formatearMonto(pago.recargo)})
+                      </span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-3 text-ink-soft">{labelMedioDePago(pago.medioDePago)}</td>
                 </tr>
               ))}
             </tbody>

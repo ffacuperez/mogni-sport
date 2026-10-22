@@ -9,7 +9,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -19,8 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.cuota.entity.Cuota;
+import mogni.system_backend.cuota.entity.SituacionPago;
 import mogni.system_backend.cuota.repository.CuotaRepository;
-import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
 import mogni.system_backend.turno.dto.AgendaDiaResponse;
 import mogni.system_backend.turno.dto.AgendaSemanaResponse;
 import mogni.system_backend.turno.dto.AlumnoAgendaResponse;
@@ -105,7 +104,7 @@ public class AgendaService {
                     List<Reserva> reservas = turno.getId() == null ? List.of()
                             : reservasPorTurno.getOrDefault(turno.getId(), List.of());
                     List<AlumnoAgendaResponse> alumnos = reservas.stream()
-                            .map(reserva -> mapearAlumno(reserva, cuotaPorAlumno.get(reserva.getAlumno().getId())))
+                            .map(reserva -> mapearAlumno(reserva, cuotaPorAlumno.get(reserva.getAlumno().getId()), hoy))
                             .sorted(Comparator.comparing(AlumnoAgendaResponse::getApellido, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
                                     .thenComparing(AlumnoAgendaResponse::getNombre, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
                             .toList();
@@ -260,16 +259,14 @@ public class AgendaService {
     }
 
     /**
-     * Cuota más reciente (por vencimiento, como en AlumnoService) de cada alumno con inscripción activa. Se usa la
-     * misma consulta que la pantalla de Cuotas: trae inscripción y membresía en una sola consulta.
+     * Última cuota de cada alumno con inscripción activa: la misma consulta que la pantalla de Cuotas, trae
+     * inscripción y membresía en una sola consulta.
      */
     private Map<Long, Cuota> cuotaActualPorAlumno() {
-        BinaryOperator<Cuota> laMasReciente = (a, b) -> a.getFechaVencimiento().isBefore(b.getFechaVencimiento()) ? b : a;
-        return cuotaRepository.buscar(EstadoInscripcion.ACTIVA, null, null).stream()
-                .collect(Collectors.toMap(cuota -> cuota.getInscripcion().getAlumno().getId(), cuota -> cuota, laMasReciente));
+        return cuotaRepository.buscarUltimasCuotas();
     }
 
-    private static AlumnoAgendaResponse mapearAlumno(Reserva reserva, Cuota cuota) {
+    private static AlumnoAgendaResponse mapearAlumno(Reserva reserva, Cuota cuota, LocalDate hoy) {
         Alumno alumno = reserva.getAlumno();
         String membresia = cuota != null
                 ? cuota.getInscripcion().getMembresia().getNombre()
@@ -281,6 +278,6 @@ public class AgendaService {
                 alumno.getNombre(),
                 alumno.getApellido(),
                 membresia,
-                cuota != null ? new CuotaAgendaResponse(cuota.getEstado(), cuota.getFechaVencimiento()) : null);
+                cuota != null ? new CuotaAgendaResponse(SituacionPago.de(cuota, hoy), cuota.getFechaVencimiento()) : null);
     }
 }

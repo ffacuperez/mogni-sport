@@ -287,13 +287,27 @@ function ReservarTurnos() {
         </p>
       )}
 
-      {sinTurnosEnLaSemana && (
+      {/* MOGNI-254/259: en mora ve los turnos pero no puede elegir ninguno (el backend los manda no seleccionables) */}
+      {datos.bloqueadoPorMora && (
+        <div role="alert" className="mt-4 flex items-start gap-3 rounded-lg border border-line bg-error-bg p-4 text-error">
+          <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold">Tenés la cuota en mora</p>
+            <p className="mt-1 text-xs leading-relaxed">
+              No podés reservar turnos hasta regularizar el pago. Cuando se registre, vas a poder reservar en el momento.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {sinTurnosEnLaSemana && !datos.bloqueadoPorMora && (
         <p className="mt-4 flex items-center gap-2 rounded-lg bg-thead/60 px-3 py-2.5 text-xs text-ink-soft">
           <Info className="h-4 w-4 shrink-0" /> Podés volver a reservar desde el lunes
         </p>
       )}
 
-      <section aria-label="Turnos del día" aria-busy={cargando} className={cx('mt-5 transition-opacity', cargando && 'opacity-50')}>
+      <section aria-label="Turnos del día" aria-busy={cargando} aria-disabled={datos.bloqueadoPorMora || undefined}
+        className={cx('mt-5 transition-opacity', (cargando || datos.bloqueadoPorMora) && 'opacity-50')}>
         {turnos.length === 0 ? (
           <div className="mt-10 flex flex-col items-center gap-3 text-center">
             <span className="flex h-14 w-14 items-center justify-center rounded-full bg-card text-ink-muted shadow-card">

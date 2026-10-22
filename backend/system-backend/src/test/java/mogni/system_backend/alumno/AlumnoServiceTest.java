@@ -4,9 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -20,7 +22,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -28,22 +29,28 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.alumno.dto.ActualizarAlumnoRequest;
 import mogni.system_backend.alumno.dto.AlumnoResponse;
+import mogni.system_backend.alumno.dto.CambioMembresiaResponse;
+import mogni.system_backend.alumno.dto.ReactivarAlumnoRequest;
 import mogni.system_backend.alumno.dto.RegistrarAlumnoRequest;
 import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.alumno.entity.Modalidad;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.alumno.service.AlumnoService;
+import mogni.system_backend.alumno.service.BajaAlumnoService;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
 import mogni.system_backend.auth.repository.CuentaRepository;
 import mogni.system_backend.cuota.entity.Cuota;
-import mogni.system_backend.cuota.entity.EstadoCuota;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
 import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
 import mogni.system_backend.inscripcion.entity.Inscripcion;
 import mogni.system_backend.membresia.entity.Membresia;
 import mogni.system_backend.membresia.repository.MembresiaRepository;
+import mogni.system_backend.pago.entity.MedioDePago;
+import mogni.system_backend.pago.entity.Pago;
+import mogni.system_backend.pago.repository.PagoRepository;
+import mogni.system_backend.turno.service.CancelacionPorSistemaService;
 
 @ExtendWith(MockitoExtension.class)
 class AlumnoServiceTest {
@@ -58,16 +65,25 @@ class AlumnoServiceTest {
     private MembresiaRepository membresiaRepository;
 
     @Mock
+    private PagoRepository pagoRepository;
+
+    @Mock
+    private CancelacionPorSistemaService cancelacionPorSistemaService;
+
+    @Mock
     private PasswordEncoder passwordEncoder;
 
-    @InjectMocks
     private AlumnoService alumnoService;
 
     private Membresia membresia;
+    private final LocalDate hoy = ZonaHoraria.hoy();
 
     @BeforeEach
     void setUp() {
         membresia = new Membresia(7L, "Pro", 40000.0, 5, null);
+        // La baja real (no un mock), así se prueba que cancela la inscripción y pide cancelar los turnos
+        alumnoService = new AlumnoService(alumnoRepository, cuentaRepository, membresiaRepository, pagoRepository,
+                new BajaAlumnoService(cancelacionPorSistemaService), passwordEncoder);
     }
 
     private RegistrarAlumnoRequest registro() {
@@ -81,6 +97,7 @@ class AlumnoServiceTest {
         request.setSexo("Masculino");
         request.setModalidad(Modalidad.PRESENCIAL);
         request.setMembresiaId(7L);
+        request.setMedioDePago(MedioDePago.EFECTIVO);
         return request;
     }
 
@@ -94,6 +111,31 @@ class AlumnoServiceTest {
         alumno.setFechaNacimiento(ZonaHoraria.hoy().minusYears(30));
         alumno.setCuenta(cuenta);
         return alumno;
+    }
+
+    /**
+     * Alumno activo con una inscripción ACTIVA de la membresía dada y una cuota pagada que vence dentro de
+     * {@code diasHastaVencimiento} días, con su pago (recargo opcional).
+     */
+    private Alumno alumnoConCuota(Membresia actual, int diasHastaVencimiento, BigDecimal recargo) {
+        Alumno alumno = alumnoExistente();
+        Inscripcion inscripcion = new Inscripcion(1L, hoy.minusDays(60), null, EstadoInscripcion.ACTIVA, null, actual);
+        alumno.agregarInscripcion(inscripcion);
+        Cuota cuota = inscripcion.agregarCuota(hoy.plusDays(diasHastaVencimiento).minusDays(30));
+        cuota.setId(100L);
+        if (recargo != null) {
+            Pago pago = Pago.de(cuota, recargo, MedioDePago.TRANSFERENCIA, hoy.minusDays(20));
+            lenientPago(pago);
+        }
+        return alumno;
+    }
+
+    private Pago pagoGuardado;
+
+    private void lenientPago(Pago pago) {
+        pagoGuardado = pago;
+        org.mockito.Mockito.lenient().when(pagoRepository.findFirstByCuotaIdOrderByIdAsc(100L))
+                .thenReturn(Optional.of(pago));
     }
 
     private ActualizarAlumnoRequest actualizacion(Alumno alumno, Long membresiaId) {
@@ -114,6 +156,14 @@ class AlumnoServiceTest {
         verify(alumnoRepository).save(captor.capture());
         return captor.getValue();
     }
+
+    private Pago pagoCapturado() {
+        ArgumentCaptor<Pago> captor = ArgumentCaptor.forClass(Pago.class);
+        verify(pagoRepository).save(captor.capture());
+        return captor.getValue();
+    }
+
+    // --- Alta (MOGNI-73) ---
 
     // Pruebas 1 y 2: inscripción válida (con y sin opcionales) crea una Inscripcion ACTIVA
     @Test
@@ -142,13 +192,40 @@ class AlumnoServiceTest {
         assertNull(inscripcion.getFechaFin());
         assertEquals(membresia, inscripcion.getMembresia());
         assertEquals(guardado, inscripcion.getAlumno());
+    }
 
-        // HU-45: al inscribirse se genera la primera cuota PENDIENTE
+    @Test
+    void registrarAlumno_creaLaPrimeraCuotaDeHoyA30DiasConSuPago() {
+        when(membresiaRepository.findById(7L)).thenReturn(Optional.of(membresia));
+        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        alumnoService.registrarAlumno(registro());
+
+        Inscripcion inscripcion = guardarYCapturar().getInscripciones().get(0);
         assertEquals(1, inscripcion.getCuotas().size());
         Cuota cuota = inscripcion.getCuotas().get(0);
-        assertEquals(EstadoCuota.PENDIENTE, cuota.getEstado());
-        assertEquals(ZonaHoraria.hoy().plusDays(30), cuota.getFechaVencimiento());
-        assertEquals(0, BigDecimal.valueOf(40000).compareTo(cuota.getMontoEsperado()));
+        assertEquals(hoy, cuota.getFechaInicio());
+        assertEquals(hoy.plusDays(30), cuota.getFechaVencimiento());
+        assertEquals(new BigDecimal("40000.00"), cuota.getPrecio());
+        assertSame(membresia, cuota.getMembresia());
+
+        Pago pago = pagoCapturado();
+        assertSame(cuota, pago.getCuota());
+        assertEquals(new BigDecimal("40000.00"), pago.getMonto());
+        assertEquals(new BigDecimal("0.00"), pago.getRecargo());
+        assertEquals(MedioDePago.EFECTIVO, pago.getMedioDePago());
+        assertEquals(hoy, pago.getFechaPago());
+    }
+
+    @Test
+    void registrarAlumno_rechazaSinMedioDePago() {
+        RegistrarAlumnoRequest request = registro();
+        request.setMedioDePago(null);
+        when(membresiaRepository.findById(7L)).thenReturn(Optional.of(membresia));
+
+        assertThrows(RegistroInvalidoException.class, () -> alumnoService.registrarAlumno(request));
+        verify(alumnoRepository, never()).save(any());
+        verify(pagoRepository, never()).save(any());
     }
 
     @Test
@@ -251,6 +328,8 @@ class AlumnoServiceTest {
         assertThrows(RegistroInvalidoException.class, () -> alumnoService.registrarAlumno(request));
     }
 
+    // --- Edición de datos ---
+
     @Test
     void actualizarAlumno_cambiarDniActualizaLaContraseniaSiTodaviaEsLaInicial() {
         Alumno alumno = alumnoExistente(); // debeCambiarPassword = true
@@ -298,157 +377,261 @@ class AlumnoServiceTest {
         verify(alumnoRepository, never()).save(any());
     }
 
-    @Test
-    void actualizarAlumno_asignaMembresiaCreandoInscripcion() {
-        Alumno alumno = alumnoExistente();
-        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
-        when(membresiaRepository.findById(7L)).thenReturn(Optional.of(membresia));
-        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        AlumnoResponse response = alumnoService.actualizarAlumno(10L, actualizacion(alumno, 7L));
-
-        assertEquals("1199887766", response.getTelefono());
-        assertEquals("Pro", response.getMembresiaNombre());
-        assertEquals(1, alumno.getInscripciones().size());
-    }
+    // --- Cambio de membresía (reglas M1 a M9) ---
 
     @Test
-    void actualizarAlumno_cambiarMembresiaCancelaLaActivaYCreaOtra() {
-        Alumno alumno = alumnoExistente();
-        Membresia anterior = new Membresia(3L, "Basica", 20000.0, 2, null);
-        Inscripcion vieja = new Inscripcion(1L, ZonaHoraria.hoy().minusDays(10), null,
-                EstadoInscripcion.ACTIVA, null, anterior);
-        alumno.agregarInscripcion(vieja);
-        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
-        when(membresiaRepository.findById(7L)).thenReturn(Optional.of(membresia));
-        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        AlumnoResponse response = alumnoService.actualizarAlumno(10L, actualizacion(alumno, 7L));
-
-        assertEquals(EstadoInscripcion.CANCELADA, vieja.getEstado());
-        assertEquals(ZonaHoraria.hoy(), vieja.getFechaFin());
-        assertEquals(2, alumno.getInscripciones().size());
-        Inscripcion nueva = alumno.getInscripciones().get(1);
-        assertNull(nueva.getFechaFin());
-        assertEquals(1, nueva.getCuotas().size());
-        assertEquals(EstadoCuota.PENDIENTE, nueva.getCuotas().get(0).getEstado());
-        assertEquals(7L, response.getMembresiaId());
-    }
-
-    @Test
-    void actualizarAlumno_rechazaCambioDeMembresiaConCuotaActualSinPagar() {
-        Alumno alumno = alumnoExistente();
-        Membresia anterior = new Membresia(3L, "Basica", 20000.0, 2, null);
-        Inscripcion vieja = new Inscripcion(1L, ZonaHoraria.hoy().minusDays(10), null,
-                EstadoInscripcion.ACTIVA, null, anterior);
-        Cuota cuotaSinPagar = new Cuota();
-        cuotaSinPagar.setEstado(EstadoCuota.PENDIENTE);
-        cuotaSinPagar.setFechaVencimiento(ZonaHoraria.hoy().plusDays(10));
-        vieja.getCuotas().add(cuotaSinPagar);
-        alumno.agregarInscripcion(vieja);
-        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
-
-        RegistroInvalidoException ex = assertThrows(RegistroInvalidoException.class,
-                () -> alumnoService.actualizarAlumno(10L, actualizacion(alumno, 7L)));
-
-        assertEquals("No se puede cambiar la membresía: la cuota actual todavía no está pagada", ex.getMessage());
-        assertEquals(EstadoInscripcion.ACTIVA, vieja.getEstado());
-        verify(alumnoRepository, never()).save(any());
-    }
-
-    @Test
-    void actualizarAlumno_rechazaQuitarMembresiaConCuotaActualAtrasada() {
-        Alumno alumno = alumnoExistente();
-        Inscripcion actual = new Inscripcion(1L, ZonaHoraria.hoy().minusDays(40), null,
-                EstadoInscripcion.ACTIVA, null, membresia);
-        Cuota cuotaAtrasada = new Cuota();
-        cuotaAtrasada.setEstado(EstadoCuota.ATRASADA);
-        cuotaAtrasada.setFechaVencimiento(ZonaHoraria.hoy().minusDays(10));
-        actual.getCuotas().add(cuotaAtrasada);
-        alumno.agregarInscripcion(actual);
-        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
-
-        assertThrows(RegistroInvalidoException.class,
-                () -> alumnoService.actualizarAlumno(10L, actualizacion(alumno, null)));
-        assertEquals(EstadoInscripcion.ACTIVA, actual.getEstado());
-        verify(alumnoRepository, never()).save(any());
-    }
-
-    @Test
-    void actualizarAlumno_cambioDeMembresiaPreservaDiasPagosRestantes() {
-        Alumno alumno = alumnoExistente();
-        Membresia anterior = new Membresia(3L, "Basica", 20000.0, 2, null);
-        Inscripcion vieja = new Inscripcion(1L, ZonaHoraria.hoy().minusDays(20), null,
-                EstadoInscripcion.ACTIVA, null, anterior);
-        Cuota cuotaPagada = new Cuota();
-        cuotaPagada.setEstado(EstadoCuota.PAGADA);
-        LocalDate vencimientoAnterior = ZonaHoraria.hoy().plusDays(10); // todavía le quedan 10 días pagos
-        cuotaPagada.setFechaVencimiento(vencimientoAnterior);
-        vieja.getCuotas().add(cuotaPagada);
-        alumno.agregarInscripcion(vieja);
-        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
-        when(membresiaRepository.findById(7L)).thenReturn(Optional.of(membresia));
-        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        alumnoService.actualizarAlumno(10L, actualizacion(alumno, 7L));
-
-        assertEquals(EstadoInscripcion.CANCELADA, vieja.getEstado());
-        Inscripcion nueva = alumno.getInscripciones().get(1);
-        // Vence 30 días después del vencimiento de la cuota anterior, no 30 días desde hoy.
-        assertEquals(vencimientoAnterior.plusDays(30), nueva.getCuotas().get(0).getFechaVencimiento());
-    }
-
-    @Test
-    void actualizarAlumno_cambioDeMembresiaSinDiasRestantesCalculaDesdeHoy() {
-        Alumno alumno = alumnoExistente();
-        Membresia anterior = new Membresia(3L, "Basica", 20000.0, 2, null);
-        Inscripcion vieja = new Inscripcion(1L, ZonaHoraria.hoy().minusDays(40), null,
-                EstadoInscripcion.ACTIVA, null, anterior);
-        Cuota cuotaPagadaVencida = new Cuota();
-        cuotaPagadaVencida.setEstado(EstadoCuota.PAGADA);
-        cuotaPagadaVencida.setFechaVencimiento(ZonaHoraria.hoy().minusDays(5)); // pagada tarde, ya sin días restantes
-        vieja.getCuotas().add(cuotaPagadaVencida);
-        alumno.agregarInscripcion(vieja);
-        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
-        when(membresiaRepository.findById(7L)).thenReturn(Optional.of(membresia));
-        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        alumnoService.actualizarAlumno(10L, actualizacion(alumno, 7L));
-
-        Inscripcion nueva = alumno.getInscripciones().get(1);
-        assertEquals(ZonaHoraria.hoy().plusDays(30), nueva.getCuotas().get(0).getFechaVencimiento());
-    }
-
-    @Test
-    void actualizarAlumno_mismaMembresiaNoCreaOtraInscripcion() {
-        Alumno alumno = alumnoExistente();
-        Inscripcion actual = new Inscripcion(1L, ZonaHoraria.hoy(), null,
-                EstadoInscripcion.ACTIVA, null, membresia);
-        alumno.agregarInscripcion(actual);
-        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
-        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        alumnoService.actualizarAlumno(10L, actualizacion(alumno, 7L));
-
-        assertEquals(1, alumno.getInscripciones().size());
-        assertEquals(EstadoInscripcion.ACTIVA, actual.getEstado());
-    }
-
-    @Test
-    void actualizarAlumno_sinMembresiaCancelaLaActiva() {
-        Alumno alumno = alumnoExistente();
-        Inscripcion actual = new Inscripcion(1L, ZonaHoraria.hoy(), null,
-                EstadoInscripcion.ACTIVA, null, membresia);
-        alumno.agregarInscripcion(actual);
+    void actualizarAlumno_sinMembresiaNoCambiaLaInscripcion() {
+        // M9: ya no existe "sin membresía"; null significa "no cambiar"
+        Alumno alumno = alumnoConCuota(membresia, 20, BigDecimal.ZERO);
+        Inscripcion actual = alumno.getInscripciones().get(0);
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
         when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
 
         AlumnoResponse response = alumnoService.actualizarAlumno(10L, actualizacion(alumno, null));
 
-        assertEquals(EstadoInscripcion.CANCELADA, actual.getEstado());
-        assertEquals(ZonaHoraria.hoy(), actual.getFechaFin());
-        assertNull(response.getMembresiaId());
+        assertEquals(EstadoInscripcion.ACTIVA, actual.getEstado());
+        assertEquals(1, alumno.getInscripciones().size());
+        assertEquals(7L, response.getMembresiaId());
     }
+
+    @Test
+    void actualizarAlumno_mismaMembresiaNoCreaOtraInscripcion() {
+        Alumno alumno = alumnoConCuota(membresia, 20, BigDecimal.ZERO);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        alumnoService.actualizarAlumno(10L, actualizacion(alumno, 7L));
+
+        assertEquals(1, alumno.getInscripciones().size());
+    }
+
+    @Test
+    void cambioDeMembresia_subeDe3a5DiasCobraLaDiferenciaYMueveLaCuota() {
+        Membresia tresDias = new Membresia(3L, "3 días", 20000.0, 3, null);
+        Membresia cincoDias = new Membresia(5L, "5 días", 25000.0, 5, null);
+        Alumno alumno = alumnoConCuota(tresDias, 20, BigDecimal.ZERO);
+        Inscripcion vieja = alumno.getInscripciones().get(0);
+        Cuota cuota = vieja.getCuotas().get(0);
+        LocalDate inicio = cuota.getFechaInicio();
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(5L)).thenReturn(Optional.of(cincoDias));
+        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        AlumnoResponse response = alumnoService.actualizarAlumno(10L, actualizacion(alumno, 5L));
+
+        // M4: la inscripción vieja termina hoy y empieza una nueva desde hoy
+        assertEquals(EstadoInscripcion.CANCELADA, vieja.getEstado());
+        assertEquals(hoy, vieja.getFechaFin());
+        Inscripcion nueva = alumno.getInscripciones().get(1);
+        assertEquals(EstadoInscripcion.ACTIVA, nueva.getEstado());
+        assertEquals(hoy, nueva.getFechaInicio());
+        assertSame(cincoDias, nueva.getMembresia());
+        // La cuota vigente pasa a la nueva, mantiene sus fechas y cambia membresía y precio
+        assertTrue(vieja.getCuotas().isEmpty());
+        assertEquals(List.of(cuota), nueva.getCuotas());
+        assertEquals(inicio, cuota.getFechaInicio());
+        assertEquals(hoy.plusDays(20), cuota.getFechaVencimiento());
+        assertSame(cincoDias, cuota.getMembresia());
+        assertEquals(new BigDecimal("25000.00"), cuota.getPrecio());
+        // El pago cambia el total y conserva fecha y medio (M6)
+        assertEquals(new BigDecimal("25000.00"), pagoGuardado.getMonto());
+        assertEquals(MedioDePago.TRANSFERENCIA, pagoGuardado.getMedioDePago());
+        assertEquals(hoy.minusDays(20), pagoGuardado.getFechaPago());
+        assertEquals(5L, response.getMembresiaId());
+    }
+
+    @Test
+    void cambioDeMembresia_bajaDe5a3DiasNoReembolsa() {
+        Membresia tresDias = new Membresia(3L, "3 días", 20000.0, 3, null);
+        Membresia cincoDias = new Membresia(5L, "5 días", 25000.0, 5, null);
+        Alumno alumno = alumnoConCuota(cincoDias, 20, BigDecimal.ZERO);
+        Cuota cuota = alumno.getInscripciones().get(0).getCuotas().get(0);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(3L)).thenReturn(Optional.of(tresDias));
+        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        alumnoService.actualizarAlumno(10L, actualizacion(alumno, 3L));
+
+        assertEquals(new BigDecimal("25000.00"), cuota.getPrecio());
+        assertEquals(new BigDecimal("25000.00"), pagoGuardado.getMonto());
+        assertSame(tresDias, cuota.getMembresia());
+    }
+
+    @Test
+    void cambioDeMembresia_conRecargoActualizaSoloElPrecioYSumaElMismoRecargo() {
+        Membresia tresDias = new Membresia(3L, "3 días", 20000.0, 3, null);
+        Membresia cincoDias = new Membresia(5L, "5 días", 25000.0, 5, null);
+        Alumno alumno = alumnoConCuota(tresDias, 20, new BigDecimal("2000.00"));
+        Cuota cuota = alumno.getInscripciones().get(0).getCuotas().get(0);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(5L)).thenReturn(Optional.of(cincoDias));
+        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        alumnoService.actualizarAlumno(10L, actualizacion(alumno, 5L));
+
+        assertEquals(new BigDecimal("25000.00"), cuota.getPrecio());
+        assertEquals(new BigDecimal("2000.00"), pagoGuardado.getRecargo());
+        assertEquals(new BigDecimal("27000.00"), pagoGuardado.getMonto());
+    }
+
+    @Test
+    void cambioDeMembresia_rechazaConLaCuotaVencida() {
+        Alumno alumno = alumnoConCuota(membresia, -1, null);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(5L)).thenReturn(Optional.of(new Membresia(5L, "Otra", 1.0, 1, null)));
+
+        RegistroInvalidoException ex = assertThrows(RegistroInvalidoException.class,
+                () -> alumnoService.actualizarAlumno(10L, actualizacion(alumno, 5L)));
+
+        assertTrue(ex.getMessage().contains("vencida"));
+        assertEquals(EstadoInscripcion.ACTIVA, alumno.getInscripciones().get(0).getEstado());
+        verify(alumnoRepository, never()).save(any());
+    }
+
+    @Test
+    void cambioDeMembresia_rechazaConLaCuotaEnMora() {
+        Alumno alumno = alumnoConCuota(membresia, -4, null);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(5L)).thenReturn(Optional.of(new Membresia(5L, "Otra", 1.0, 1, null)));
+
+        RegistroInvalidoException ex = assertThrows(RegistroInvalidoException.class,
+                () -> alumnoService.actualizarAlumno(10L, actualizacion(alumno, 5L)));
+
+        assertTrue(ex.getMessage().contains("en mora"));
+    }
+
+    @Test
+    void cambioDeMembresia_rechazaSiYaPagoElMesSiguiente() {
+        // M2: renovó por adelantado: su última cuota empieza en 3 días
+        Alumno alumno = alumnoConCuota(membresia, 33, null);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(5L)).thenReturn(Optional.of(new Membresia(5L, "Otra", 1.0, 1, null)));
+
+        RegistroInvalidoException ex = assertThrows(RegistroInvalidoException.class,
+                () -> alumnoService.actualizarAlumno(10L, actualizacion(alumno, 5L)));
+
+        assertTrue(ex.getMessage().contains("ya pagó el período que empieza"));
+    }
+
+    @Test
+    void cambioDeMembresia_seAceptaElDiaQueEmpiezaElPeriodoRenovado() {
+        Alumno alumno = alumnoConCuota(membresia, 30, null); // la cuota empieza hoy
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(5L)).thenReturn(Optional.of(new Membresia(5L, "Otra", 1.0, 1, null)));
+        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertEquals(5L, alumnoService.actualizarAlumno(10L, actualizacion(alumno, 5L)).getMembresiaId());
+    }
+
+    @Test
+    void cambioDeMembresia_lasCuotasAnterioresConservanSuMembresia() {
+        Membresia tresDias = new Membresia(3L, "3 días", 20000.0, 3, null);
+        Membresia cincoDias = new Membresia(5L, "5 días", 25000.0, 5, null);
+        Alumno alumno = alumnoConCuota(tresDias, 20, BigDecimal.ZERO);
+        Inscripcion vieja = alumno.getInscripciones().get(0);
+        Cuota anterior = vieja.agregarCuota(hoy.minusDays(40));
+        anterior.setId(99L);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(5L)).thenReturn(Optional.of(cincoDias));
+        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        alumnoService.actualizarAlumno(10L, actualizacion(alumno, 5L));
+
+        assertEquals(List.of(anterior), vieja.getCuotas());
+        assertSame(tresDias, anterior.getMembresia());
+        assertEquals(new BigDecimal("20000.00"), anterior.getPrecio());
+    }
+
+    @Test
+    void cambioDeMembresia_cuotaSinPagoNoRompe() {
+        Alumno alumno = alumnoConCuota(membresia, 20, null);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(5L)).thenReturn(Optional.of(new Membresia(5L, "Otra", 50000.0, 5, null)));
+        when(pagoRepository.findFirstByCuotaIdOrderByIdAsc(100L)).thenReturn(Optional.empty());
+        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        alumnoService.actualizarAlumno(10L, actualizacion(alumno, 5L));
+
+        assertEquals(new BigDecimal("50000.00"), alumno.getInscripciones().get(1).getCuotas().get(0).getPrecio());
+        verify(pagoRepository, never()).save(any());
+    }
+
+    @Test
+    void cambioDeMembresia_sinCuotasCreaLaInscripcionSinCobrar() {
+        Alumno alumno = alumnoExistente();
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(7L)).thenReturn(Optional.of(membresia));
+        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        AlumnoResponse response = alumnoService.actualizarAlumno(10L, actualizacion(alumno, 7L));
+
+        assertEquals("Pro", response.getMembresiaNombre());
+        assertEquals(1, alumno.getInscripciones().size());
+        assertTrue(alumno.getInscripciones().get(0).getCuotas().isEmpty());
+    }
+
+    @Test
+    void cambioDeMembresia_rechazaAUnAlumnoInactivo() {
+        Alumno alumno = alumnoConCuota(membresia, 20, null);
+        alumno.getCuenta().setActiva(false);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(5L)).thenReturn(Optional.of(new Membresia(5L, "Otra", 1.0, 1, null)));
+
+        RegistroInvalidoException ex = assertThrows(RegistroInvalidoException.class,
+                () -> alumnoService.actualizarAlumno(10L, actualizacion(alumno, 5L)));
+
+        assertTrue(ex.getMessage().contains("inactivo"));
+    }
+
+    @Test
+    void vistaPreviaDelCambio_muestraCuantoCobrar() {
+        Membresia tresDias = new Membresia(3L, "3 días", 20000.0, 3, null);
+        Membresia cincoDias = new Membresia(5L, "5 días", 25000.0, 5, null);
+        Alumno alumno = alumnoConCuota(tresDias, 20, null);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(5L)).thenReturn(Optional.of(cincoDias));
+
+        CambioMembresiaResponse vista = alumnoService.previsualizarCambioMembresia(10L, 5L);
+
+        assertTrue(vista.isPermitido());
+        assertEquals("3 días", vista.getMembresiaActual());
+        assertEquals("5 días", vista.getMembresiaNueva());
+        assertEquals(hoy, vista.getDesde());
+        assertEquals(hoy.plusDays(20), vista.getHasta());
+        assertEquals(new BigDecimal("20000.00"), vista.getPrecioPagado());
+        assertEquals(new BigDecimal("25000.00"), vista.getPrecioFinal());
+        assertEquals(new BigDecimal("5000.00"), vista.getDiferenciaACobrar());
+        assertFalse(vista.isSinReembolso());
+    }
+
+    @Test
+    void vistaPreviaDelCambio_aUnaMasBarataEsSinReembolso() {
+        Membresia tresDias = new Membresia(3L, "3 días", 20000.0, 3, null);
+        Membresia cincoDias = new Membresia(5L, "5 días", 25000.0, 5, null);
+        Alumno alumno = alumnoConCuota(cincoDias, 20, null);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(3L)).thenReturn(Optional.of(tresDias));
+
+        CambioMembresiaResponse vista = alumnoService.previsualizarCambioMembresia(10L, 3L);
+
+        assertTrue(vista.isPermitido());
+        assertEquals(new BigDecimal("0.00"), vista.getDiferenciaACobrar());
+        assertTrue(vista.isSinReembolso());
+    }
+
+    @Test
+    void vistaPreviaDelCambio_enMoraNoSePermiteYDicePorQue() {
+        Alumno alumno = alumnoConCuota(membresia, -3, null);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(5L)).thenReturn(Optional.of(new Membresia(5L, "Otra", 1.0, 1, null)));
+
+        CambioMembresiaResponse vista = alumnoService.previsualizarCambioMembresia(10L, 5L);
+
+        assertFalse(vista.isPermitido());
+        assertTrue(vista.getMotivo().contains("en mora"));
+    }
+
+    // --- Consultas ---
 
     @Test
     void obtenerAlumnoPorEmail_devuelveLosDatosConLaInscripcionActiva() {
@@ -485,8 +668,10 @@ class AlumnoServiceTest {
 
         assertEquals(1, activos.size());
         assertTrue(activos.get(0).isActivo());
+        assertNull(activos.get(0).getReactivacionRequierePago());
         assertEquals(1, inactivos.size());
         assertFalse(inactivos.get(0).isActivo());
+        assertTrue(inactivos.get(0).getReactivacionRequierePago());
     }
 
     @Test
@@ -530,20 +715,111 @@ class AlumnoServiceTest {
         assertNull(alumnoService.obtenerAlumno(10L).getInscripcionActual());
     }
 
+    // --- Baja y reactivación (MOGNI-246) ---
+
     @Test
-    void darDeBaja_desactivaLaCuentaYReactivarLaActiva() {
-        Alumno alumno = alumnoExistente();
+    void darDeBaja_desactivaLaCuentaCancelaLaInscripcionYLosTurnos() {
+        Alumno alumno = alumnoConCuota(membresia, 20, null);
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
         when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
 
         AlumnoResponse baja = alumnoService.darDeBajaAlumno(10L);
+
         assertFalse(baja.isActivo());
         assertFalse(alumno.getCuenta().isActiva());
-        assertEquals(ZonaHoraria.hoy(), baja.getFechaBaja());
+        assertEquals(hoy, baja.getFechaBaja());
+        Inscripcion inscripcion = alumno.getInscripciones().get(0);
+        assertEquals(EstadoInscripcion.CANCELADA, inscripcion.getEstado());
+        assertEquals(hoy, inscripcion.getFechaFin());
+        verify(cancelacionPorSistemaService).cancelarReservasFuturas(eq(10L), any());
+        // Todavía le quedan 20 días pagos: reactivarlo no requiere pago
+        assertFalse(baja.getReactivacionRequierePago());
+    }
 
-        AlumnoResponse alta = alumnoService.reactivarAlumno(10L);
+    @Test
+    void reactivar_conDiasPagosReactivaLaMismaInscripcionSinCobrar() {
+        Alumno alumno = alumnoConCuota(membresia, 10, null);
+        Inscripcion inscripcion = alumno.getInscripciones().get(0);
+        inscripcion.cancelar(hoy.minusDays(2));
+        alumno.getCuenta().setActiva(false);
+        alumno.getCuenta().setFechaBaja(hoy.minusDays(2));
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        AlumnoResponse alta = alumnoService.reactivarAlumno(10L, null);
+
         assertTrue(alta.isActivo());
         assertNull(alta.getFechaBaja());
-        assertNotNull(alta.getId());
+        assertEquals(1, alumno.getInscripciones().size());
+        assertEquals(EstadoInscripcion.ACTIVA, inscripcion.getEstado());
+        assertNull(inscripcion.getFechaFin());
+        assertEquals(1, inscripcion.getCuotas().size());
+        assertEquals(hoy.plusDays(10), inscripcion.getCuotas().get(0).getFechaVencimiento());
+        verify(pagoRepository, never()).save(any());
+    }
+
+    @Test
+    void reactivar_elDiaDelVencimientoTodaviaTieneDiasPagos() {
+        Alumno alumno = alumnoConCuota(membresia, 0, null);
+        alumno.getInscripciones().get(0).cancelar(hoy.minusDays(2));
+        alumno.getCuenta().setActiva(false);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        alumnoService.reactivarAlumno(10L, null);
+
+        verify(pagoRepository, never()).save(any());
+    }
+
+    @Test
+    void reactivar_sinDiasPagosCreaInscripcionNuevaConPrimeraCuotaDesdeHoySinRecargo() {
+        Alumno alumno = alumnoConCuota(new Membresia(3L, "Basica", 20000.0, 2, null), -12, null);
+        Inscripcion vieja = alumno.getInscripciones().get(0);
+        vieja.cancelar(hoy.minusDays(3));
+        alumno.getCuenta().setActiva(false);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(7L)).thenReturn(Optional.of(membresia));
+        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
+        ReactivarAlumnoRequest request = new ReactivarAlumnoRequest();
+        request.setMembresiaId(7L);
+        request.setMedioDePago(MedioDePago.TRANSFERENCIA);
+
+        AlumnoResponse alta = alumnoService.reactivarAlumno(10L, request);
+
+        assertTrue(alta.isActivo());
+        assertEquals(7L, alta.getMembresiaId());
+        assertEquals(EstadoInscripcion.CANCELADA, vieja.getEstado());
+        Inscripcion nueva = alumno.getInscripciones().get(1);
+        assertEquals(hoy, nueva.getFechaInicio());
+        Cuota cuota = nueva.getCuotas().get(0);
+        assertEquals(hoy, cuota.getFechaInicio());
+        assertEquals(hoy.plusDays(30), cuota.getFechaVencimiento());
+        Pago pago = pagoCapturado();
+        assertEquals(new BigDecimal("40000.00"), pago.getMonto());
+        assertEquals(new BigDecimal("0.00"), pago.getRecargo());
+        assertEquals(MedioDePago.TRANSFERENCIA, pago.getMedioDePago());
+    }
+
+    @Test
+    void reactivar_sinDiasPagosYSinMedioDePagoFalla() {
+        Alumno alumno = alumnoConCuota(membresia, -12, null);
+        alumno.getInscripciones().get(0).cancelar(hoy.minusDays(3));
+        alumno.getCuenta().setActiva(false);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        ReactivarAlumnoRequest request = new ReactivarAlumnoRequest();
+        request.setMembresiaId(7L);
+
+        assertThrows(RegistroInvalidoException.class, () -> alumnoService.reactivarAlumno(10L, request));
+        assertFalse(alumno.getCuenta().isActiva());
+        verify(alumnoRepository, never()).save(any());
+    }
+
+    @Test
+    void reactivar_unAlumnoActivoNoHaceNada() {
+        Alumno alumno = alumnoConCuota(membresia, 20, null);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+
+        assertTrue(alumnoService.reactivarAlumno(10L, null).isActivo());
+        verify(alumnoRepository, never()).save(any());
     }
 }

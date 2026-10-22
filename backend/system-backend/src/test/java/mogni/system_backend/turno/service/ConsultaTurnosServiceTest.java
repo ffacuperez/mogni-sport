@@ -410,4 +410,29 @@ class ConsultaTurnosServiceTest {
         verify(reservaRepository).findByAlumnoIdAndEstadoAndTurnoFechaBetween(
                 eq(10L), eq(EstadoReserva.RESERVADA), eq(LocalDate.of(2026, 10, 12)), eq(LocalDate.of(2026, 10, 18)));
     }
+
+    // --- Cuota en mora (MOGNI-259) ---
+
+    @Test
+    void alumnoEnMoraVeLosTurnosPeroNoPuedeElegirNinguno() {
+        alumno.buscarInscripcionActiva().orElseThrow().agregarCuota(MARTES.minusDays(32)); // venció hace 2 días
+        turno(MARTES, "19:00", 5);
+
+        TurnosDisponiblesResponse response = consultar(null, MARTES_10_30);
+
+        assertTrue(response.isBloqueadoPorMora());
+        assertEquals(1, response.getTurnos().size());
+        assertFalse(buscar(response, "19:00").isSeleccionable());
+    }
+
+    @Test
+    void alumnoVencidoNoEstaBloqueado() {
+        alumno.buscarInscripcionActiva().orElseThrow().agregarCuota(MARTES.minusDays(31)); // venció ayer
+        turno(MARTES, "19:00", 5);
+
+        TurnosDisponiblesResponse response = consultar(null, MARTES_10_30);
+
+        assertFalse(response.isBloqueadoPorMora());
+        assertTrue(buscar(response, "19:00").isSeleccionable());
+    }
 }

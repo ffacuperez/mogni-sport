@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -28,7 +29,7 @@ import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.repository.CuentaRepository;
 import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.cuota.entity.Cuota;
-import mogni.system_backend.cuota.entity.EstadoCuota;
+import mogni.system_backend.cuota.entity.ReglasCuota;
 import mogni.system_backend.cuota.repository.CuotaRepository;
 import mogni.system_backend.exception.RegistroInvalidoException;
 import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
@@ -83,13 +84,12 @@ class PushServiceTest {
         alumno.setCuenta(cuenta);
     }
 
-    private Cuota cuota(Long id, EstadoCuota estado, LocalDate vencimiento) {
+    /** Última cuota del alumno, que vence el día indicado (la situación de pago se calcula con esa fecha). */
+    private Cuota cuota(Long id, LocalDate vencimiento) {
         Membresia membresia = new Membresia(7L, "HIIT", 25000.0, 3, null);
-        Inscripcion inscripcion = new Inscripcion(5L, vencimiento.minusDays(30), null, EstadoInscripcion.ACTIVA, alumno, membresia);
-        Cuota cuota = Cuota.primeraDe(inscripcion);
+        Inscripcion inscripcion = new Inscripcion(5L, vencimiento.minusDays(60), null, EstadoInscripcion.ACTIVA, alumno, membresia);
+        Cuota cuota = inscripcion.agregarCuota(vencimiento.minusDays(ReglasCuota.DIAS_CUOTA));
         cuota.setId(id);
-        cuota.setEstado(estado);
-        cuota.setFechaVencimiento(vencimiento);
         return cuota;
     }
 
@@ -105,8 +105,8 @@ class PushServiceTest {
 
     @Test
     void manda_la_push_de_una_cuota_por_vencer_y_la_registra_como_enviada() throws Exception {
-        when(cuotaRepository.buscar(EstadoInscripcion.ACTIVA, null, null))
-                .thenReturn(List.of(cuota(10L, EstadoCuota.PENDIENTE, hoy.plusDays(3))));
+        when(cuotaRepository.buscarUltimasCuotas())
+                .thenReturn(Map.of(1L, cuota(10L, hoy.plusDays(3))));
         when(suscripcionRepository.findByCuentaId(3L)).thenReturn(List.of(dispositivo("https://push/1")));
         when(sender.enviar(eq("https://push/1"), anyString(), anyString(), anyString())).thenReturn(new WebPushSender.Resultado(201));
 
@@ -120,8 +120,8 @@ class PushServiceTest {
 
     @Test
     void no_se_repite_la_push_si_ya_se_aviso_esa_cuota_en_ese_estado() throws Exception {
-        when(cuotaRepository.buscar(EstadoInscripcion.ACTIVA, null, null))
-                .thenReturn(List.of(cuota(10L, EstadoCuota.ATRASADA, hoy.minusDays(2))));
+        when(cuotaRepository.buscarUltimasCuotas())
+                .thenReturn(Map.of(1L, cuota(10L, hoy.minusDays(2))));
         when(avisoRepository.existsByCuotaIdAndTipo(10L, TipoNotificacion.CUOTA_VENCIDA)).thenReturn(true);
 
         pushService.enviarAvisosDeCuotas();
@@ -131,9 +131,9 @@ class PushServiceTest {
     }
 
     @Test
-    void cuota_pagada_no_genera_push() throws Exception {
-        when(cuotaRepository.buscar(EstadoInscripcion.ACTIVA, null, null))
-                .thenReturn(List.of(cuota(10L, EstadoCuota.PAGADA, hoy.plusDays(1))));
+    void alumno_al_dia_no_genera_push() throws Exception {
+        when(cuotaRepository.buscarUltimasCuotas())
+                .thenReturn(Map.of(1L, cuota(10L, hoy.plusDays(20))));
 
         pushService.enviarAvisosDeCuotas();
 
@@ -142,8 +142,8 @@ class PushServiceTest {
 
     @Test
     void si_el_alumno_no_tiene_dispositivos_no_se_marca_como_enviada_para_avisarle_cuando_active() {
-        when(cuotaRepository.buscar(EstadoInscripcion.ACTIVA, null, null))
-                .thenReturn(List.of(cuota(10L, EstadoCuota.ATRASADA, hoy.minusDays(2))));
+        when(cuotaRepository.buscarUltimasCuotas())
+                .thenReturn(Map.of(1L, cuota(10L, hoy.minusDays(2))));
         when(suscripcionRepository.findByCuentaId(3L)).thenReturn(List.of());
 
         pushService.enviarAvisosDeCuotas();
@@ -153,8 +153,8 @@ class PushServiceTest {
 
     @Test
     void dispositivo_dado_de_baja_se_borra_y_no_cuenta_como_enviada() throws Exception {
-        when(cuotaRepository.buscar(EstadoInscripcion.ACTIVA, null, null))
-                .thenReturn(List.of(cuota(10L, EstadoCuota.ATRASADA, hoy.minusDays(2))));
+        when(cuotaRepository.buscarUltimasCuotas())
+                .thenReturn(Map.of(1L, cuota(10L, hoy.minusDays(2))));
         when(suscripcionRepository.findByCuentaId(3L)).thenReturn(List.of(dispositivo("https://push/viejo")));
         when(sender.enviar(eq("https://push/viejo"), anyString(), anyString(), anyString())).thenReturn(new WebPushSender.Resultado(410));
 
@@ -170,7 +170,7 @@ class PushServiceTest {
 
         pushService.enviarAvisosDeCuotas();
 
-        verify(cuotaRepository, never()).buscar(any(), any(), any());
+        verify(cuotaRepository, never()).buscarUltimasCuotas();
     }
 
     @Test
@@ -205,8 +205,8 @@ class PushServiceTest {
         when(suscripcionRepository.findByCuentaEmailIgnoreCase(EMAIL))
                 .thenReturn(List.of(dispositivo("https://push/1"), dispositivo("https://push/2")));
         when(alumnoRepository.findByCuentaEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(alumno));
-        when(cuotaRepository.buscar(EstadoInscripcion.ACTIVA, null, 1L))
-                .thenReturn(List.of(cuota(10L, EstadoCuota.ATRASADA, hoy.minusDays(2))));
+        when(cuotaRepository.buscarUltimaCuota(1L))
+                .thenReturn(Optional.of(cuota(10L, hoy.minusDays(2))));
         when(sender.enviar(anyString(), anyString(), anyString(), anyString())).thenReturn(new WebPushSender.Resultado(201));
 
         assertEquals(2, pushService.enviarPrueba(EMAIL));

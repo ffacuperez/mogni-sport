@@ -16,6 +16,7 @@ import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
 import mogni.system_backend.alumno.dto.RegistrarAlumnoRequest;
 import mogni.system_backend.alumno.entity.Modalidad;
+import mogni.system_backend.pago.entity.MedioDePago;
 
 class RegistrarAlumnoRequestValidationTest {
 
@@ -42,6 +43,7 @@ class RegistrarAlumnoRequestValidationTest {
         request.setFechaNacimiento(LocalDate.now().minusYears(20));
         request.setTelefono("1122334455");
         request.setMembresiaId(1L);
+        request.setMedioDePago(MedioDePago.EFECTIVO);
         request.setModalidad(Modalidad.PRESENCIAL);
         return request;
     }
@@ -107,6 +109,14 @@ class RegistrarAlumnoRequestValidationTest {
     void sinMembresiaFalla() {
         RegistrarAlumnoRequest request = requestValido();
         request.setMembresiaId(null);
+        assertFalse(validator.validate(request).isEmpty());
+    }
+
+    // MOGNI-73: el alta incluye el pago de la primera cuota
+    @Test
+    void sinMedioDePagoFalla() {
+        RegistrarAlumnoRequest request = requestValido();
+        request.setMedioDePago(null);
         assertFalse(validator.validate(request).isEmpty());
     }
 

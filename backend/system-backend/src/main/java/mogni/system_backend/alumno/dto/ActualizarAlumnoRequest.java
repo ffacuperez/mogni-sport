@@ -41,7 +41,10 @@ public class ActualizarAlumnoRequest {
     @NotNull(message = "La modalidad es obligatoria")
     private Modalidad modalidad;
 
-    /** Si cambia, se cancela la inscripción activa y se crea una nueva. Null = sin membresía. */
+    /**
+     * Si cambia, se cancela la inscripción activa, se crea una nueva y la cuota vigente pasa a ella (reglas M1 a M9).
+     * Null = no cambiar la membresía (ya no existe la opción "sin membresía": para eso está la baja).
+     */
     private Long membresiaId;
 
     private String objetivo;

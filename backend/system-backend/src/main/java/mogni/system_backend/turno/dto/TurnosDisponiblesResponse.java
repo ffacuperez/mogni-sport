@@ -22,4 +22,9 @@ public class TurnosDisponiblesResponse {
     private boolean tieneReservaEnElDia;
     /** Turnos de fechaSeleccionada ordenados por hora de inicio (si es hoy, sin los que ya empezaron). */
     private List<TurnoDisponibleResponse> turnos;
+    /**
+     * MOGNI-254/259: el alumno está en mora. Puede ver la sección pero no elegir turnos (ninguno viene seleccionable)
+     * hasta que regularice el pago.
+     */
+    private boolean bloqueadoPorMora;
 }

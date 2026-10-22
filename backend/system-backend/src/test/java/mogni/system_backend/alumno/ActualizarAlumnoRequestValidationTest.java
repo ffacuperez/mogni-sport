@@ -39,6 +39,7 @@ class ActualizarAlumnoRequestValidationTest {
         request.setEmail("juan@email.com");
         request.setFechaNacimiento(LocalDate.now().minusYears(20));
         request.setTelefono("1122334455");
+        request.setSexo("Masculino");
         request.setModalidad(Modalidad.ONLINE);
         return request;
     }
@@ -53,6 +54,14 @@ class ActualizarAlumnoRequestValidationTest {
     void sinModalidadFalla() {
         ActualizarAlumnoRequest request = requestValido();
         request.setModalidad(null);
+        assertFalse(validator.validate(request).isEmpty());
+    }
+
+    // El sexo es obligatorio también al modificar: a los alumnos viejos sin sexo se les pide al editarlos
+    @Test
+    void sinSexoFalla() {
+        ActualizarAlumnoRequest request = requestValido();
+        request.setSexo(null);
         assertFalse(validator.validate(request).isEmpty());
     }
 }

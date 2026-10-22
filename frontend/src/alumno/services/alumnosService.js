@@ -116,7 +116,17 @@ export async function previsualizarCambioMembresia(id, membresiaId) {
     ...v,
     precioPagado: numero(v.precioPagado),
     precioNuevo: numero(v.precioNuevo),
-    precioFinal: numero(v.precioFinal),
     diferenciaACobrar: numero(v.diferenciaACobrar),
   };
+}
+
+/**
+ * Cambio de membresía (endpoint propio, no toca los datos personales). medioDePago solo hace falta si se cobra una
+ * diferencia; si la nueva no es más cara, el backend usa el medio del pago anterior.
+ */
+export async function cambiarMembresia(id, { membresiaId, medioDePago }) {
+  return fromApi(await request(`${BASE_PATH}/${id}/membresia`, {
+    method: 'PUT',
+    body: { membresiaId: Number(membresiaId), medioDePago: medioDePago || null },
+  }));
 }

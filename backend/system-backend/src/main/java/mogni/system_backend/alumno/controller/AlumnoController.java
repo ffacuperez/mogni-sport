@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import mogni.system_backend.alumno.dto.ActualizarAlumnoRequest;
 import mogni.system_backend.alumno.dto.AlumnoResponse;
+import mogni.system_backend.alumno.dto.CambiarMembresiaRequest;
 import mogni.system_backend.alumno.dto.CambioMembresiaResponse;
 import mogni.system_backend.alumno.dto.ReactivarAlumnoRequest;
 import mogni.system_backend.alumno.dto.RegistrarAlumnoRequest;
@@ -88,6 +89,16 @@ public class AlumnoController {
     public ResponseEntity<AlumnoResponse> reactivarAlumno(@PathVariable Long id,
             @RequestBody(required = false) ReactivarAlumnoRequest request) {
         return ResponseEntity.ok(alumnoService.reactivarAlumno(id, request));
+    }
+
+    /**
+     * Cambio de membresía (reglas M1 a M9). Endpoint propio: no toca ni valida los datos personales del alumno, que se
+     * modifican con PUT /alumnos/{id}.
+     */
+    @PutMapping("/{id}/membresia")
+    public ResponseEntity<AlumnoResponse> cambiarMembresia(@PathVariable Long id,
+            @Valid @RequestBody CambiarMembresiaRequest request) {
+        return ResponseEntity.ok(alumnoService.cambiarMembresia(id, request));
     }
 
     /** Vista previa del cambio de membresía (aviso de confirmación antes de guardar). */

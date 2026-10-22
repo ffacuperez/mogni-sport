@@ -31,6 +31,7 @@ import { debeCambiarPassword, getRol, hasSession, logout, ROL_ALUMNO, ROLES_GEST
 import { setUnauthorizedHandler } from './shared/services/httpClient';
 import {
   actualizarAlumno,
+  cambiarMembresia,
   crearAlumno,
   darDeBajaAlumno,
   listarAlumnos,
@@ -243,25 +244,11 @@ function MainApp({ onLogout }) {
   };
 
   // Cambio de membresía (reglas M1 a M9): el aviso sale de la vista previa del backend (qué cambia y cuánto cobrar)
-  const handleSaveMembresiaAlumno = (formData, vista) => {
-    let cobro = '';
-    if (vista.precioFinal != null) {
-      cobro = vista.sinReembolso || vista.diferenciaACobrar === 0
-        ? ` No hay que cobrar nada${vista.sinReembolso ? ' (sin reembolso: la cuota queda en ' + formatearMonto(vista.precioFinal) + ')' : ''}.`
-        : ` Cobrar ${formatearMonto(vista.diferenciaACobrar)} (la cuota pasa de ${formatearMonto(vista.precioPagado)} a ${formatearMonto(vista.precioFinal)}).`;
-    }
-    const hasta = vista.hasta ? `; la cuota vigente sigue hasta el ${formatearFecha(vista.hasta)}` : '';
-    showModal(
-      'Confirmar cambio de membresía',
-      `Pasa de ${vista.membresiaActual ?? 'sin membresía'} a ${vista.membresiaNueva} desde hoy (${formatearFecha(vista.desde)})${hasta}.${cobro}`,
-      async () => {
-        const ok = await ejecutar(async () => {
-          const guardado = await actualizarAlumno(formData.id, formData);
-          setAlumnos(prev => prev.map(a => a.id === guardado.id ? guardado : a));
-        }, 'La membresía del alumno fue actualizada correctamente.');
-        if (ok) navigate(`/alumnos/${formData.id}`);
-      }
-    );
+  // La confirmación (con la diferencia a cobrar y el medio de pago) ya la mostró AlumnoMembresiaForm
+  const handleSaveMembresiaAlumno = async (alumnoId, datos) => {
+    const ok = await ejecutar(async () => reemplazarAlumno(await cambiarMembresia(alumnoId, datos)),
+      'La membresía del alumno fue actualizada correctamente.');
+    if (ok) navigate(`/alumnos/${alumnoId}`);
   };
 
   const handleSaveMembresia = (formData, isEdit) => {
@@ -461,7 +448,7 @@ function MainApp({ onLogout }) {
                 <AlumnoMembresiaForm
                   alumno={alumno}
                   membresias={membresias}
-                  onSave={handleSaveMembresiaAlumno}
+                  onSave={(datos) => handleSaveMembresiaAlumno(alumno.id, datos)}
                   onCancel={() => navigate(`/alumnos/${alumno.id}`)}
                   onError={(msg) => displayToast(msg, true)}
                 />

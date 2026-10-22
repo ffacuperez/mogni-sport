@@ -121,11 +121,13 @@ class CuotaTest {
     // --- Cambio de membresía ---
 
     @Test
-    void precio_final_del_cambio_cobra_la_diferencia_si_sube_y_no_reembolsa_si_baja() {
-        assertEquals(new BigDecimal("25000.00"),
-                ReglasCuota.precioFinalCambio(new BigDecimal("20000.00"), new BigDecimal("25000.00")));
-        assertEquals(new BigDecimal("25000.00"),
-                ReglasCuota.precioFinalCambio(new BigDecimal("25000.00"), new BigDecimal("20000.00")));
+    void diferencia_del_cambio_completa_si_sube_y_cero_si_baja_o_es_igual() {
+        assertEquals(new BigDecimal("5000.00"),
+                ReglasCuota.diferenciaCambio(new BigDecimal("20000.00"), new BigDecimal("25000.00")));
+        assertEquals(new BigDecimal("0.00"),
+                ReglasCuota.diferenciaCambio(new BigDecimal("25000.00"), new BigDecimal("20000.00")));
+        assertEquals(new BigDecimal("0.00"),
+                ReglasCuota.diferenciaCambio(new BigDecimal("25000.00"), new BigDecimal("25000.00")));
     }
 
     // --- Entidad ---
@@ -139,7 +141,7 @@ class CuotaTest {
         assertEquals(HOY, cuota.getFechaInicio());
         assertEquals(HOY.plusDays(30), cuota.getFechaVencimiento());
         assertEquals(new BigDecimal("25000.00"), cuota.getPrecio());
-        assertSame(inscripcion.getMembresia(), cuota.getMembresia());
+        assertSame(inscripcion.getMembresia(), cuota.membresiaCubierta());
         assertSame(inscripcion, cuota.getInscripcion());
         assertTrue(inscripcion.getCuotas().contains(cuota));
     }
@@ -156,15 +158,14 @@ class CuotaTest {
     }
 
     @Test
-    void mover_una_cuota_la_saca_de_la_inscripcion_anterior() {
-        Inscripcion vieja = inscripcion();
-        Inscripcion nueva = inscripcion();
-        Cuota cuota = vieja.agregarCuota(HOY.minusDays(5));
+    void la_cuota_de_un_cambio_va_de_hoy_al_vencimiento_anterior_por_la_diferencia() {
+        Inscripcion inscripcion = inscripcion();
 
-        nueva.recibirCuota(cuota);
+        Cuota cuota = inscripcion.agregarCuotaPorCambio(HOY, HOY.plusDays(12), new BigDecimal("5000"));
 
-        assertTrue(vieja.getCuotas().isEmpty());
-        assertSame(nueva, cuota.getInscripcion());
-        assertEquals(HOY.minusDays(5), cuota.getFechaInicio());
+        assertEquals(HOY, cuota.getFechaInicio());
+        assertEquals(HOY.plusDays(12), cuota.getFechaVencimiento());
+        assertEquals(new BigDecimal("5000.00"), cuota.getPrecio());
+        assertTrue(inscripcion.getCuotas().contains(cuota));
     }
 }

@@ -37,6 +37,7 @@ public class RegistrarAlumnoRequest {
     @Pattern(regexp = "^[-0-9+ ]{6,20}$", message = "El teléfono no tiene un formato válido")
     private String telefono;
 
+    @NotBlank(message = "El sexo es obligatorio")
     private String sexo;
 
     @NotNull(message = "La modalidad es obligatoria")

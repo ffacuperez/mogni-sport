@@ -17,7 +17,6 @@ public interface PagoRepository extends JpaRepository<Pago, Long> {
             join fetch p.cuota c
             join fetch c.inscripcion i
             join fetch i.membresia
-            left join fetch c.membresia
             where i.alumno.id = :alumnoId
             order by p.fechaPago desc, p.id desc
             """)

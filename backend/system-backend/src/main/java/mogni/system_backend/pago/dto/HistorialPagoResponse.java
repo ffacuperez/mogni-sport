@@ -21,4 +21,6 @@ public class HistorialPagoResponse {
     private BigDecimal recargo;
     /** Total cobrado: precio + recargo. */
     private BigDecimal monto;
+    /** true si es el pago de un cambio de membresía (la diferencia, o $0 si la nueva no era más cara). */
+    private boolean cambioDeMembresia;
 }

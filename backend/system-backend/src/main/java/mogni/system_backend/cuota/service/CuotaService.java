@@ -1,5 +1,6 @@
 package mogni.system_backend.cuota.service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
@@ -17,6 +18,7 @@ import mogni.system_backend.cuota.entity.ReglasCuota;
 import mogni.system_backend.cuota.entity.SituacionPago;
 import mogni.system_backend.cuota.repository.CuotaRepository;
 import mogni.system_backend.inscripcion.entity.Inscripcion;
+import mogni.system_backend.membresia.entity.Membresia;
 
 @Service
 public class CuotaService {
@@ -48,8 +50,8 @@ public class CuotaService {
     }
 
     static CuotaResponse mapearAResponse(Alumno alumno, Cuota cuota, LocalDate hoy) {
-        String membresia = cuota != null ? cuota.membresiaCubierta().getNombre()
-                : alumno.buscarInscripcionActiva().map(Inscripcion::getMembresia).map(m -> m.getNombre()).orElse(null);
+        // La membresía y su precio actual salen de la inscripción activa: el precio es lo que va a pagar al renovar
+        Membresia membresia = alumno.buscarInscripcionActiva().map(Inscripcion::getMembresia).orElse(null);
         SituacionPago situacion = SituacionPago.de(cuota, hoy);
         // Sin cuotas (datos viejos) pero con inscripción activa: puede renovar, el período empieza hoy
         boolean puedeRenovar = cuota != null
@@ -61,10 +63,10 @@ public class CuotaService {
             alumno.getApellido(),
             alumno.getDni(),
             cuota != null ? cuota.getId() : null,
-            membresia,
+            membresia != null ? membresia.getNombre() : null,
             cuota != null ? cuota.getFechaInicio() : null,
             cuota != null ? cuota.getFechaVencimiento() : null,
-            cuota != null ? cuota.getPrecio() : null,
+            membresia != null ? BigDecimal.valueOf(membresia.getPrecioActual()).setScale(2) : null,
             situacion,
             situacion == SituacionPago.EN_MORA ? ReglasCuota.diasEnMora(cuota.getFechaVencimiento(), hoy) : null,
             puedeRenovar,

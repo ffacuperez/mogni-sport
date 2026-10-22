@@ -28,7 +28,6 @@ public interface CuotaRepository extends JpaRepository<Cuota, Long> {
             join fetch i.alumno a
             join fetch a.cuenta cu
             join fetch i.membresia
-            left join fetch c.membresia
             where i.estado = :estadoInscripcion
               and cu.activa = true
               and (:alumnoId is null or a.id = :alumnoId)

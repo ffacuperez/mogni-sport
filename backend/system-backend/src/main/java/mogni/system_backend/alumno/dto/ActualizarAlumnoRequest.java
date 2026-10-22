@@ -36,16 +36,11 @@ public class ActualizarAlumnoRequest {
     @Pattern(regexp = "^[-0-9+ ]{6,20}$", message = "El teléfono no tiene un formato válido")
     private String telefono;
 
+    @NotBlank(message = "El sexo es obligatorio")
     private String sexo;
 
     @NotNull(message = "La modalidad es obligatoria")
     private Modalidad modalidad;
-
-    /**
-     * Si cambia, se cancela la inscripción activa, se crea una nueva y la cuota vigente pasa a ella (reglas M1 a M9).
-     * Null = no cambiar la membresía (ya no existe la opción "sin membresía": para eso está la baja).
-     */
-    private Long membresiaId;
 
     private String objetivo;
 

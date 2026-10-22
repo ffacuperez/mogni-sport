@@ -19,15 +19,16 @@ public class CambioMembresiaResponse {
     private String membresiaNueva;
     /** El cambio aplica desde hoy. */
     private LocalDate desde;
-    /** Vencimiento de la cuota vigente, que mantiene sus fechas. */
+    /** Vencimiento del período vigente: la cuota del cambio termina el mismo día. */
     private LocalDate hasta;
-    /** Precio de la cuota vigente, sin recargo. */
+    /** Lo pagado por el período vigente, sin recargo. */
     private BigDecimal precioPagado;
     /** Precio actual de la membresía nueva. */
     private BigDecimal precioNuevo;
-    /** Precio con el que queda la cuota: el mayor de los dos (sin reembolso). */
-    private BigDecimal precioFinal;
+    /** Lo que se cobra hoy: la diferencia si la nueva es más cara, 0 si no. */
     private BigDecimal diferenciaACobrar;
     /** true si la nueva es más barata: no se devuelve la diferencia. */
     private boolean sinReembolso;
+    /** true si hay diferencia a cobrar: hay que elegir el medio de pago. */
+    private boolean requiereMedioDePago;
 }

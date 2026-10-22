@@ -275,14 +275,29 @@ class PagoServiceTest {
     }
 
     @Test
-    void historial_muestra_la_membresia_de_cada_cuota_aunque_despues_cambie() {
-        Cuota cuota = cuotaQueVenceEn(25);
-        cuota.setMembresia(new Membresia(8L, "Vieja", 10000.0, 2, null));
-        Pago pago = Pago.de(cuota, BigDecimal.ZERO, MedioDePago.EFECTIVO, hoy);
+    void historial_despues_de_un_cambio_muestra_cada_pago_con_su_membresia_y_marca_el_del_cambio() {
+        // Pagó en mora con "Pro" ($15.420 + recargo) y después pasó a una más cara: la diferencia es otra cuota y otro pago
+        Cuota original = cuotaQueVenceEn(25);
+        Pago pagoOriginal = Pago.de(original, new BigDecimal("1550.00"), MedioDePago.TRANSFERENCIA, hoy.minusDays(5));
+        inscripcion.cancelar(hoy);
+        Inscripcion nueva = new Inscripcion(6L, hoy, null, EstadoInscripcion.ACTIVA, alumno,
+                new Membresia(8L, "Full", 38000.0, 5, null));
+        Cuota diferencia = nueva.agregarCuotaPorCambio(hoy, original.getFechaVencimiento(), new BigDecimal("22580"));
+        diferencia.setId(101L);
+        Pago pagoDiferencia = Pago.de(diferencia, new BigDecimal("0.00"), MedioDePago.EFECTIVO, hoy);
         when(alumnoRepository.existsById(10L)).thenReturn(true);
-        when(pagoRepository.buscarPorAlumno(10L)).thenReturn(List.of(pago));
+        when(pagoRepository.buscarPorAlumno(10L)).thenReturn(List.of(pagoDiferencia, pagoOriginal));
 
-        assertEquals("Vieja", pagoService.listarHistorialDePagos(10L).get(0).getMembresiaNombre());
+        List<HistorialPagoResponse> historial = pagoService.listarHistorialDePagos(10L);
+
+        assertEquals("Full", historial.get(0).getMembresiaNombre());
+        assertEquals(new BigDecimal("22580.00"), historial.get(0).getMonto());
+        assertEquals(hoy, historial.get(0).getFechaInicio());
+        assertTrue(historial.get(0).isCambioDeMembresia());
+        assertEquals("Pro", historial.get(1).getMembresiaNombre());
+        assertEquals(new BigDecimal("16970.00"), historial.get(1).getMonto());
+        assertEquals(new BigDecimal("1550.00"), historial.get(1).getRecargo());
+        assertFalse(historial.get(1).isCambioDeMembresia());
     }
 
     @Test

@@ -90,7 +90,7 @@ class CuotaServiceTest {
         assertEquals("Pro", fila.getMembresiaNombre());
         assertEquals(hoy.minusDays(10), fila.getFechaInicio());
         assertEquals(hoy.plusDays(20), fila.getFechaVencimiento());
-        assertEquals(new BigDecimal("25000.00"), fila.getPrecio());
+        assertEquals(new BigDecimal("25000.00"), fila.getPrecioMembresia());
         assertEquals(SituacionPago.AL_DIA, fila.getSituacion());
         assertNull(fila.getDiasEnMora());
         assertFalse(fila.isPuedeRenovar());

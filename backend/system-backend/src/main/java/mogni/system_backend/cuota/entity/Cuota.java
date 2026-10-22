@@ -43,36 +43,47 @@ public class Cuota {
     @JoinColumn(name = "inscripcion_id", nullable = false)
     private Inscripcion inscripcion;
 
-    /** Membresía que cubrió este período (C4): el historial la muestra aunque después cambie. */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "membresia_id")
-    private Membresia membresia;
-
     /** Sin NOT NULL en la base (Postgres no deja agregarlo con filas existentes); siempre lo carga el código. */
     @Column(name = "fecha_inicio")
     private LocalDate fechaInicio;
 
-    /** Fin del período: inicio + 30 días. */
+    /** Fin del período: inicio + 30 días (salvo la cuota de un cambio de membresía, que termina con la anterior). */
     @Column(nullable = false)
     private LocalDate fechaVencimiento;
 
-    /** Precio vigente de la membresía al pagar, sin recargo. La columna conserva su nombre viejo. */
+    /**
+     * Importe cobrado por el período, sin recargo: el precio vigente de la membresía al pagar o, en un cambio de
+     * membresía, la diferencia (0 si la nueva no es más cara). La columna conserva su nombre viejo.
+     */
     @Column(name = "monto_esperado", nullable = false, precision = 12, scale = 2)
     private BigDecimal precio;
 
-    /** Cuota de 30 días desde {@code inicio}, al precio actual de la membresía. */
-    public static Cuota nueva(Inscripcion inscripcion, Membresia membresia, LocalDate inicio) {
+    /** Cuota de 30 días desde {@code inicio}, al precio actual de la membresía de su inscripción. */
+    public static Cuota nueva(Inscripcion inscripcion, LocalDate inicio) {
+        return conPeriodo(inscripcion, inicio, inicio.plusDays(ReglasCuota.DIAS_CUOTA),
+                BigDecimal.valueOf(inscripcion.getMembresia().getPrecioActual()).setScale(2));
+    }
+
+    /**
+     * Cuota de un cambio de membresía (regla M4): desde {@code inicio} (hoy) hasta el mismo vencimiento de la cuota
+     * anterior, por la diferencia a cobrar (puede ser 0).
+     */
+    public static Cuota porCambioDeMembresia(Inscripcion inscripcion, LocalDate inicio, LocalDate vencimiento,
+                                             BigDecimal diferencia) {
+        return conPeriodo(inscripcion, inicio, vencimiento, diferencia.setScale(2));
+    }
+
+    private static Cuota conPeriodo(Inscripcion inscripcion, LocalDate inicio, LocalDate vencimiento, BigDecimal precio) {
         Cuota cuota = new Cuota();
         cuota.setInscripcion(inscripcion);
-        cuota.setMembresia(membresia);
         cuota.setFechaInicio(inicio);
-        cuota.setFechaVencimiento(inicio.plusDays(ReglasCuota.DIAS_CUOTA));
-        cuota.setPrecio(BigDecimal.valueOf(membresia.getPrecioActual()).setScale(2));
+        cuota.setFechaVencimiento(vencimiento);
+        cuota.setPrecio(precio);
         return cuota;
     }
 
-    /** Membresía de la cuota; las cuotas viejas sin migrar usan la de su inscripción. */
+    /** Membresía que cubrió este período: la de su inscripción (cada cuota queda en la inscripción con la que se pagó). */
     public Membresia membresiaCubierta() {
-        return membresia != null ? membresia : inscripcion.getMembresia();
+        return inscripcion.getMembresia();
     }
 }

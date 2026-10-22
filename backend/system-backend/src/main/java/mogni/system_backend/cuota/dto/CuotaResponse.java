@@ -22,7 +22,8 @@ public class CuotaResponse {
     private String membresiaNombre;
     private LocalDate fechaInicio;
     private LocalDate fechaVencimiento;
-    private BigDecimal precio;
+    /** Precio actual de la membresía de la inscripción activa: lo que va a pagar al renovar. */
+    private BigDecimal precioMembresia;
     private SituacionPago situacion;
     /** Solo si está EN_MORA: 0 el día en que entró en mora. */
     private Long diasEnMora;

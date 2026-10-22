@@ -67,10 +67,11 @@ public final class ReglasCuota {
     }
 
     /**
-     * Precio final de la cuota al cambiar de membresía (regla M5): si la nueva es más cara se cobra la diferencia
-     * completa (sin prorrateo); si es más barata no hay reembolso.
+     * Diferencia a cobrar al cambiar de membresía (regla M5): si la nueva es más cara, la diferencia completa entre su
+     * precio actual y lo ya pagado por el período, sin recargo y sin prorrateo; si es igual o más barata, 0 (sin
+     * reembolso).
      */
-    public static BigDecimal precioFinalCambio(BigDecimal precioPagado, BigDecimal precioNueva) {
-        return precioPagado.max(precioNueva);
+    public static BigDecimal diferenciaCambio(BigDecimal pagadoDelPeriodo, BigDecimal precioNueva) {
+        return precioNueva.subtract(pagadoDelPeriodo).max(BigDecimal.ZERO).setScale(2);
     }
 }

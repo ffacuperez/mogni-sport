@@ -42,6 +42,7 @@ class RegistrarAlumnoRequestValidationTest {
         request.setEmail("juan@email.com");
         request.setFechaNacimiento(LocalDate.now().minusYears(20));
         request.setTelefono("1122334455");
+        request.setSexo("Femenino");
         request.setMembresiaId(1L);
         request.setMedioDePago(MedioDePago.EFECTIVO);
         request.setModalidad(Modalidad.PRESENCIAL);
@@ -87,6 +88,13 @@ class RegistrarAlumnoRequestValidationTest {
     void sinFechaNacimientoFalla() {
         RegistrarAlumnoRequest request = requestValido();
         request.setFechaNacimiento(null);
+        assertFalse(validator.validate(request).isEmpty());
+    }
+
+    @Test
+    void sinSexoFalla() {
+        RegistrarAlumnoRequest request = requestValido();
+        request.setSexo(" ");
         assertFalse(validator.validate(request).isEmpty());
     }
 

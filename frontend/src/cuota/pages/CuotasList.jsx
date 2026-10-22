@@ -1,6 +1,6 @@
 import { AlertTriangle, CircleCheck, Clock, History, OctagonAlert, Wallet } from 'lucide-react';
 
-import { avisoVencimiento, formatearFecha, formatearMonto, formatearPeriodo, SITUACIONES, tonoEstadoCuota } from '../services/cuotasService';
+import { avisoVencimiento, formatearFecha, formatearMonto, SITUACIONES, tonoEstadoCuota } from '../services/cuotasService';
 import { normalizar } from '../../shared/services/texto';
 import { Badge, Button, EmptyRow, PageHeader, Panel, Row, SearchInput, SelectDot, Stat, Table } from '../../shared/components/ui';
 
@@ -9,12 +9,12 @@ const FILTROS = ['Todas', SITUACIONES.EN_MORA, SITUACIONES.VENCIDA, SITUACIONES.
 
 const COLUMNAS = [
   { label: '', className: 'w-12' },
-  { label: 'Alumno' },
-  { label: 'DNI' },
-  { label: 'Membresía' },
-  { label: 'Período' },
-  { label: 'Precio', className: 'text-right' },
-  { label: 'Estado' },
+  { label: 'Alumno', className: 'text-center' },
+  { label: 'DNI', className: 'text-center' },
+  { label: 'Membresía', className: 'text-center' },
+  { label: 'Vencimiento', className: 'text-center' },
+  { label: 'Precio', className: 'text-center' },
+  { label: 'Estado', className: 'text-center' },
 ];
 
 const COLOR_AVISO = { EN_MORA: 'text-error', VENCIDA: 'text-error', PROXIMA_A_VENCER: 'text-warning-text' };
@@ -114,12 +114,12 @@ export default function CuotasList({
             return (
               <Row key={cuota.alumnoId} selected={seleccionada} onActivate={() => setSelectedId(seleccionada ? null : cuota.alumnoId)}>
                 <td className="px-3"><SelectDot selected={seleccionada} /></td>
-                <td className="px-3 font-semibold text-ink">{cuota.apellido}, {cuota.nombre}</td>
-                <td className="px-3 tabular-nums text-ink-soft">{cuota.dni}</td>
-                <td className="px-3">{cuota.membresia ?? '—'}</td>
-                <td className="whitespace-nowrap px-3 tabular-nums">{formatearPeriodo(cuota.inicio, cuota.vencimiento)}</td>
-                <td className="px-3 text-right tabular-nums">{cuota.precio != null ? formatearMonto(cuota.precio) : '—'}</td>
-                <td className="px-3 py-2">
+                <td className="px-3 text-center font-semibold text-ink">{cuota.apellido}, {cuota.nombre}</td>
+                <td className="px-3 text-center tabular-nums text-ink-soft">{cuota.dni}</td>
+                <td className="px-3 text-center">{cuota.membresia ?? '—'}</td>
+                <td className="px-3 text-center tabular-nums">{formatearFecha(cuota.vencimiento)}</td>
+                <td className="px-3 text-center tabular-nums">{cuota.precio != null ? formatearMonto(cuota.precio) : '—'}</td>
+                <td className="px-3 py-2 text-center">
                   <Badge tone={tonoEstadoCuota(cuota.estado)}>{cuota.estado}</Badge>
                   {aviso && <span className={`mt-1 block text-xs ${COLOR_AVISO[cuota.situacion] ?? 'text-ink-soft'}`}>{aviso}</span>}
                 </td>

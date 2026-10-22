@@ -64,14 +64,14 @@ INSERT INTO inscripciones (fecha_inicio, fecha_fin, estado, alumno_id, membresia
     (CURRENT_DATE,      NULL, 'ACTIVA', (SELECT id FROM alumnos WHERE dni = '42555666'), (SELECT id FROM membresias WHERE nombre = 'Full 5x'));
 
 -- 7) Cuotas: cada una es un período de 30 días ya pagado (fecha_inicio → fecha_inicio + 30), al precio de la
---    membresía y con su membresía. La situación de cada alumno se calcula con su última cuota:
+--    membresía de su inscripción. La situación de cada alumno se calcula con su última cuota:
 --    Lucía      EN_MORA hace 3 días (venció hace 5). Tiene dos cuotas: la segunda la renovó en mora, con recargo.
 --    Martín     PROXIMA_A_VENCER (vence en 3 días).
 --    Sofía      VENCIDA (venció ayer).
 --    Tomás      AL_DIA (vence en 20 días). Tiene dos cuotas: renovó 2 días antes del vencimiento, sin cortar la cadena.
 --    Valentina  AL_DIA (se inscribió hoy).
-INSERT INTO cuotas (inscripcion_id, membresia_id, fecha_inicio, fecha_vencimiento, monto_esperado)
-SELECT i.id, m.id, CURRENT_DATE + c.inicio, CURRENT_DATE + c.inicio + 30, m.precio_actual
+INSERT INTO cuotas (inscripcion_id, fecha_inicio, fecha_vencimiento, monto_esperado)
+SELECT i.id, CURRENT_DATE + c.inicio, CURRENT_DATE + c.inicio + 30, m.precio_actual
 FROM (VALUES ('30111222', -70), ('30111222', -35),
              ('35222333', -27),
              ('38333444', -31),

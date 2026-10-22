@@ -4,7 +4,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -142,12 +144,18 @@ public class PagoService {
         if (!alumnoRepository.existsById(alumnoId)) {
             throw new RecursoNoEncontradoException("No existe un alumno con id " + alumnoId);
         }
-        return pagoRepository.buscarPorAlumno(alumnoId).stream()
+        List<Pago> pagos = pagoRepository.buscarPorAlumno(alumnoId);
+        // La cuota de un cambio de membresía termina el mismo día que la del período que completa (y es posterior)
+        Map<LocalDate, Long> primeraCuotaPorVencimiento = pagos.stream()
+                .map(Pago::getCuota)
+                .collect(Collectors.toMap(Cuota::getFechaVencimiento, Cuota::getId, Math::min));
+        return pagos.stream()
                 .map(p -> {
                     Cuota cuota = p.getCuota();
+                    boolean cambioDeMembresia = !cuota.getId().equals(primeraCuotaPorVencimiento.get(cuota.getFechaVencimiento()));
                     return new HistorialPagoResponse(p.getId(), p.getFechaPago(), p.getMedioDePago(),
                             cuota.getFechaInicio(), cuota.getFechaVencimiento(), cuota.membresiaCubierta().getNombre(),
-                            cuota.getPrecio(), p.recargoOCero(), p.getMonto());
+                            cuota.getPrecio(), p.recargoOCero(), p.getMonto(), cambioDeMembresia);
                 })
                 .toList();
     }

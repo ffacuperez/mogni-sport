@@ -42,7 +42,8 @@ const fromApi = (c) => ({
   membresia: c.membresiaNombre,
   inicio: c.fechaInicio,
   vencimiento: c.fechaVencimiento,
-  precio: c.precio != null ? Number(c.precio) : null,
+  // Precio actual de la membresía: lo que va a pagar al renovar
+  precio: c.precioMembresia != null ? Number(c.precioMembresia) : null,
   situacion: c.situacion,
   estado: estadoVisible(c),
   diasEnMora: c.diasEnMora,
@@ -91,6 +92,7 @@ export async function obtenerHistorialDePagos(alumnoId) {
     precio: Number(p.precio),
     recargo: Number(p.recargo ?? 0),
     monto: Number(p.monto),
+    cambioDeMembresia: p.cambioDeMembresia,
   }));
 }
 

@@ -42,8 +42,8 @@ export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel,
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!formData.nombre.trim() || !formData.apellido.trim() || !formData.dni || !formData.email
-        || !formData.fechaNacimiento || !formData.telefono) {
-      onError('Nombre, apellido, DNI, email, fecha de nacimiento y teléfono son obligatorios.');
+        || !formData.fechaNacimiento || !formData.telefono || !formData.sexo) {
+      onError('Nombre, apellido, DNI, email, fecha de nacimiento, teléfono y sexo son obligatorios.');
       return;
     }
 
@@ -143,8 +143,8 @@ export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel,
           {campo('fechaNacimiento', 'Fecha de nacimiento', (id) => <input id={id} type="date" name="fechaNacimiento" value={formData.fechaNacimiento} onChange={handleChange} required className={`${inputClass} `} />)}
           {campo('telefono', 'Teléfono (celular)', (id) => <input id={id} type="tel" inputMode="numeric" name="telefono" value={formData.telefono} onChange={handleChange} required className={`${inputClass} tabular-nums`} />)}
           {campo('sexo', 'Sexo', (id) => (
-            <select id={id} name="sexo" value={formData.sexo} onChange={handleChange} className={inputClass}>
-              <option value="">Sin especificar</option>
+            <select id={id} name="sexo" value={formData.sexo} onChange={handleChange} required className={inputClass}>
+              <option value="" disabled>Seleccione el sexo</option>
               <option value="Femenino">Femenino</option>
               <option value="Masculino">Masculino</option>
               <option value="Otro">Otro</option>

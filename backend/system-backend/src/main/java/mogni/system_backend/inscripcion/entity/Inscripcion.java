@@ -1,5 +1,6 @@
 package mogni.system_backend.inscripcion.entity;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -74,16 +75,16 @@ public class Inscripcion {
 
     /** Crea una cuota pagada de 30 días desde {@code inicio}, con la membresía de esta inscripción. */
     public Cuota agregarCuota(LocalDate inicio) {
-        Cuota cuota = Cuota.nueva(this, membresia, inicio);
+        Cuota cuota = Cuota.nueva(this, inicio);
         cuotas.add(cuota);
         return cuota;
     }
 
-    /** Mueve una cuota de otra inscripción a esta (cambio de membresía, regla M4). */
-    public void recibirCuota(Cuota cuota) {
-        cuota.getInscripcion().getCuotas().remove(cuota);
-        cuota.setInscripcion(this);
+    /** Cuota del cambio de membresía (regla M4): de hoy al vencimiento anterior, por la diferencia (puede ser 0). */
+    public Cuota agregarCuotaPorCambio(LocalDate inicio, LocalDate vencimiento, BigDecimal diferencia) {
+        Cuota cuota = Cuota.porCambioDeMembresia(this, inicio, vencimiento, diferencia);
         cuotas.add(cuota);
+        return cuota;
     }
 
     /** La de vencimiento más reciente (a igual vencimiento, la última creada). Vacío si no tiene cuotas. */

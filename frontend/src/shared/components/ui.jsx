@@ -234,7 +234,10 @@ export function SelectDot({ selected }) {
   );
 }
 
-/** Modal (guía 4.7): overlay negro al 50 %, card blanca, radio 12px. Cierra con Escape o clic afuera. */
+/**
+ * Modal (guía 4.7): overlay negro al 50 %, card blanca, radio 12px. Cierra con Escape o clic afuera.
+ * size: sm (formularios cortos), lg (560px) o xl (880px, tablas como el historial de pagos).
+ */
 export function Modal({ title, subtitle, onClose, size = 'sm', children, cerrable = true }) {
   useEffect(() => {
     if (!cerrable) return undefined;
@@ -255,7 +258,7 @@ export function Modal({ title, subtitle, onClose, size = 'sm', children, cerrabl
         aria-label={title}
         className={cx(
           'w-full rounded-xl bg-card p-6 shadow-modal animate-pop-in',
-          size === 'lg' ? 'max-w-[560px]' : 'max-w-md',
+          { sm: 'max-w-md', lg: 'max-w-[560px]', xl: 'max-w-[880px]' }[size] ?? 'max-w-md',
         )}
       >
         <div className="mb-5 flex items-start justify-between gap-4">

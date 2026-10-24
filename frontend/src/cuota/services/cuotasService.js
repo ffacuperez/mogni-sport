@@ -14,16 +14,6 @@ export const SITUACIONES = {
   EN_MORA: 'En mora',
 };
 
-function hoySinHora() {
-  return new Date(new Date().toDateString());
-}
-
-/** Días que faltan para el vencimiento (negativo si ya venció). Solo para los textos: la situación la decide el backend. */
-function diasHasta(fechaISO) {
-  const fecha = new Date(`${fechaISO}T00:00:00`);
-  return Math.round((fecha - hoySinHora()) / 86400000);
-}
-
 /**
  * Texto de la situación de pago del alumno, según su última cuota. La calcula el backend; también lo usa la agenda
  * (MOGNI-257) con la cuota que manda el backend ({ situacion, fechaVencimiento }). Sin cuotas (datos viejos): "Sin cuotas".
@@ -47,7 +37,6 @@ const fromApi = (c) => ({
   situacion: c.situacion,
   estado: estadoVisible(c),
   diasEnMora: c.diasEnMora,
-  diasParaVencer: c.fechaVencimiento ? diasHasta(c.fechaVencimiento) : null,
   puedeRenovar: c.puedeRenovar,
   renovableDesde: c.renovableDesde,
 });
@@ -107,17 +96,11 @@ export function formatearPeriodo(inicio, fin) {
   return `${formatearFecha(inicio)} al ${formatearFecha(fin)}`;
 }
 
-/** Aviso corto bajo la situación: cuántos días faltan, desde cuándo está vencida o hace cuánto está en mora. */
+/** Aviso corto bajo la situación: hace cuánto está en mora. Las demás situaciones no llevan aviso (la fila ya muestra el vencimiento). */
 export function avisoVencimiento(cuota) {
   if (cuota.situacion === 'EN_MORA') {
-    if (cuota.diasEnMora === 0) return 'Entró en mora hoy';
-    return cuota.diasEnMora === 1 ? 'En mora hace 1 día' : `En mora hace ${cuota.diasEnMora} días`;
-  }
-  if (cuota.situacion === 'VENCIDA') return 'Venció ayer';
-  if (cuota.situacion === 'PROXIMA_A_VENCER') {
-    const d = cuota.diasParaVencer;
-    if (d <= 0) return 'Vence hoy';
-    return d === 1 ? 'Vence mañana' : `Vence en ${d} días`;
+    if (cuota.diasEnMora === 0) return 'Desde hoy';
+    return cuota.diasEnMora === 1 ? 'Hace 1 día' : `Hace ${cuota.diasEnMora} días`;
   }
   return null;
 }
@@ -130,6 +113,7 @@ export function tonoEstadoCuota(estado) {
     case 'Próxima a vencer':
       return 'warning';
     case 'Vencida':
+      return 'alert';
     case 'En mora':
       return 'error';
     default:

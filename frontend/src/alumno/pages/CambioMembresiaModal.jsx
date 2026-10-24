@@ -28,7 +28,7 @@ export default function CambioMembresiaModal({ alumno, vista, onConfirm, onCance
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (cobra && !medioDePago) {
-      onError('Seleccioná el medio con el que se paga la diferencia.');
+      onError('Seleccioná el medio de pago de la diferencia.');
       return;
     }
     setEnviando(true);
@@ -52,7 +52,7 @@ export default function CambioMembresiaModal({ alumno, vista, onConfirm, onCance
           <Dato label="Membresía nueva">{vista.membresiaNueva}</Dato>
           <Dato label="Desde">{formatearFecha(vista.desde)}</Dato>
           {vista.hasta && <Dato label="Hasta (mismo vencimiento)">{formatearFecha(vista.hasta)}</Dato>}
-          {vista.precioPagado != null && <Dato label="Ya pagado por el período">{formatearMonto(vista.precioPagado)}</Dato>}
+          {vista.precioPagado != null && <Dato label="Pagado por la membresía actual">{formatearMonto(vista.precioPagado)}</Dato>}
           {vista.precioPagado != null && <Dato label="Precio de la membresía nueva">{formatearMonto(vista.precioNuevo)}</Dato>}
           {vista.diferenciaACobrar != null && <Dato label="A cobrar hoy" destacado>{formatearMonto(vista.diferenciaACobrar)}</Dato>}
         </dl>

@@ -49,7 +49,7 @@ public class TurnoController {
     public ResponseEntity<TurnosDisponiblesResponse> consultarTurnosDisponibles(
             Authentication authentication,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
-        // Antes de consultar y de reservar se pone al día (mora y baja automática), en su propia transacción
+        // Antes de consultar y de reservar se pone al día (turnos cancelados por mora), en su propia transacción
         puestaAlDiaService.ponerAlDia();
         return ResponseEntity.ok(consultaTurnosService.consultarTurnosDisponibles(authentication.getName(), fecha));
     }

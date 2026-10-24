@@ -1,7 +1,7 @@
 package mogni.system_backend.cuota.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -23,7 +23,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import mogni.system_backend.alumno.entity.Alumno;
-import mogni.system_backend.alumno.service.BajaAlumnoService;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
 import mogni.system_backend.cuota.entity.Cuota;
@@ -33,7 +32,7 @@ import mogni.system_backend.inscripcion.entity.Inscripcion;
 import mogni.system_backend.membresia.entity.Membresia;
 import mogni.system_backend.turno.service.CancelacionPorSistemaService;
 
-/** Nueva HU "Gestionar alumnos en mora": cancelación de turnos en mora y baja automática a los 7 días. */
+/** Nueva HU "Gestionar alumnos en mora": cancelación de turnos en mora (sin baja automática, decidido 24/10). */
 @ExtendWith(MockitoExtension.class)
 class PuestaAlDiaServiceTest {
 
@@ -51,9 +50,7 @@ class PuestaAlDiaServiceTest {
 
     @BeforeEach
     void setUp() {
-        // La baja real (con la cancelación mockeada), así se ve que desactiva la cuenta y cancela la inscripción
-        puestaAlDiaService = new PuestaAlDiaService(cuotaRepository, cancelacionPorSistemaService,
-                new BajaAlumnoService(cancelacionPorSistemaService));
+        puestaAlDiaService = new PuestaAlDiaService(cuotaRepository, cancelacionPorSistemaService);
         when(cuotaRepository.buscarUltimasCuotas()).thenReturn(ultimas);
     }
 
@@ -100,43 +97,32 @@ class PuestaAlDiaServiceTest {
     }
 
     @Test
-    void con_6_dias_en_mora_sigue_activo() {
-        Alumno alumno = alumnoQueVencioHace(1L, 8); // 8 días desde el vencimiento = 6 días en mora
+    void no_hay_baja_automatica_aunque_lleve_muchos_dias_en_mora() {
+        Alumno alumno = alumnoQueVencioHace(1L, 32); // 30 días en mora
 
         puestaAlDiaService.ponerAlDia(AHORA);
 
+        // La baja la hace el propietario a mano: solo se le cancelan los turnos
         assertTrue(alumno.getCuenta().isActiva());
+        assertNull(alumno.getCuenta().getFechaBaja());
         assertEquals(EstadoInscripcion.ACTIVA, alumno.getInscripciones().get(0).getEstado());
-    }
-
-    @Test
-    void con_7_dias_en_mora_se_da_de_baja_igual_que_la_baja_manual() {
-        Alumno alumno = alumnoQueVencioHace(1L, 9); // 7 días en mora
-
-        puestaAlDiaService.ponerAlDia(AHORA);
-
-        assertFalse(alumno.getCuenta().isActiva());
-        assertEquals(HOY, alumno.getCuenta().getFechaBaja());
-        assertEquals(EstadoInscripcion.CANCELADA, alumno.getInscripciones().get(0).getEstado());
-        assertEquals(HOY, alumno.getInscripciones().get(0).getFechaFin());
         verify(cancelacionPorSistemaService).cancelarReservasFuturas(1L, AHORA);
     }
 
     @Test
-    void es_idempotente_un_alumno_ya_dado_de_baja_no_se_vuelve_a_procesar() {
+    void es_idempotente_se_puede_llamar_varias_veces() {
         Alumno alumno = alumnoQueVencioHace(1L, 9);
-        puestaAlDiaService.ponerAlDia(AHORA);
-        // La consulta de últimas cuotas solo trae alumnos con cuenta activa
-        ultimas.clear();
 
         puestaAlDiaService.ponerAlDia(AHORA);
+        puestaAlDiaService.ponerAlDia(AHORA);
 
-        assertFalse(alumno.getCuenta().isActiva());
-        verify(cancelacionPorSistemaService, times(1)).cancelarReservasFuturas(anyLong(), any());
+        // Cancelar las reservas futuras otra vez no hace nada: ya no le quedan reservas RESERVADA
+        assertTrue(alumno.getCuenta().isActiva());
+        verify(cancelacionPorSistemaService, times(2)).cancelarReservasFuturas(1L, AHORA);
     }
 
     @Test
-    void si_renueva_antes_de_los_7_dias_no_se_da_de_baja() {
+    void si_renueva_en_mora_deja_de_cancelarle_turnos() {
         Alumno alumno = alumnoQueVencioHace(1L, 5);
         // Renovó en mora: la cuota nueva empieza hoy
         Cuota nueva = alumno.getInscripciones().get(0).agregarCuota(HOY);

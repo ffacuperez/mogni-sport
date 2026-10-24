@@ -20,9 +20,6 @@ public final class ReglasCuota {
     /** Desde cuántos días antes del vencimiento se puede renovar (Q2). */
     public static final int DIAS_VENTANA_RENOVACION = 10;
 
-    /** Días en mora (el día en que entra en mora es el día 0) para la baja automática (Q1). */
-    public static final int DIAS_MORA_BAJA_AUTOMATICA = 7;
-
     /** Recargo por renovar en mora, en porcentaje del precio vigente (HU-80). */
     public static final int PORCENTAJE_RECARGO = 10;
 

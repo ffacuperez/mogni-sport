@@ -122,7 +122,7 @@ export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel,
               </Field>
               {campo('medioDePago', 'Medio de pago', (id) => (
                 <select id={id} name="medioDePago" value={formData.medioDePago} onChange={handleChange} required className={inputClass}>
-                  <option value="" disabled>Seleccione un medio</option>
+                  <option value="" disabled>Seleccione un medio de pago</option>
                   {MEDIOS_DE_PAGO.map(m => (
                     <option key={m.value} value={m.value}>{m.label}</option>
                   ))}

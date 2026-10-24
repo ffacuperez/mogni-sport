@@ -252,7 +252,7 @@ public class AlumnoService {
     private MedioDePago medioDePagoDelCambio(CambioMembresia cambio, CambiarMembresiaRequest request) {
         if (cambio.diferencia().signum() > 0) {
             if (request.getMedioDePago() == null) {
-                throw new RegistroInvalidoException("Seleccioná el medio con el que se paga la diferencia");
+                throw new RegistroInvalidoException("Seleccioná el medio de pago de la diferencia");
             }
             return request.getMedioDePago();
         }

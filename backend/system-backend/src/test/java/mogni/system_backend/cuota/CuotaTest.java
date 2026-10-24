@@ -54,14 +54,14 @@ class CuotaTest {
     }
 
     @Test
-    void ejemplo_del_documento_vence_31_10_vencida_el_1_11_en_mora_el_2_11_baja_el_9_11() {
+    void ejemplo_del_documento_vence_31_10_vencida_el_1_11_en_mora_el_2_11() {
         LocalDate vencimiento = LocalDate.of(2026, 10, 31);
         assertEquals(SituacionPago.PROXIMA_A_VENCER, SituacionPago.de(vencimiento, LocalDate.of(2026, 10, 31)));
         assertEquals(SituacionPago.VENCIDA, SituacionPago.de(vencimiento, LocalDate.of(2026, 11, 1)));
         assertEquals(SituacionPago.EN_MORA, SituacionPago.de(vencimiento, LocalDate.of(2026, 11, 2)));
         assertEquals(0, ReglasCuota.diasEnMora(vencimiento, LocalDate.of(2026, 11, 2)));
         assertEquals(6, ReglasCuota.diasEnMora(vencimiento, LocalDate.of(2026, 11, 8)));
-        assertEquals(ReglasCuota.DIAS_MORA_BAJA_AUTOMATICA, ReglasCuota.diasEnMora(vencimiento, LocalDate.of(2026, 11, 9)));
+        assertEquals(7, ReglasCuota.diasEnMora(vencimiento, LocalDate.of(2026, 11, 9)));
     }
 
     @Test

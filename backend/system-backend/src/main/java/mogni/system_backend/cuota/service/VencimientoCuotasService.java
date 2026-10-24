@@ -6,7 +6,7 @@ import org.springframework.stereotype.Service;
 import mogni.system_backend.config.ZonaHoraria;
 
 /**
- * Respaldo diario de la puesta al día (cancelación de turnos por mora y baja automática): corre todos los días a la
+ * Respaldo diario de la puesta al día (cancelación de turnos por mora): corre todos los días a la
  * 01:00 (hora de Argentina) aunque nadie use la app. No alcanza sola porque en Railway el servidor puede estar
  * dormido a esa hora; por eso {@link PuestaAlDiaService} también se llama al usar las pantallas.
  */

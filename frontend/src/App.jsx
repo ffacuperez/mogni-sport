@@ -504,6 +504,7 @@ function MainApp({ onLogout }) {
               setSelectedId={setSelectedCuotaId}
               onRegistrarPago={setCuotaAPagar}
               onVerHistorial={handleVerHistorial}
+              onVerAlumno={(fila) => navigate(`/alumnos/${fila.alumnoId}`)}
               searchTerm={searchCuota}
               setSearchTerm={setSearchCuota}
               filtro={filtroCuota}

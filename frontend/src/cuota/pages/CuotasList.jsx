@@ -1,4 +1,4 @@
-import { AlertTriangle, CircleCheck, Clock, History, OctagonAlert, Wallet } from 'lucide-react';
+import { AlertTriangle, CircleCheck, Clock, History, OctagonAlert, UserRound, Wallet } from 'lucide-react';
 
 import { avisoVencimiento, formatearFecha, formatearMonto, SITUACIONES, tonoEstadoCuota } from '../services/cuotasService';
 import { normalizar } from '../../shared/services/texto';
@@ -17,7 +17,6 @@ const COLUMNAS = [
   { label: 'Estado', className: 'text-center' },
 ];
 
-const COLOR_AVISO = { EN_MORA: 'text-error', VENCIDA: 'text-error', PROXIMA_A_VENCER: 'text-warning-text' };
 
 /** Texto que explica por qué no se puede registrar el pago de la fila seleccionada. */
 function motivoSinRenovacion(fila) {
@@ -32,6 +31,7 @@ export default function CuotasList({
   setSelectedId,
   onRegistrarPago,
   onVerHistorial,
+  onVerAlumno,
   searchTerm,
   setSearchTerm,
   filtro,
@@ -66,7 +66,7 @@ export default function CuotasList({
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="En mora" value={cantidad(SITUACIONES.EN_MORA)} tone={cantidad(SITUACIONES.EN_MORA) ? 'error' : 'neutral'} icon={OctagonAlert} />
-        <Stat label="Vencidas" value={cantidad(SITUACIONES.VENCIDA)} tone={cantidad(SITUACIONES.VENCIDA) ? 'error' : 'neutral'} icon={AlertTriangle} />
+        <Stat label="Vencidas" value={cantidad(SITUACIONES.VENCIDA)} tone={cantidad(SITUACIONES.VENCIDA) ? 'alert' : 'neutral'} icon={AlertTriangle} />
         <Stat label="Próximas a vencer" value={cantidad(SITUACIONES.PROXIMA_A_VENCER)} tone={cantidad(SITUACIONES.PROXIMA_A_VENCER) ? 'warning' : 'neutral'} icon={Clock} />
         <Stat label="Al día" value={cantidad(SITUACIONES.AL_DIA)} tone="success" icon={CircleCheck} />
       </div>
@@ -80,8 +80,11 @@ export default function CuotasList({
             <Button onClick={() => onVerHistorial(seleccion)} disabled={!seleccion}>
               <History className="h-4 w-4" /> Ver historial
             </Button>
+            <Button onClick={() => onVerAlumno(seleccion)} disabled={!seleccion}>
+              <UserRound className="h-4 w-4" /> Ver alumno
+            </Button>
             <p className="text-sm text-ink-muted">
-              {!seleccion && 'Seleccioná un alumno para registrar el pago o ver el historial.'}
+              {!seleccion && 'Seleccioná un alumno para registrar el pago, ver el historial o ir a su ficha.'}
               {seleccion && !seleccion.puedeRenovar && motivoSinRenovacion(seleccion)}
             </p>
           </div>
@@ -121,7 +124,7 @@ export default function CuotasList({
                 <td className="px-3 text-center tabular-nums">{cuota.precio != null ? formatearMonto(cuota.precio) : '—'}</td>
                 <td className="px-3 py-2 text-center">
                   <Badge tone={tonoEstadoCuota(cuota.estado)}>{cuota.estado}</Badge>
-                  {aviso && <span className={`mt-1 block text-xs ${COLOR_AVISO[cuota.situacion] ?? 'text-ink-soft'}`}>{aviso}</span>}
+                  {aviso && <span className="mt-1 block text-xs text-error">{aviso}</span>}
                 </td>
               </Row>
             );

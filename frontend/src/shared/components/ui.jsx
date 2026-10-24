@@ -133,6 +133,7 @@ export function SearchInput({ value, onChange, placeholder, label, className }) 
 const TONOS = {
   success: 'bg-success-bg text-success',
   warning: 'bg-warning-bg text-warning-text',
+  alert: 'bg-alert-bg text-alert',
   error: 'bg-error-bg text-error',
   info: 'bg-info-bg text-info',
   neutral: 'bg-row-hover text-ink-soft',
@@ -148,7 +149,7 @@ export function Badge({ tone = 'neutral', className, children }) {
 
 /** Tarjeta de resumen (guía 5.7): ícono + número + etiqueta, card blanca sobre fondo gris. */
 export function Stat({ label, value, tone = 'neutral', icon: Icon }) {
-  const colorIcono = { neutral: 'bg-row-hover text-ink-soft', success: 'bg-success-bg text-success', warning: 'bg-warning-bg text-warning-text', error: 'bg-error-bg text-error', primary: 'bg-error-bg text-primary' }[tone];
+  const colorIcono = { neutral: 'bg-row-hover text-ink-soft', success: 'bg-success-bg text-success', warning: 'bg-warning-bg text-warning-text', alert: 'bg-alert-bg text-alert', error: 'bg-error-bg text-error', primary: 'bg-error-bg text-primary' }[tone];
   return (
     <Panel className="flex items-center gap-4 p-4">
       {Icon && (

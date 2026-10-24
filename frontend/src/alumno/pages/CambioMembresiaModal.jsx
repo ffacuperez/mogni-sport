@@ -57,7 +57,18 @@ export default function CambioMembresiaModal({ alumno, vista, onConfirm, onCance
           {vista.diferenciaACobrar != null && <Dato label="A cobrar hoy" destacado>{formatearMonto(vista.diferenciaACobrar)}</Dato>}
         </dl>
 
-        {vista.sinReembolso && (
+        {vista.diasRestantes != null && (
+          <p className="mt-3 text-sm text-ink">
+            ¿Seguro que querés cambiar desde hoy? Le {vista.diasRestantes === 1 ? 'queda 1 día' : `quedan ${vista.diasRestantes} días`} de
+            la cuota actual y{' '}
+            {cobra
+              ? <>tiene que pagar <strong>{formatearMonto(vista.diferenciaACobrar)}</strong> de diferencia.</>
+              : 'no se cobra nada y no hay reembolso.'}
+            {' '}Para cambiarla desde la próxima cuota, registrá el pago desde Cuotas.
+          </p>
+        )}
+
+        {vista.sinReembolso && vista.diasRestantes == null && (
           <p className="mt-3 text-sm text-ink-soft">La membresía nueva es más barata: no hay reembolso de la diferencia.</p>
         )}
 

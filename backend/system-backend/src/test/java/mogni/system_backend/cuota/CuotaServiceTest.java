@@ -99,6 +99,27 @@ class CuotaServiceTest {
     }
 
     @Test
+    void con_un_cambio_programado_muestra_la_membresia_de_hoy_la_programada_y_el_precio_a_renovar() {
+        Alumno alumno = alumno(1L, "Perez", 3);
+        // Pagó por adelantado "Full": la cuota nueva (la última) está en la programada
+        Inscripcion programada = Inscripcion.nueva(alumno, new Membresia(8L, "Full", 38000.0, 5, null),
+                hoy.plusDays(3), EstadoInscripcion.PROGRAMADA);
+        Cuota pagada = programada.agregarCuota(hoy.plusDays(3));
+        pagada.setId(200L);
+        ultimas.put(1L, pagada);
+
+        CuotaResponse fila = listar().get(0);
+
+        assertEquals("Pro", fila.getMembresiaNombre());
+        assertEquals("Full", fila.getMembresiaProgramada());
+        assertEquals(hoy.plusDays(3), fila.getProgramadaDesde());
+        assertEquals(new BigDecimal("38000.00"), fila.getPrecioMembresia());
+        assertEquals(hoy.plusDays(33), fila.getFechaVencimiento());
+        assertEquals(SituacionPago.AL_DIA, fila.getSituacion());
+        assertFalse(fila.isPuedeRenovar());
+    }
+
+    @Test
     void ordena_en_mora_vencidas_y_despues_por_vencimiento_mas_cercano() {
         alumno(1L, "AlDia", 25);
         alumno(2L, "Proxima", 3);

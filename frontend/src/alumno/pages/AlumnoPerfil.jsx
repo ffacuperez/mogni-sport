@@ -4,10 +4,11 @@ import { CircleAlert, CreditCard, LogOut, Mail, MapPin, Phone, Target } from 'lu
 
 import { describirModalidad, obtenerMiPerfil } from '../services/alumnosService';
 import { desactivarPush } from '../../notificacion/services/pushService';
+import { formatearFecha } from '../../shared/services/texto';
 import { Badge, Cargando, Panel } from '../../shared/components/ui';
 import { FOCUS } from '../../shared/components/clases';
 
-function Fila({ icono: Icono, etiqueta, valor, extra }) {
+function Fila({ icono: Icono, etiqueta, valor, detalle, extra }) {
   return (
     <li className="flex items-center gap-3 border-b border-line-soft py-3.5 last:border-b-0">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-error-bg text-primary">
@@ -18,6 +19,7 @@ function Fila({ icono: Icono, etiqueta, valor, extra }) {
         {valor
           ? <p className="truncate text-sm font-semibold text-ink">{valor}</p>
           : <p className="text-sm font-medium text-ink-muted">Sin definir</p>}
+        {detalle && <p className="mt-0.5 text-xs text-ink-soft">{detalle}</p>}
       </div>
       {extra}
     </li>
@@ -74,6 +76,9 @@ export default function AlumnoPerfil() {
             icono={CreditCard}
             etiqueta="Membresía"
             valor={inscripcion ? inscripcion.membresia : 'Sin membresía'}
+            // Cambio ya pagado para el mes siguiente (20.10)
+            detalle={alumno.membresiaProgramada
+              && `Membresía ${alumno.membresiaProgramada} a partir del ${formatearFecha(alumno.programadaDesde)}`}
             extra={inscripcion && <Badge tone={activa ? 'success' : 'error'}>{inscripcion.estado}</Badge>}
           />
           <Fila icono={MapPin} etiqueta="Modalidad" valor={describirModalidad(alumno)} />

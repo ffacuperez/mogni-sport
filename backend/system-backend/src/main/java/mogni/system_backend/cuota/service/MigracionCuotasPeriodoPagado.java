@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
  *       inscripción). Ninguna otra rama la usa, así que borrarla no rompe a nadie.</li>
  *   <li>Agrega CANCELADA_POR_SISTEMA a la regla CHECK de reservas.estado: Hibernate la crea con los valores del enum
  *       al crear la tabla y ddl-auto=update nunca la actualiza.</li>
+ *   <li>Lo mismo con PROGRAMADA en la regla de inscripciones.estado (cambio de membresía programado, ver 20.10).</li>
  * </ol>
  */
 @Component
@@ -33,6 +34,7 @@ public class MigracionCuotasPeriodoPagado implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(MigracionCuotasPeriodoPagado.class);
 
     static final String VALORES_ESTADO_RESERVA = "'RESERVADA', 'CANCELADA', 'CANCELADA_POR_GIMNASIO', 'CANCELADA_POR_SISTEMA'";
+    static final String VALORES_ESTADO_INSCRIPCION = "'ACTIVA', 'CANCELADA', 'PROGRAMADA'";
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -65,15 +67,22 @@ public class MigracionCuotasPeriodoPagado implements ApplicationRunner {
             log.info("Migración de cuotas: se borró la columna cuotas.membresia_id");
         }
 
-        // 5)
-        List<String> regla = jdbcTemplate.queryForList("""
-                SELECT pg_get_constraintdef(oid) FROM pg_constraint
-                WHERE conname = 'reservas_estado_check' AND conrelid = 'reservas'::regclass""", String.class);
-        if (!regla.isEmpty() && !regla.get(0).contains("CANCELADA_POR_SISTEMA")) {
-            jdbcTemplate.execute("ALTER TABLE reservas DROP CONSTRAINT reservas_estado_check");
-            jdbcTemplate.execute("ALTER TABLE reservas ADD CONSTRAINT reservas_estado_check CHECK (estado IN ("
-                    + VALORES_ESTADO_RESERVA + "))");
-            log.info("Migración de reservas: la regla reservas_estado_check ahora acepta CANCELADA_POR_SISTEMA");
+        // 5) y 6)
+        agregarValorALaReglaDeEstado("reservas", "CANCELADA_POR_SISTEMA", VALORES_ESTADO_RESERVA);
+        // MigracionInscripciones (orden 1) ya pasó las VENCIDA a CANCELADA, así que la regla nueva no choca con datos
+        agregarValorALaReglaDeEstado("inscripciones", "PROGRAMADA", VALORES_ESTADO_INSCRIPCION);
+    }
+
+    /** Recrea la regla {tabla}_estado_check con todos los valores, solo si existe y todavía no acepta el nuevo. */
+    private void agregarValorALaReglaDeEstado(String tabla, String valorNuevo, String valores) {
+        String nombre = tabla + "_estado_check";
+        List<String> regla = jdbcTemplate.queryForList(
+                "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = ? AND conrelid = ?::regclass",
+                String.class, nombre, tabla);
+        if (!regla.isEmpty() && !regla.get(0).contains(valorNuevo)) {
+            jdbcTemplate.execute("ALTER TABLE " + tabla + " DROP CONSTRAINT " + nombre);
+            jdbcTemplate.execute("ALTER TABLE " + tabla + " ADD CONSTRAINT " + nombre + " CHECK (estado IN (" + valores + "))");
+            log.info("Migración: la regla {} ahora acepta {}", nombre, valorNuevo);
         }
     }
 

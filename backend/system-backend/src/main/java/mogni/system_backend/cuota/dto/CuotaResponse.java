@@ -22,7 +22,7 @@ public class CuotaResponse {
     private String membresiaNombre;
     private LocalDate fechaInicio;
     private LocalDate fechaVencimiento;
-    /** Precio actual de la membresía de la inscripción activa: lo que va a pagar al renovar. */
+    /** Precio actual de la membresía que va a renovar (la programada si tiene, si no la activa). */
     private BigDecimal precioMembresia;
     private SituacionPago situacion;
     /** Solo si está EN_MORA: 0 el día en que entró en mora. */
@@ -31,4 +31,10 @@ public class CuotaResponse {
     private boolean puedeRenovar;
     /** Desde qué día se puede renovar (10 días antes del vencimiento); null si no tiene cuotas. */
     private LocalDate renovableDesde;
+    /** Membresía ya pagada para el período siguiente (cambio programado, 20.10); null si no tiene. */
+    private String membresiaProgramada;
+    /** Desde qué día rige la membresía programada; null si no tiene. */
+    private LocalDate programadaDesde;
+    /** Id de la membresía que usa hoy: la que viene elegida al registrar el pago. */
+    private Long membresiaId;
 }

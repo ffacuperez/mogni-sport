@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -14,11 +15,13 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -29,6 +32,7 @@ import mogni.system_backend.cuota.entity.Cuota;
 import mogni.system_backend.cuota.repository.CuotaRepository;
 import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
 import mogni.system_backend.inscripcion.entity.Inscripcion;
+import mogni.system_backend.inscripcion.repository.InscripcionRepository;
 import mogni.system_backend.membresia.entity.Membresia;
 import mogni.system_backend.turno.service.CancelacionPorSistemaService;
 
@@ -45,12 +49,15 @@ class PuestaAlDiaServiceTest {
     @Mock
     private CancelacionPorSistemaService cancelacionPorSistemaService;
 
+    @Mock
+    private InscripcionRepository inscripcionRepository;
+
     private PuestaAlDiaService puestaAlDiaService;
     private final Map<Long, Cuota> ultimas = new HashMap<>();
 
     @BeforeEach
     void setUp() {
-        puestaAlDiaService = new PuestaAlDiaService(cuotaRepository, cancelacionPorSistemaService);
+        puestaAlDiaService = new PuestaAlDiaService(cuotaRepository, inscripcionRepository, cancelacionPorSistemaService);
         when(cuotaRepository.buscarUltimasCuotas()).thenReturn(ultimas);
     }
 
@@ -65,6 +72,68 @@ class PuestaAlDiaServiceTest {
         Cuota cuota = inscripcion.agregarCuota(HOY.minusDays(diasDesdeVencimiento).minusDays(30));
         ultimas.put(id, cuota);
         return alumno;
+    }
+
+    // --- Activación de inscripciones programadas (20.10) ---
+
+    /** El alumno pagó por adelantado "Full" desde {@code inicio}: su programada, con la cuota pagada. */
+    private Inscripcion programadaDesde(Alumno alumno, LocalDate inicio) {
+        Inscripcion programada = Inscripcion.nueva(alumno, new Membresia(8L, "Full", 38000.0, 5, null), inicio,
+                EstadoInscripcion.PROGRAMADA);
+        programada.agregarCuota(inicio);
+        return programada;
+    }
+
+    @Test
+    void el_dia_que_empieza_la_programada_pasa_a_activa_y_la_anterior_termina_ese_dia() {
+        Alumno alumno = alumnoQueVencioHace(1L, 0);
+        Inscripcion anterior = alumno.getInscripciones().get(0);
+        Inscripcion programada = programadaDesde(alumno, HOY);
+        when(inscripcionRepository.findByEstadoAndFechaInicioLessThanEqual(EstadoInscripcion.PROGRAMADA, HOY))
+                .thenReturn(List.of(programada));
+
+        puestaAlDiaService.ponerAlDia(AHORA);
+
+        assertEquals(EstadoInscripcion.ACTIVA, programada.getEstado());
+        assertNull(programada.getFechaFin());
+        assertEquals(EstadoInscripcion.CANCELADA, anterior.getEstado());
+        assertEquals(HOY, anterior.getFechaFin());
+        assertEquals("Full", alumno.buscarInscripcionActiva().orElseThrow().getMembresia().getNombre());
+    }
+
+    @Test
+    void si_un_dia_no_corrio_la_activa_despues_y_la_anterior_termina_el_dia_que_empezaba() {
+        Alumno alumno = alumnoQueVencioHace(1L, 3);
+        Inscripcion anterior = alumno.getInscripciones().get(0);
+        Inscripcion programada = programadaDesde(alumno, HOY.minusDays(3));
+        when(inscripcionRepository.findByEstadoAndFechaInicioLessThanEqual(EstadoInscripcion.PROGRAMADA, HOY))
+                .thenReturn(List.of(programada));
+
+        puestaAlDiaService.ponerAlDia(AHORA);
+
+        assertEquals(EstadoInscripcion.ACTIVA, programada.getEstado());
+        assertEquals(HOY.minusDays(3), anterior.getFechaFin());
+    }
+
+    @Test
+    void activa_las_programadas_antes_de_revisar_la_mora() {
+        puestaAlDiaService.ponerAlDia(AHORA);
+
+        InOrder orden = inOrder(inscripcionRepository, cuotaRepository);
+        orden.verify(inscripcionRepository).findByEstadoAndFechaInicioLessThanEqual(EstadoInscripcion.PROGRAMADA, HOY);
+        orden.verify(cuotaRepository).buscarUltimasCuotas();
+    }
+
+    @Test
+    void con_el_mes_siguiente_pagado_en_una_programada_no_se_le_cancelan_los_turnos() {
+        Alumno alumno = alumnoQueVencioHace(1L, 3); // la cuota de la activa venció hace 3 días...
+        // ...pero la última cuota pagada es la de la programada, que cubre hoy
+        Inscripcion programada = programadaDesde(alumno, HOY.minusDays(3));
+        ultimas.put(1L, programada.getCuotas().get(0));
+
+        puestaAlDiaService.ponerAlDia(AHORA);
+
+        verify(cancelacionPorSistemaService, never()).cancelarReservasFuturas(anyLong(), any());
     }
 
     @Test

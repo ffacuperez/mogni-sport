@@ -73,6 +73,13 @@ public class Inscripcion {
         this.membresia = membresia;
     }
 
+    /** Inscripción nueva (todavía sin guardar) del alumno, con esa membresía, desde {@code inicio}. */
+    public static Inscripcion nueva(Alumno alumno, Membresia membresia, LocalDate inicio, EstadoInscripcion estado) {
+        Inscripcion inscripcion = new Inscripcion(null, inicio, null, estado, null, membresia);
+        alumno.agregarInscripcion(inscripcion);
+        return inscripcion;
+    }
+
     /** Crea una cuota pagada de 30 días desde {@code inicio}, con la membresía de esta inscripción. */
     public Cuota agregarCuota(LocalDate inicio) {
         Cuota cuota = Cuota.nueva(this, inicio);
@@ -99,7 +106,18 @@ public class Inscripcion {
 
     /** Vuelve a ACTIVA (reactivación de un alumno que todavía tiene días pagos). */
     public void reactivar() {
+        activar();
+    }
+
+    /** Pasa a ACTIVA: una programada cuyo período ya empezó, o una que se reactiva. */
+    public void activar() {
         this.estado = EstadoInscripcion.ACTIVA;
+        this.fechaFin = null;
+    }
+
+    /** Pasa a PROGRAMADA (o vuelve, al reactivar a un alumno antes de que empiece el período que ya pagó). */
+    public void programar() {
+        this.estado = EstadoInscripcion.PROGRAMADA;
         this.fechaFin = null;
     }
 }

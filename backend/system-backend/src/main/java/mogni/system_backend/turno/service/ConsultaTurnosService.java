@@ -124,7 +124,8 @@ public class ConsultaTurnosService {
 
     /** MOGNI-254/259: en mora no puede reservar (vencida todavía sí). Sin cuotas (datos viejos) no se bloquea. */
     static boolean estaEnMora(Alumno alumno, LocalDate hoy) {
-        return SituacionPago.de(alumno.buscarUltimaCuotaActiva().orElse(null), hoy) == SituacionPago.EN_MORA;
+        // Hasta cuándo pagó (activa + programada): quien pagó por adelantado con otra membresía no está en mora
+        return SituacionPago.de(alumno.buscarUltimaCuotaPagada().orElse(null), hoy) == SituacionPago.EN_MORA;
     }
 
     /** Solo los alumnos con la cuenta activa y modalidad presencial acceden a los turnos. */

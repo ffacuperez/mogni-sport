@@ -426,6 +426,19 @@ class ConsultaTurnosServiceTest {
     }
 
     @Test
+    void conElMesSiguientePagadoEnUnaProgramadaNoEstaEnMora() {
+        // La cuota de la activa venció hace 2 días, pero ya pagó el período siguiente con otra membresía (20.10)
+        alumno.buscarInscripcionActiva().orElseThrow().agregarCuota(MARTES.minusDays(32));
+        Inscripcion.nueva(alumno, new Membresia(9L, "Full", 38000.0, 5, null), MARTES.minusDays(2),
+                EstadoInscripcion.PROGRAMADA).agregarCuota(MARTES.minusDays(2));
+        turno(MARTES, "19:00", 5);
+
+        TurnosDisponiblesResponse response = consultar(null, MARTES_10_30);
+
+        assertFalse(response.isBloqueadoPorMora());
+    }
+
+    @Test
     void alumnoVencidoNoEstaBloqueado() {
         alumno.buscarInscripcionActiva().orElseThrow().agregarCuota(MARTES.minusDays(31)); // venció ayer
         turno(MARTES, "19:00", 5);

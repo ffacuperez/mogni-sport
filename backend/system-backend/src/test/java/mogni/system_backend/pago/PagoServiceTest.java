@@ -34,7 +34,9 @@ import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
 import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
 import mogni.system_backend.inscripcion.entity.Inscripcion;
+import mogni.system_backend.inscripcion.repository.InscripcionRepository;
 import mogni.system_backend.membresia.entity.Membresia;
+import mogni.system_backend.membresia.repository.MembresiaRepository;
 import mogni.system_backend.pago.dto.HistorialPagoResponse;
 import mogni.system_backend.pago.dto.PagoResponse;
 import mogni.system_backend.pago.dto.RegistrarPagoRequest;
@@ -56,6 +58,12 @@ class PagoServiceTest {
 
     @Mock
     private AlumnoRepository alumnoRepository;
+
+    @Mock
+    private MembresiaRepository membresiaRepository;
+
+    @Mock
+    private InscripcionRepository inscripcionRepository;
 
     @InjectMocks
     private PagoService pagoService;
@@ -227,7 +235,7 @@ class PagoServiceTest {
         cuotaQueVenceEn(-3);
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
 
-        RenovacionResponse vista = pagoService.previsualizarRenovacion(10L);
+        RenovacionResponse vista = pagoService.previsualizarRenovacion(10L, null);
 
         assertTrue(vista.isPuedeRenovar());
         assertEquals(SituacionPago.EN_MORA, vista.getSituacion());
@@ -246,7 +254,7 @@ class PagoServiceTest {
         cuotaQueVenceEn(20);
         when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
 
-        RenovacionResponse vista = pagoService.previsualizarRenovacion(10L);
+        RenovacionResponse vista = pagoService.previsualizarRenovacion(10L, null);
 
         assertFalse(vista.isPuedeRenovar());
         assertEquals(SituacionPago.AL_DIA, vista.getSituacion());
@@ -298,6 +306,141 @@ class PagoServiceTest {
         assertEquals(new BigDecimal("16970.00"), historial.get(1).getMonto());
         assertEquals(new BigDecimal("1550.00"), historial.get(1).getRecargo());
         assertFalse(historial.get(1).isCambioDeMembresia());
+    }
+
+    // --- Renovar con otra membresía (20.10) ---
+
+    private final Membresia full = new Membresia(8L, "Full", 38000.0, 5, null);
+
+    private PagoResponse registrarCon(Membresia elegida) {
+        when(alumnoRepository.findByIdConBloqueo(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(elegida.getId())).thenReturn(Optional.of(elegida));
+        when(pagoRepository.save(any(Pago.class))).thenAnswer(inv -> inv.getArgument(0));
+        RegistrarPagoRequest request = pago(MedioDePago.TRANSFERENCIA);
+        request.setMembresiaId(elegida.getId());
+        return pagoService.registrarPago(request);
+    }
+
+    private Inscripcion inscripcionCon(EstadoInscripcion estado) {
+        return alumno.getInscripciones().stream().filter(i -> i.getEstado() == estado).findFirst().orElseThrow();
+    }
+
+    @Test
+    void por_adelantado_con_otra_membresia_queda_programada_desde_el_vencimiento() {
+        cuotaQueVenceEn(3);
+
+        PagoResponse response = registrarCon(full);
+
+        // La actual sigue activa hasta el vencimiento; la nueva queda programada con la cuota y el pago
+        assertEquals(inscripcion, inscripcionCon(EstadoInscripcion.ACTIVA));
+        Inscripcion programada = inscripcionCon(EstadoInscripcion.PROGRAMADA);
+        assertEquals(full, programada.getMembresia());
+        assertEquals(hoy.plusDays(3), programada.getFechaInicio());
+        assertEquals(1, programada.getCuotas().size());
+        verify(inscripcionRepository).save(programada);
+        assertEquals("Full", response.getMembresiaNombre());
+        assertEquals(hoy.plusDays(3), response.getFechaInicio());
+        assertEquals(hoy.plusDays(33), response.getFechaVencimiento());
+        assertEquals(new BigDecimal("38000.00"), response.getMonto());
+        // Hasta cuándo pagó incluye la programada: sigue "Al día" y la ventana se cerró
+        assertEquals(hoy.plusDays(33), alumno.buscarUltimaCuotaPagada().orElseThrow().getFechaVencimiento());
+        assertEquals("Pro", alumno.buscarInscripcionActiva().orElseThrow().getMembresia().getNombre());
+    }
+
+    @Test
+    void con_una_programada_no_puede_volver_a_pagar_el_mismo_mes() {
+        cuotaQueVenceEn(3);
+        registrarCon(full);
+
+        RegistroInvalidoException ex = assertThrows(RegistroInvalidoException.class,
+                () -> pagoService.registrarPago(pago(MedioDePago.EFECTIVO)));
+        assertTrue(ex.getMessage().contains("Todavía no se puede registrar el pago"));
+    }
+
+    @Test
+    void en_mora_con_otra_membresia_cambia_hoy_y_el_recargo_es_sobre_el_precio_nuevo() {
+        cuotaQueVenceEn(-5);
+
+        PagoResponse response = registrarCon(full);
+
+        assertEquals(EstadoInscripcion.CANCELADA, inscripcion.getEstado());
+        assertEquals(hoy, inscripcion.getFechaFin());
+        Inscripcion nueva = inscripcionCon(EstadoInscripcion.ACTIVA);
+        assertEquals(full, nueva.getMembresia());
+        assertEquals(hoy, nueva.getFechaInicio());
+        assertTrue(alumno.buscarInscripcionProgramada().isEmpty());
+        assertEquals(hoy, response.getFechaInicio());
+        assertEquals(new BigDecimal("38000.00"), response.getPrecio());
+        // 10% de $38.000 = $3.800 (el total $41.800 ya es múltiplo de 10)
+        assertEquals(new BigDecimal("3800.00"), response.getRecargo());
+        assertEquals(new BigDecimal("41800.00"), response.getMonto());
+    }
+
+    @Test
+    void vencida_con_otra_membresia_cambia_hoy_mantiene_la_cadena_y_sin_recargo() {
+        cuotaQueVenceEn(-1);
+
+        PagoResponse response = registrarCon(full);
+
+        assertEquals(EstadoInscripcion.CANCELADA, inscripcion.getEstado());
+        assertEquals(full, inscripcionCon(EstadoInscripcion.ACTIVA).getMembresia());
+        assertEquals(hoy.minusDays(1), response.getFechaInicio());
+        assertEquals(new BigDecimal("0.00"), response.getRecargo());
+    }
+
+    @Test
+    void elegir_la_misma_membresia_es_una_renovacion_comun() {
+        cuotaQueVenceEn(3);
+        when(cuotaRepository.save(any(Cuota.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        registrarCon(membresia);
+
+        assertEquals(1, alumno.getInscripciones().size());
+        assertEquals(2, inscripcion.getCuotas().size());
+        verify(inscripcionRepository, never()).save(any());
+    }
+
+    @Test
+    void vista_previa_con_otra_membresia_por_adelantado_dice_desde_cuando_rige() {
+        cuotaQueVenceEn(4);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(8L)).thenReturn(Optional.of(full));
+
+        RenovacionResponse vista = pagoService.previsualizarRenovacion(10L, 8L);
+
+        assertTrue(vista.isPuedeRenovar());
+        assertTrue(vista.isCambioDeMembresia());
+        assertTrue(vista.isProgramada());
+        assertEquals("Pro", vista.getMembresiaActual());
+        assertEquals("Full", vista.getMembresiaNombre());
+        assertEquals(hoy.plusDays(4), vista.getRigeDesde());
+        assertEquals(new BigDecimal("38000.00"), vista.getTotal());
+    }
+
+    @Test
+    void vista_previa_con_otra_membresia_en_mora_rige_desde_hoy() {
+        cuotaQueVenceEn(-3);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(8L)).thenReturn(Optional.of(full));
+
+        RenovacionResponse vista = pagoService.previsualizarRenovacion(10L, 8L);
+
+        assertTrue(vista.isCambioDeMembresia());
+        assertFalse(vista.isProgramada());
+        assertEquals(hoy, vista.getRigeDesde());
+        assertEquals(new BigDecimal("3800.00"), vista.getRecargo());
+    }
+
+    @Test
+    void renovar_con_una_membresia_que_no_existe_falla() {
+        cuotaQueVenceEn(3);
+        when(alumnoRepository.findByIdConBloqueo(10L)).thenReturn(Optional.of(alumno));
+        when(membresiaRepository.findById(99L)).thenReturn(Optional.empty());
+        RegistrarPagoRequest request = pago(MedioDePago.EFECTIVO);
+        request.setMembresiaId(99L);
+
+        assertThrows(RegistroInvalidoException.class, () -> pagoService.registrarPago(request));
+        verify(pagoRepository, never()).save(any());
     }
 
     @Test

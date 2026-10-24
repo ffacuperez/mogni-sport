@@ -819,6 +819,122 @@ class AlumnoServiceTest {
         verify(alumnoRepository, never()).save(any());
     }
 
+    // --- Con un cambio de membresía programado (20.10) ---
+
+    private final Membresia full = new Membresia(8L, "Full", 38000.0, 5, null);
+
+    /** Le agrega al alumno un cambio a "Full" ya pagado para el período que empieza en {@code inicio}. */
+    private Inscripcion programadaDesde(Alumno alumno, LocalDate inicio) {
+        Inscripcion programada = Inscripcion.nueva(alumno, full, inicio, EstadoInscripcion.PROGRAMADA);
+        programada.agregarCuota(inicio).setId(101L);
+        return programada;
+    }
+
+    @Test
+    void cambioDeMembresia_conUnCambioProgramadoPagadoSeBloquea() {
+        Alumno alumno = alumnoConCuota(membresia, 4, null);
+        programadaDesde(alumno, hoy.plusDays(4));
+        prepararCambio(alumno, new Membresia(5L, "Otra", 1.0, 1, null));
+
+        CambioMembresiaResponse vista = alumnoService.previsualizarCambioMembresia(10L, 5L);
+
+        assertFalse(vista.isPermitido());
+        assertTrue(vista.getMotivo().contains("tiene un cambio a Full desde el"), vista.getMotivo());
+        assertThrows(RegistroInvalidoException.class,
+                () -> alumnoService.cambiarMembresia(10L, cambioA(5L, MedioDePago.EFECTIVO)));
+    }
+
+    @Test
+    void vistaPreviaDelCambio_informaLosDiasQueLeQuedanALaCuota() {
+        Alumno alumno = alumnoConCuota(membresia, 7, null);
+        prepararCambio(alumno, full);
+
+        assertEquals(7L, alumnoService.previsualizarCambioMembresia(10L, 8L).getDiasRestantes());
+    }
+
+    @Test
+    void obtenerAlumno_conUnCambioProgramadoInformaLaMembresiaYDesdeCuando() {
+        Alumno alumno = alumnoConCuota(membresia, 4, null);
+        programadaDesde(alumno, hoy.plusDays(4));
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+
+        AlumnoResponse response = alumnoService.obtenerAlumno(10L);
+
+        assertEquals("Pro", response.getMembresiaNombre());
+        assertEquals("Full", response.getMembresiaProgramada());
+        assertEquals(hoy.plusDays(4), response.getProgramadaDesde());
+    }
+
+    @Test
+    void darDeBaja_conUnCambioProgramadoCancelaLasDosInscripciones() {
+        Alumno alumno = alumnoConCuota(membresia, 4, null);
+        Inscripcion programada = programadaDesde(alumno, hoy.plusDays(4));
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        AlumnoResponse baja = alumnoService.darDeBajaAlumno(10L);
+
+        assertEquals(EstadoInscripcion.CANCELADA, alumno.getInscripciones().get(0).getEstado());
+        assertEquals(EstadoInscripcion.CANCELADA, programada.getEstado());
+        assertNull(baja.getMembresiaProgramada());
+        verify(pagoRepository, never()).save(any());
+    }
+
+    /** Alumno dado de baja hace 2 días que tenía un cambio programado desde {@code inicio}. */
+    private Alumno dadoDeBajaConProgramada(int diasHastaVencimiento) {
+        Alumno alumno = alumnoConCuota(membresia, diasHastaVencimiento, null);
+        programadaDesde(alumno, hoy.plusDays(diasHastaVencimiento));
+        alumno.getInscripciones().forEach(i -> i.cancelar(hoy.minusDays(2)));
+        alumno.getCuenta().setActiva(false);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
+        return alumno;
+    }
+
+    @Test
+    void reactivar_antesDeQueEmpieceLaProgramadaVuelveLaViejaYLaNuevaSigueProgramada() {
+        Alumno alumno = dadoDeBajaConProgramada(4);
+
+        AlumnoResponse alta = alumnoService.reactivarAlumno(10L, null);
+
+        assertEquals(EstadoInscripcion.ACTIVA, alumno.getInscripciones().get(0).getEstado());
+        assertEquals(EstadoInscripcion.PROGRAMADA, alumno.getInscripciones().get(1).getEstado());
+        assertNull(alumno.getInscripciones().get(1).getFechaFin());
+        assertEquals("Pro", alta.getMembresiaNombre());
+        assertEquals("Full", alta.getMembresiaProgramada());
+        verify(pagoRepository, never()).save(any());
+    }
+
+    @Test
+    void reactivar_duranteElPeriodoDeLaProgramadaQuedaActivaLaNueva() {
+        // La cuota vieja venció hace 3 días y la programada empezó ese día (lo dieron de baja antes de activarla)
+        Alumno alumno = dadoDeBajaConProgramada(-3);
+
+        AlumnoResponse alta = alumnoService.reactivarAlumno(10L, null);
+
+        assertEquals(EstadoInscripcion.CANCELADA, alumno.getInscripciones().get(0).getEstado());
+        assertEquals(EstadoInscripcion.ACTIVA, alumno.getInscripciones().get(1).getEstado());
+        assertEquals("Full", alta.getMembresiaNombre());
+        assertNull(alta.getMembresiaProgramada());
+    }
+
+    @Test
+    void reactivar_conElMesSiguientePagadoConLaMismaMembresiaReactivaEsaInscripcion() {
+        // Renovó por adelantado con la misma membresía: las dos cuotas están en la misma inscripción
+        Alumno alumno = alumnoConCuota(membresia, 4, null);
+        Inscripcion inscripcion = alumno.getInscripciones().get(0);
+        inscripcion.agregarCuota(hoy.plusDays(4));
+        inscripcion.cancelar(hoy.minusDays(2));
+        alumno.getCuenta().setActiva(false);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(alumnoRepository.save(any(Alumno.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        alumnoService.reactivarAlumno(10L, null);
+
+        assertEquals(EstadoInscripcion.ACTIVA, inscripcion.getEstado());
+        assertTrue(alumno.buscarInscripcionProgramada().isEmpty());
+    }
+
     @Test
     void reactivar_unAlumnoActivoNoHaceNada() {
         Alumno alumno = alumnoConCuota(membresia, 20, null);

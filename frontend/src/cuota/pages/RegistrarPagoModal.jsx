@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { CircleAlert, TriangleAlert } from 'lucide-react';
+import { CircleAlert, Info, TriangleAlert } from 'lucide-react';
 
-import { formatearMonto, formatearPeriodo, MEDIOS_DE_PAGO, obtenerRenovacion, SITUACIONES } from '../services/cuotasService';
+import { formatearFecha, formatearMonto, formatearPeriodo, MEDIOS_DE_PAGO, obtenerRenovacion, SITUACIONES } from '../services/cuotasService';
 import { Button, Cargando, Field, Modal } from '../../shared/components/ui';
 import { inputClass } from '../../shared/components/clases';
 
@@ -18,19 +18,30 @@ function Dato({ label, children, destacado = false }) {
 
 /**
  * MOGNI-45 y MOGNI-80: renovación del alumno. Pide al backend la vista previa (período, precio, recargo y total) y la
- * muestra en grande para confirmar: un pago registrado no se puede deshacer.
+ * muestra en grande para confirmar: un pago registrado no se puede deshacer. Se puede renovar con otra membresía
+ * (20.10): por defecto viene la actual y, al elegir otra, la vista previa dice desde cuándo rige.
  */
-export default function RegistrarPagoModal({ cuota, onConfirm, onCancel, onError }) {
+export default function RegistrarPagoModal({ cuota, membresias, onConfirm, onCancel, onError }) {
+  const actualId = cuota.membresiaId != null ? String(cuota.membresiaId) : '';
+  const [membresiaId, setMembresiaId] = useState(actualId);
   const [renovacion, setRenovacion] = useState(null);
   const [errorCarga, setErrorCarga] = useState(null);
   const [medioDePago, setMedioDePago] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const otraMembresia = membresiaId !== '' && membresiaId !== actualId ? membresiaId : null;
 
   useEffect(() => {
-    obtenerRenovacion(cuota.alumnoId)
-      .then(setRenovacion)
-      .catch((error) => setErrorCarga(error.message));
-  }, [cuota.alumnoId]);
+    // Si se cambia la membresía rápido, solo cuenta la respuesta de la última elegida
+    let vigente = true;
+    setRenovacion(null);
+    setErrorCarga(null);
+    obtenerRenovacion(cuota.alumnoId, otraMembresia)
+      .then((r) => vigente && setRenovacion(r))
+      .catch((error) => vigente && setErrorCarga(error.message));
+    return () => {
+      vigente = false;
+    };
+  }, [cuota.alumnoId, otraMembresia]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -40,7 +51,7 @@ export default function RegistrarPagoModal({ cuota, onConfirm, onCancel, onError
     }
     setEnviando(true);
     try {
-      await onConfirm({ alumnoId: cuota.alumnoId, medioDePago });
+      await onConfirm({ alumnoId: cuota.alumnoId, medioDePago, membresiaId: otraMembresia });
     } finally {
       setEnviando(false);
     }
@@ -76,6 +87,27 @@ export default function RegistrarPagoModal({ cuota, onConfirm, onCancel, onError
 
       {renovacion?.puedeRenovar && (
         <form onSubmit={handleSubmit}>
+          {membresias.length > 1 && actualId && (
+            <Field label="Membresía" htmlFor="pago-membresia" className="mb-2">
+              <select id="pago-membresia" value={membresiaId} onChange={(e) => setMembresiaId(e.target.value)} className={inputClass}>
+                {membresias.map((m) => (
+                  <option key={m.id} value={String(m.id)}>
+                    {m.nombre}{String(m.id) === actualId ? ' (actual)' : ''}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+
+          {renovacion.cambioDeMembresia && (
+            <p className="mb-2 flex items-start gap-2 rounded-lg bg-info-bg px-3 py-2.5 text-sm text-info">
+              <Info className="mt-0.5 h-4 w-4 shrink-0" />
+              {renovacion.programada
+                ? `Pasa de ${renovacion.membresiaActual} a ${renovacion.membresiaNombre} desde el ${formatearFecha(renovacion.rigeDesde)}. Hasta ese día sigue con ${renovacion.membresiaActual}. El cambio no se puede cancelar.`
+                : `La membresía nueva (${renovacion.membresiaNombre}) empieza hoy, en lugar de ${renovacion.membresiaActual}.`}
+            </p>
+          )}
+
           <dl className="divide-y divide-line-soft">
             <Dato label="Membresía">{renovacion.membresiaNombre}</Dato>
             <Dato label="Período que cubre">{formatearPeriodo(renovacion.fechaInicio, renovacion.fechaVencimiento)}</Dato>

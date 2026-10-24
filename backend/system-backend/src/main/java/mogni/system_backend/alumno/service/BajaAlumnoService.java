@@ -29,6 +29,8 @@ public class BajaAlumnoService {
         alumno.getCuenta().setActiva(false);
         alumno.getCuenta().setFechaBaja(ahora.toLocalDate());
         alumno.buscarInscripcionActiva().ifPresent(inscripcion -> inscripcion.cancelar(ahora.toLocalDate()));
+        // Un cambio de membresía ya pagado para el mes siguiente también se cancela, sin devolución (MP5, 20.10)
+        alumno.buscarInscripcionProgramada().ifPresent(inscripcion -> inscripcion.cancelar(ahora.toLocalDate()));
         cancelacionPorSistemaService.cancelarReservasFuturas(alumno.getId(), ahora);
     }
 }

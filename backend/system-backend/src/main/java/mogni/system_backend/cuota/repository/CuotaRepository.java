@@ -18,9 +18,16 @@ import mogni.system_backend.inscripcion.entity.Inscripcion;
 public interface CuotaRepository extends JpaRepository<Cuota, Long> {
 
     /**
-     * Cuotas con el vencimiento más reciente de la inscripción en ese estado de cada alumno con cuenta activa
-     * (alumnoId es opcional). Trae inscripción, alumno, cuenta y membresías en una sola consulta. Si un alumno tiene
-     * dos cuotas con el mismo vencimiento vienen las dos: usar {@link #buscarUltimasCuotas()}.
+     * Inscripciones de las que sale "hasta cuándo pagó": la activa y la programada (ver 20.10). La membresía que el
+     * alumno usa hoy no sale de acá sino de su inscripción ACTIVA.
+     */
+    List<EstadoInscripcion> ESTADOS_CON_PERIODO_PAGADO = List.of(EstadoInscripcion.ACTIVA, EstadoInscripcion.PROGRAMADA);
+
+    /**
+     * Cuotas con el vencimiento más reciente de cada inscripción en esos estados, de los alumnos con cuenta activa
+     * (alumnoId es opcional). Trae inscripción, alumno, cuenta y membresías en una sola consulta. Un alumno puede
+     * tener varias (la de la activa y la de la programada, o dos con el mismo vencimiento): usar
+     * {@link #buscarUltimasCuotas()}.
      */
     @Query("""
             select c from Cuota c
@@ -28,25 +35,29 @@ public interface CuotaRepository extends JpaRepository<Cuota, Long> {
             join fetch i.alumno a
             join fetch a.cuenta cu
             join fetch i.membresia
-            where i.estado = :estadoInscripcion
+            where i.estado in :estados
               and cu.activa = true
               and (:alumnoId is null or a.id = :alumnoId)
               and c.fechaVencimiento = (
                   select max(c2.fechaVencimiento) from Cuota c2
                   where c2.inscripcion = i)
             """)
-    List<Cuota> buscarConVencimientoMasReciente(@Param("estadoInscripcion") EstadoInscripcion estadoInscripcion,
+    List<Cuota> buscarConVencimientoMasReciente(@Param("estados") Collection<EstadoInscripcion> estados,
                                                 @Param("alumnoId") Long alumnoId);
 
-    /** Última cuota de la inscripción activa de cada alumno activo, por id de alumno. */
+    /**
+     * Hasta cuándo pagó cada alumno activo: su última cuota entre la inscripción activa y la programada, por id de
+     * alumno. Con ella se calcula la situación de pago. Su inscripción puede ser la programada: para el nombre de la
+     * membresía que usa hoy, ir a la inscripción ACTIVA del alumno.
+     */
     default Map<Long, Cuota> buscarUltimasCuotas() {
-        return unaPorAlumno(buscarConVencimientoMasReciente(EstadoInscripcion.ACTIVA, null));
+        return unaPorAlumno(buscarConVencimientoMasReciente(ESTADOS_CON_PERIODO_PAGADO, null));
     }
 
-    /** Última cuota de la inscripción activa del alumno (vacío si está inactivo o no tiene cuotas). */
+    /** Lo mismo para un alumno (vacío si está inactivo o no tiene cuotas). */
     default Optional<Cuota> buscarUltimaCuota(Long alumnoId) {
         return Optional.ofNullable(
-                unaPorAlumno(buscarConVencimientoMasReciente(EstadoInscripcion.ACTIVA, alumnoId)).get(alumnoId));
+                unaPorAlumno(buscarConVencimientoMasReciente(ESTADOS_CON_PERIODO_PAGADO, alumnoId)).get(alumnoId));
     }
 
     private static Map<Long, Cuota> unaPorAlumno(Collection<Cuota> cuotas) {

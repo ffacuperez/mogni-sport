@@ -88,9 +88,27 @@ public class Alumno {
                 .max(Comparator.comparing(Inscripcion::getFechaInicio));
     }
 
-    /** Última cuota de la inscripción ACTIVA: con ella se calcula la situación de pago. */
+    /** La inscripción PROGRAMADA (como mucho hay una): la membresía ya pagada para el período siguiente. */
+    public Optional<Inscripcion> buscarInscripcionProgramada() {
+        return inscripciones.stream()
+                .filter(i -> i.getEstado() == EstadoInscripcion.PROGRAMADA)
+                .max(Comparator.comparing(Inscripcion::getFechaInicio));
+    }
+
+    /** Última cuota de la inscripción ACTIVA (sin la programada). */
     public Optional<Cuota> buscarUltimaCuotaActiva() {
         return buscarInscripcionActiva().flatMap(Inscripcion::buscarUltimaCuota);
+    }
+
+    /**
+     * Hasta cuándo pagó: la última cuota entre la inscripción ACTIVA y la PROGRAMADA. Con ella se calcula la situación
+     * de pago. La membresía que usa hoy, en cambio, es siempre la de la ACTIVA (ver 20.10, "dos preguntas").
+     */
+    public Optional<Cuota> buscarUltimaCuotaPagada() {
+        return inscripciones.stream()
+                .filter(i -> i.getEstado() == EstadoInscripcion.ACTIVA || i.getEstado() == EstadoInscripcion.PROGRAMADA)
+                .flatMap(i -> i.getCuotas().stream())
+                .max(Inscripcion.ORDEN_CUOTAS);
     }
 
     /** Última cuota de cualquier inscripción (por ejemplo, para saber si un alumno inactivo todavía tiene días pagos). */

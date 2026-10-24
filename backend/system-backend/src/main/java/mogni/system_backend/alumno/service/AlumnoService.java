@@ -212,7 +212,10 @@ public class AlumnoService {
             precioNuevo,
             diferencia,
             pagado != null && precioNuevo.compareTo(pagado) < 0,
-            diferencia != null && diferencia.signum() > 0
+            diferencia != null && diferencia.signum() > 0,
+            cambio.cuotaVigente()
+                    .map(c -> ReglasCuota.diasHastaVencimiento(c.getFechaVencimiento(), ZonaHoraria.hoy()))
+                    .orElse(null)
         );
     }
 
@@ -290,9 +293,17 @@ public class AlumnoService {
                 .filter(cuota -> !hoy.isAfter(cuota.getFechaVencimiento()));
 
         if (conDiasPagos.isPresent()) {
-            Inscripcion inscripcion = conDiasPagos.get().getInscripcion();
-            cancelarInscripcionesActivas(alumno, inscripcion, hoy);
-            inscripcion.reactivar();
+            Inscripcion deLaUltima = conDiasPagos.get().getInscripcion();
+            // MP6 (20.10): si la última cuota es de un cambio programado que todavía no empezó, vuelve la inscripción
+            // que cubre hoy y la del cambio vuelve a esperar como PROGRAMADA
+            Inscripcion queCubreHoy = conDiasPagos.get().getFechaInicio().isAfter(hoy)
+                    ? inscripcionQueCubre(alumno, hoy).orElse(deLaUltima)
+                    : deLaUltima;
+            cancelarInscripcionesActivas(alumno, queCubreHoy, hoy);
+            queCubreHoy.reactivar();
+            if (deLaUltima != queCubreHoy) {
+                deLaUltima.programar();
+            }
             activarCuenta(alumno);
             return mapearAResponse(alumnoRepository.save(alumno));
         }
@@ -325,6 +336,16 @@ public class AlumnoService {
     private static void activarCuenta(Alumno alumno) {
         alumno.getCuenta().setActiva(true);
         alumno.getCuenta().setFechaBaja(null);
+    }
+
+    /** La inscripción de la última cuota que cubre ese día (de cualquier estado). */
+    private static Optional<Inscripcion> inscripcionQueCubre(Alumno alumno, LocalDate dia) {
+        return alumno.getInscripciones().stream()
+                .flatMap(i -> i.getCuotas().stream())
+                .filter(c -> c.getFechaInicio() != null && !dia.isBefore(c.getFechaInicio())
+                        && !dia.isAfter(c.getFechaVencimiento()))
+                .max(Inscripcion.ORDEN_CUOTAS)
+                .map(Cuota::getInscripcion);
     }
 
     /** Datos viejos: alumnos dados de baja antes del rediseño pueden tener todavía una inscripción ACTIVA. */
@@ -376,6 +397,14 @@ public class AlumnoService {
                 .orElse(false);
         if (mismaMembresia) {
             return CambioMembresia.rechazado("Elegí una membresía distinta a la actual", cuota);
+        }
+        // MP4 (20.10): con un cambio ya pagado para el mes siguiente no se cambia desde hoy (no se deshacen pagos)
+        Optional<Inscripcion> programada = alumno.buscarInscripcionProgramada();
+        if (programada.isPresent()) {
+            return CambioMembresia.rechazado("No se puede cambiar la membresía: el alumno tiene un cambio a "
+                    + programada.get().getMembresia().getNombre() + " desde el "
+                    + programada.get().getFechaInicio().format(FECHA)
+                    + ", ya pagado. Se va a poder cambiar desde ese día", cuota);
         }
         if (cuota.isEmpty()) {
             // Solo con datos viejos: no hay período que completar ni nada que cobrar
@@ -443,6 +472,7 @@ public class AlumnoService {
 
     private AlumnoResponse mapearAResponse(Alumno alumno) {
         Optional<Inscripcion> activa = alumno.buscarInscripcionActiva();
+        Optional<Inscripcion> programada = alumno.buscarInscripcionProgramada();
         Membresia membresia = activa.map(Inscripcion::getMembresia).orElse(null);
         boolean cuentaActiva = alumno.getCuenta().isActiva();
         // Solo para inactivos: así el listado de activos no carga las cuotas de cada alumno
@@ -471,7 +501,9 @@ public class AlumnoService {
             activa.map(Inscripcion::getFechaInicio).orElse(null),
             alumno.buscarInscripcionActual().map(this::mapearInscripcion).orElse(null),
             vencimientoUltimaCuota,
-            reactivacionRequierePago
+            reactivacionRequierePago,
+            programada.map(i -> i.getMembresia().getNombre()).orElse(null),
+            programada.map(Inscripcion::getFechaInicio).orElse(null)
         );
     }
 

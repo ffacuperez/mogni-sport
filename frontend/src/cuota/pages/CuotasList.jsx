@@ -119,7 +119,14 @@ export default function CuotasList({
                 <td className="px-3"><SelectDot selected={seleccionada} /></td>
                 <td className="px-3 text-center font-semibold text-ink">{cuota.apellido}, {cuota.nombre}</td>
                 <td className="px-3 text-center tabular-nums text-ink-soft">{cuota.dni}</td>
-                <td className="px-3 text-center">{cuota.membresia ?? '—'}</td>
+                <td className="px-3 py-2 text-center">
+                  {cuota.membresia ?? '—'}
+                  {cuota.membresiaProgramada && (
+                    <span className="mt-1 block text-xs text-ink-soft">
+                      → {cuota.membresiaProgramada} desde {formatearFecha(cuota.programadaDesde)}
+                    </span>
+                  )}
+                </td>
                 <td className="px-3 text-center tabular-nums">{formatearFecha(cuota.vencimiento)}</td>
                 <td className="px-3 text-center tabular-nums">{cuota.precio != null ? formatearMonto(cuota.precio) : '—'}</td>
                 <td className="px-3 py-2 text-center">

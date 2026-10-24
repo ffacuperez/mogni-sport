@@ -259,8 +259,8 @@ public class AgendaService {
     }
 
     /**
-     * Última cuota de cada alumno con inscripción activa: la misma consulta que la pantalla de Cuotas, trae
-     * inscripción y membresía en una sola consulta.
+     * Hasta cuándo pagó cada alumno activo (última cuota de su inscripción activa o programada): la misma consulta
+     * que la pantalla de Cuotas, trae inscripción y membresía en una sola consulta.
      */
     private Map<Long, Cuota> cuotaActualPorAlumno() {
         return cuotaRepository.buscarUltimasCuotas();
@@ -268,10 +268,10 @@ public class AgendaService {
 
     private static AlumnoAgendaResponse mapearAlumno(Reserva reserva, Cuota cuota, LocalDate hoy) {
         Alumno alumno = reserva.getAlumno();
-        String membresia = cuota != null
-                ? cuota.getInscripcion().getMembresia().getNombre()
-                // Inscripción activa sin cuotas (datos viejos): la membresía se busca en el alumno
-                : alumno.buscarInscripcionActiva().map(inscripcion -> inscripcion.getMembresia().getNombre()).orElse(null);
+        // La membresía que usa hoy es la de la inscripción ACTIVA: la última cuota puede ser de una programada (20.10)
+        String membresia = alumno.buscarInscripcionActiva()
+                .map(inscripcion -> inscripcion.getMembresia().getNombre())
+                .orElse(null);
         return new AlumnoAgendaResponse(
                 reserva.getId(),
                 alumno.getId(),

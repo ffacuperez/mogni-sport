@@ -22,11 +22,21 @@ public class RenovacionResponse {
     private String motivo;
     /** Situación actual (null si no tiene cuotas, solo con datos viejos). */
     private SituacionPago situacion;
+    /** Membresía con la que renueva: la actual o la elegida. */
     private String membresiaNombre;
     /** Período que va a cubrir la cuota nueva. */
     private LocalDate fechaInicio;
     private LocalDate fechaVencimiento;
+    /** Precio actual de la membresía con la que renueva; el recargo se calcula sobre él. */
     private BigDecimal precio;
     private BigDecimal recargo;
     private BigDecimal total;
+    /** Membresía que usa hoy (la de su inscripción activa). */
+    private String membresiaActual;
+    /** true si renueva con una membresía distinta a la actual (20.10). */
+    private boolean cambioDeMembresia;
+    /** Solo con cambio: desde qué día rige la membresía nueva (hoy si está vencida o en mora). */
+    private LocalDate rigeDesde;
+    /** Solo con cambio: true si rige en el futuro (queda PROGRAMADA hasta ese día). */
+    private boolean programada;
 }

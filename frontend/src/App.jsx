@@ -538,6 +538,7 @@ function MainApp({ onLogout }) {
       {cuotaAPagar && (
         <RegistrarPagoModal
           cuota={cuotaAPagar}
+          membresias={membresias}
           onConfirm={handleRegistrarPago}
           onCancel={() => setCuotaAPagar(null)}
           onError={(msg) => displayToast(msg, true)}

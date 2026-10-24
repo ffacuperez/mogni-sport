@@ -30,9 +30,13 @@ const fromApi = (c) => ({
   dni: c.alumnoDni,
   cuotaId: c.cuotaId,
   membresia: c.membresiaNombre,
+  membresiaId: c.membresiaId,
+  // Cambio de membresía ya pagado para el mes siguiente (20.10)
+  membresiaProgramada: c.membresiaProgramada,
+  programadaDesde: c.programadaDesde,
   inicio: c.fechaInicio,
   vencimiento: c.fechaVencimiento,
-  // Precio actual de la membresía: lo que va a pagar al renovar
+  // Precio actual de la membresía que va a renovar (la programada si tiene): lo que va a pagar
   precio: c.precioMembresia != null ? Number(c.precioMembresia) : null,
   situacion: c.situacion,
   estado: estadoVisible(c),
@@ -51,10 +55,12 @@ const numeroONull = (valor) => (valor != null ? Number(valor) : null);
 
 /**
  * MOGNI-45: vista previa de la renovación (período que va a cubrir, precio, recargo si está en mora y total).
+ * Con membresiaId, renovando con otra membresía (20.10): dice además desde cuándo rige y si queda programada.
  * El cálculo lo hace el backend; si no se puede renovar, motivo dice por qué.
  */
-export async function obtenerRenovacion(alumnoId) {
-  const r = await request(`/alumnos/${alumnoId}/renovacion`);
+export async function obtenerRenovacion(alumnoId, membresiaId = null) {
+  const query = membresiaId ? `?membresiaId=${membresiaId}` : '';
+  const r = await request(`/alumnos/${alumnoId}/renovacion${query}`);
   return {
     ...r,
     precio: numeroONull(r.precio),
@@ -63,9 +69,12 @@ export async function obtenerRenovacion(alumnoId) {
   };
 }
 
-/** Renovación del alumno: el backend crea la cuota del período siguiente y su pago (monto y fecha automáticos). */
-export function registrarPago({ alumnoId, medioDePago }) {
-  return request('/pagos', { method: 'POST', body: { alumnoId, medioDePago } });
+/**
+ * Renovación del alumno: el backend crea la cuota del período siguiente y su pago (monto y fecha automáticos). Con
+ * membresiaId renueva con otra membresía (20.10); sin él, con la actual.
+ */
+export function registrarPago({ alumnoId, medioDePago, membresiaId = null }) {
+  return request('/pagos', { method: 'POST', body: { alumnoId, medioDePago, membresiaId } });
 }
 
 /** HU-48: historial de pagos de un alumno, ya ordenado por el backend del más reciente al más antiguo. */

@@ -108,10 +108,14 @@ public class AlumnoController {
         return ResponseEntity.ok(alumnoService.previsualizarCambioMembresia(id, membresiaId));
     }
 
-    /** MOGNI-45: vista previa de la renovación (período, precio, recargo y total). Solo PROPIETARIO (ver SecurityConfig). */
+    /**
+     * MOGNI-45: vista previa de la renovación (período, precio, recargo y total). Con membresiaId, renovando con otra
+     * membresía (20.10); sin él, con la actual. Solo PROPIETARIO (ver SecurityConfig).
+     */
     @GetMapping("/{id}/renovacion")
-    public ResponseEntity<RenovacionResponse> previsualizarRenovacion(@PathVariable Long id) {
-        return ResponseEntity.ok(pagoService.previsualizarRenovacion(id));
+    public ResponseEntity<RenovacionResponse> previsualizarRenovacion(
+            @PathVariable Long id, @RequestParam(required = false) Long membresiaId) {
+        return ResponseEntity.ok(pagoService.previsualizarRenovacion(id, membresiaId));
     }
 
     /** HU-48: historial de pagos del alumno, del más reciente al más antiguo. Solo PROPIETARIO (ver SecurityConfig). */

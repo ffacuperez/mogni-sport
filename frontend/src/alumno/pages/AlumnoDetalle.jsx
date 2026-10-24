@@ -102,6 +102,11 @@ export default function AlumnoDetalle({ alumno, onBack, onEdit, onEditMembresia,
           {inscripcion ? (
             <dl className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <Dato label="Membresía" ancho>{inscripcion.membresia}</Dato>
+              {alumno.membresiaProgramada && (
+                <Dato label="Próxima membresía (ya pagada)" ancho>
+                  {alumno.membresiaProgramada} a partir del {formatearFecha(alumno.programadaDesde)}
+                </Dato>
+              )}
               <Dato label="Fecha de inicio" mono>{formatearFecha(inscripcion.fechaInicio)}</Dato>
               {/* fechaFin solo existe si la inscripción se canceló */}
               {inscripcion.fechaFin && <Dato label="Fecha de cancelación" mono>{formatearFecha(inscripcion.fechaFin)}</Dato>}

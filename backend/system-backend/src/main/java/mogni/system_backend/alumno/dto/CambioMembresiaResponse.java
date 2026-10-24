@@ -31,4 +31,6 @@ public class CambioMembresiaResponse {
     private boolean sinReembolso;
     /** true si hay diferencia a cobrar: hay que elegir el medio de pago. */
     private boolean requiereMedioDePago;
+    /** Días que le quedan a la cuota actual (0 = vence hoy); null si no tiene cuota vigente. */
+    private Long diasRestantes;
 }

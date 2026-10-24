@@ -50,8 +50,11 @@ public class CuotaService {
     }
 
     static CuotaResponse mapearAResponse(Alumno alumno, Cuota cuota, LocalDate hoy) {
-        // La membresía y su precio actual salen de la inscripción activa: el precio es lo que va a pagar al renovar
+        // La membresía que usa hoy sale de la inscripción activa; la cuota puede ser de una programada (20.10)
         Membresia membresia = alumno.buscarInscripcionActiva().map(Inscripcion::getMembresia).orElse(null);
+        Inscripcion programada = alumno.buscarInscripcionProgramada().orElse(null);
+        // El precio es lo que va a pagar en la próxima renovación: el de la programada si ya pagó el cambio
+        Membresia aRenovar = programada != null ? programada.getMembresia() : membresia;
         SituacionPago situacion = SituacionPago.de(cuota, hoy);
         // Sin cuotas (datos viejos) pero con inscripción activa: puede renovar, el período empieza hoy
         boolean puedeRenovar = cuota != null
@@ -66,11 +69,14 @@ public class CuotaService {
             membresia != null ? membresia.getNombre() : null,
             cuota != null ? cuota.getFechaInicio() : null,
             cuota != null ? cuota.getFechaVencimiento() : null,
-            membresia != null ? BigDecimal.valueOf(membresia.getPrecioActual()).setScale(2) : null,
+            aRenovar != null ? BigDecimal.valueOf(aRenovar.getPrecioActual()).setScale(2) : null,
             situacion,
             situacion == SituacionPago.EN_MORA ? ReglasCuota.diasEnMora(cuota.getFechaVencimiento(), hoy) : null,
             puedeRenovar,
-            cuota != null ? cuota.getFechaVencimiento().minusDays(ReglasCuota.DIAS_VENTANA_RENOVACION) : null
+            cuota != null ? cuota.getFechaVencimiento().minusDays(ReglasCuota.DIAS_VENTANA_RENOVACION) : null,
+            programada != null ? programada.getMembresia().getNombre() : null,
+            programada != null ? programada.getFechaInicio() : null,
+            membresia != null ? membresia.getId() : null
         );
     }
 

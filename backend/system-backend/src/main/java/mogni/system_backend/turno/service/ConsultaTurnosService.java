@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import mogni.system_backend.alumno.entity.Alumno;
-import mogni.system_backend.alumno.entity.Modalidad;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.cuota.entity.SituacionPago;
@@ -128,13 +127,10 @@ public class ConsultaTurnosService {
         return SituacionPago.de(alumno.buscarUltimaCuotaPagada().orElse(null), hoy) == SituacionPago.EN_MORA;
     }
 
-    /** Solo los alumnos con la cuenta activa y modalidad presencial acceden a los turnos. */
+    /** Solo los alumnos con la cuenta activa acceden a los turnos. */
     static void validarAcceso(Alumno alumno) {
         if (!alumno.getCuenta().isActiva()) {
             throw new AccesoDenegadoException("Tu cuenta está inactiva.");
-        }
-        if (alumno.getModalidad() != Modalidad.PRESENCIAL) {
-            throw new AccesoDenegadoException("La reserva de turnos es solo para alumnos presenciales.");
         }
     }
 

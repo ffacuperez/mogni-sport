@@ -1,6 +1,6 @@
 import { Lock } from 'lucide-react';
 
-/** 403 en las pantallas de turnos: alumno inactivo u online. El mensaje con el motivo lo manda el backend. */
+/** 403 en las pantallas de turnos: alumno inactivo. El mensaje con el motivo lo manda el backend. */
 export default function AccesoBloqueado({ mensaje }) {
   return (
     <div className="mt-12 flex animate-fade-in flex-col items-center gap-3 text-center">

@@ -4,12 +4,6 @@ const BASE_PATH = '/alumnos';
 
 const ESTADOS_INSCRIPCION = { ACTIVA: 'Activa', CANCELADA: 'Cancelada', PROGRAMADA: 'Programada' };
 
-// HU-253: valor que espera el backend -> texto para mostrar
-export const MODALIDADES = { PRESENCIAL: 'Presencial', ONLINE: 'Online' };
-
-/** "Presencial" u "Online" (vacío si el alumno todavía no tiene modalidad). */
-export const describirModalidad = (alumno) => MODALIDADES[alumno.modalidad] ?? '';
-
 // Inscripción activa o, si no tiene, la última (cancelada). null si nunca tuvo.
 const inscripcionFromApi = (i) => (i ? {
   membresiaId: i.membresiaId,
@@ -34,7 +28,6 @@ const fromApi = (a) => ({
   edad: a.edad,
   telefono: a.telefono ?? '',
   sexo: a.sexo ?? '',
-  modalidad: a.modalidad ?? '',
   dni: a.dni,
   email: a.email,
   fechaNacimiento: a.fechaNacimiento ?? '',
@@ -64,7 +57,6 @@ const toApi = (form) => ({
   fechaNacimiento: form.fechaNacimiento,
   telefono: form.telefono || null,
   sexo: form.sexo || null,
-  modalidad: form.modalidad || null,
   // Al editar, null = no cambiar la membresía (ya no existe "sin membresía")
   membresiaId: form.membresiaId ? Number(form.membresiaId) : null,
   objetivo: form.objetivo || null,

@@ -9,7 +9,6 @@ import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
 import lombok.Setter;
-import mogni.system_backend.alumno.entity.Modalidad;
 
 @Getter
 @Setter
@@ -38,9 +37,6 @@ public class ActualizarAlumnoRequest {
 
     @NotBlank(message = "El sexo es obligatorio")
     private String sexo;
-
-    @NotNull(message = "La modalidad es obligatoria")
-    private Modalidad modalidad;
 
     private String objetivo;
 

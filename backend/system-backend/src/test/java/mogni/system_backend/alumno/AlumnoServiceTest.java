@@ -34,7 +34,6 @@ import mogni.system_backend.alumno.dto.CambioMembresiaResponse;
 import mogni.system_backend.alumno.dto.ReactivarAlumnoRequest;
 import mogni.system_backend.alumno.dto.RegistrarAlumnoRequest;
 import mogni.system_backend.alumno.entity.Alumno;
-import mogni.system_backend.alumno.entity.Modalidad;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.alumno.service.AlumnoService;
 import mogni.system_backend.alumno.service.BajaAlumnoService;
@@ -96,7 +95,6 @@ class AlumnoServiceTest {
         request.setFechaNacimiento(ZonaHoraria.hoy().minusYears(30));
         request.setTelefono("1122334455");
         request.setSexo("Masculino");
-        request.setModalidad(Modalidad.PRESENCIAL);
         request.setMembresiaId(7L);
         request.setMedioDePago(MedioDePago.EFECTIVO);
         return request;
@@ -147,7 +145,6 @@ class AlumnoServiceTest {
         request.setEmail("juan@email.com");
         request.setFechaNacimiento(alumno.getFechaNacimiento());
         request.setTelefono("1199887766");
-        request.setModalidad(Modalidad.ONLINE);
         return request;
     }
 
@@ -177,7 +174,6 @@ class AlumnoServiceTest {
         assertEquals("12345678", response.getDni());
         assertEquals("1122334455", response.getTelefono());
         assertEquals("Masculino", response.getSexo());
-        assertEquals(Modalidad.PRESENCIAL, response.getModalidad());
         assertEquals(30, response.getEdad());
         assertEquals("juan@email.com", response.getEmail());
         assertEquals(7L, response.getMembresiaId());
@@ -343,8 +339,6 @@ class AlumnoServiceTest {
 
         assertEquals("99888777", response.getDni());
         assertEquals("hash-nuevo-dni", alumno.getCuenta().getPassword());
-        // HU-253: la modalidad también se actualiza
-        assertEquals(Modalidad.ONLINE, response.getModalidad());
     }
 
     @Test

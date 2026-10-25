@@ -9,8 +9,6 @@ import java.util.Optional;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -63,11 +61,6 @@ public class Alumno {
 
     @Column(columnDefinition = "TEXT")
     private String cuestionarioSalud;
-
-    /** HU-253. En la base es nullable para no romper las filas viejas: MigracionModalidadAlumnos completa las NULL. */
-    @Enumerated(EnumType.STRING)
-    @Column(length = 15)
-    private Modalidad modalidad;
 
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "cuenta_id", referencedColumnName = "id", unique = true)

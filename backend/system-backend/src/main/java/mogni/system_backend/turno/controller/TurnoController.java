@@ -23,7 +23,7 @@ import mogni.system_backend.turno.service.ConsultaTurnosService;
 import mogni.system_backend.turno.service.MisTurnosService;
 import mogni.system_backend.turno.service.ReservaService;
 
-/** HU-259: turnos del alumno logueado. Solo rol ALUMNO (ver SecurityConfig); el servicio exige además activo y presencial. */
+/** HU-259: turnos del alumno logueado. Solo rol ALUMNO (ver SecurityConfig); el servicio exige además que esté activo. */
 @RestController
 @RequestMapping("/turnos")
 public class TurnoController {

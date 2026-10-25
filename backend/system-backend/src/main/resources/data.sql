@@ -29,7 +29,7 @@
 --                                                dentro de 4 días)
 --   Nicolás Benítez (33555000)  Full 5x          Al día (20 días): pasó de Funcional 2x a Full 5x hace 3 días y
 --                                                pagó la diferencia (historial con dos pagos)
---   Tomás Díaz (40444555)       Musculación 3x   Al día (20 días), 2 cuotas encadenadas, es ONLINE (no reserva turnos)
+--   Tomás Díaz (40444555)       Musculación 3x   Al día (20 días), 2 cuotas encadenadas
 --   Valentina López (42555666)  Full 5x          Al día (alta hoy)
 --   Diego Molina (34666000)     Musculación 3x   INACTIVO (baja hace 2 días) con 10 días pagos: se reactiva sin pagar
 --   Paula Herrera (43777000)    Full 5x          INACTIVA (baja hace 15 días), sin días pagos: se reactiva con pago
@@ -69,23 +69,23 @@ INSERT INTO cuentas (email, password, rol, debe_cambiar_password, activa, fecha_
     ('paula.herrera@mail.com',    '$2a$10$Ca8yHVGSAylgiNVVxvlmVe1MOMBuE1jItdlbkFpB7KHnA5x.mGtD6', 'ALUMNO', true, false, CURRENT_DATE - 15);
 
 -- 5) Alumnos (todos mayores de 16, DNI y email únicos, con sexo: es obligatorio)
-INSERT INTO alumnos (nombre, apellido, edad, telefono, sexo, dni, email, fecha_nacimiento, objetivo, cuestionario_salud, modalidad, cuenta_id)
+INSERT INTO alumnos (nombre, apellido, edad, telefono, sexo, dni, email, fecha_nacimiento, objetivo, cuestionario_salud, cuenta_id)
 SELECT a.nombre, a.apellido, date_part('year', age(CURRENT_DATE, a.nacimiento))::int, a.telefono, a.sexo, a.dni,
-       a.email, a.nacimiento, a.objetivo, a.salud, a.modalidad, c.id
+       a.email, a.nacimiento, a.objetivo, a.salud, c.id
 FROM (VALUES
-    ('Lucía',     'Gómez',     DATE '1983-04-12', '3415551111', 'Femenino',  '30111222', 'lucia.gomez@mail.com',      'Bajar de peso',       NULL,                        'PRESENCIAL'),
-    ('Martín',    'Fernández', DATE '1990-09-03', '3415552222', 'Masculino', '35222333', 'martin.fernandez@mail.com', 'Ganar masa muscular', 'Lesión de rodilla en 2022', 'PRESENCIAL'),
-    ('Sofía',     'Ruiz',      DATE '1995-01-25', '3415553333', 'Femenino',  '38333444', 'sofia.ruiz@mail.com',       NULL,                  NULL,                        'PRESENCIAL'),
-    ('Tomás',     'Díaz',      DATE '1998-07-30', '3415554444', 'Masculino', '40444555', 'tomas.diaz@mail.com',       'Mejorar resistencia', NULL,                        'ONLINE'),
-    ('Valentina', 'López',     DATE '2001-11-18', '3415555555', 'Femenino',  '42555666', 'valentina.lopez@mail.com',  NULL,                  'Asma leve',                 'PRESENCIAL'),
-    ('Joaquín',   'Sosa',      DATE '1992-02-14', '3415556666', 'Masculino', '36111000', 'joaquin.sosa@mail.com',     'Ganar fuerza',        NULL,                        'PRESENCIAL'),
-    ('Camila',    'Torres',    DATE '1994-06-21', '3415557777', 'Femenino',  '37222000', 'camila.torres@mail.com',    'Tonificar',           NULL,                        'PRESENCIAL'),
-    ('Bruno',     'Acosta',    DATE '1996-10-05', '3415558888', 'Masculino', '39333000', 'bruno.acosta@mail.com',     NULL,                  NULL,                        'PRESENCIAL'),
-    ('Agustina',  'Romero',    DATE '2000-03-09', '3415559999', 'Femenino',  '41444000', 'agustina.romero@mail.com',  'Mejorar postura',     'Escoliosis leve',           'PRESENCIAL'),
-    ('Nicolás',   'Benítez',   DATE '1988-12-01', '3415550000', 'Masculino', '33555000', 'nicolas.benitez@mail.com',  'Preparación física',  NULL,                        'PRESENCIAL'),
-    ('Diego',     'Molina',    DATE '1989-08-17', '3415551212', 'Masculino', '34666000', 'diego.molina@mail.com',     NULL,                  NULL,                        'PRESENCIAL'),
-    ('Paula',     'Herrera',   DATE '2002-05-28', '3415553434', 'Femenino',  '43777000', 'paula.herrera@mail.com',    'Bajar de peso',       NULL,                        'PRESENCIAL')
-) AS a(nombre, apellido, nacimiento, telefono, sexo, dni, email, objetivo, salud, modalidad)
+    ('Lucía',     'Gómez',     DATE '1983-04-12', '3415551111', 'Femenino',  '30111222', 'lucia.gomez@mail.com',      'Bajar de peso',       NULL),
+    ('Martín',    'Fernández', DATE '1990-09-03', '3415552222', 'Masculino', '35222333', 'martin.fernandez@mail.com', 'Ganar masa muscular', 'Lesión de rodilla en 2022'),
+    ('Sofía',     'Ruiz',      DATE '1995-01-25', '3415553333', 'Femenino',  '38333444', 'sofia.ruiz@mail.com',       NULL,                  NULL),
+    ('Tomás',     'Díaz',      DATE '1998-07-30', '3415554444', 'Masculino', '40444555', 'tomas.diaz@mail.com',       'Mejorar resistencia', NULL),
+    ('Valentina', 'López',     DATE '2001-11-18', '3415555555', 'Femenino',  '42555666', 'valentina.lopez@mail.com',  NULL,                  'Asma leve'),
+    ('Joaquín',   'Sosa',      DATE '1992-02-14', '3415556666', 'Masculino', '36111000', 'joaquin.sosa@mail.com',     'Ganar fuerza',        NULL),
+    ('Camila',    'Torres',    DATE '1994-06-21', '3415557777', 'Femenino',  '37222000', 'camila.torres@mail.com',    'Tonificar',           NULL),
+    ('Bruno',     'Acosta',    DATE '1996-10-05', '3415558888', 'Masculino', '39333000', 'bruno.acosta@mail.com',     NULL,                  NULL),
+    ('Agustina',  'Romero',    DATE '2000-03-09', '3415559999', 'Femenino',  '41444000', 'agustina.romero@mail.com',  'Mejorar postura',     'Escoliosis leve'),
+    ('Nicolás',   'Benítez',   DATE '1988-12-01', '3415550000', 'Masculino', '33555000', 'nicolas.benitez@mail.com',  'Preparación física',  NULL),
+    ('Diego',     'Molina',    DATE '1989-08-17', '3415551212', 'Masculino', '34666000', 'diego.molina@mail.com',     NULL,                  NULL),
+    ('Paula',     'Herrera',   DATE '2002-05-28', '3415553434', 'Femenino',  '43777000', 'paula.herrera@mail.com',    'Bajar de peso',       NULL)
+) AS a(nombre, apellido, nacimiento, telefono, sexo, dni, email, objetivo, salud)
 JOIN cuentas c ON c.email = a.email;
 
 -- 6) Inscripciones. Las ACTIVA tienen fecha_fin NULL. Cada alumno tiene como mucho una por estado, así las cuotas y

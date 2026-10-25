@@ -108,7 +108,6 @@ public class AlumnoService {
         alumno.setEdad(edad);
         alumno.setTelefono(request.getTelefono());
         alumno.setSexo(request.getSexo());
-        alumno.setModalidad(request.getModalidad());
         alumno.setDni(dniNormalizado);
         alumno.setEmail(email);
         alumno.setFechaNacimiento(request.getFechaNacimiento());
@@ -174,7 +173,6 @@ public class AlumnoService {
         alumno.setEdad(edad);
         alumno.setTelefono(request.getTelefono());
         alumno.setSexo(request.getSexo());
-        alumno.setModalidad(request.getModalidad());
         alumno.setDni(dniNormalizado);
         alumno.setEmail(email);
         alumno.setFechaNacimiento(request.getFechaNacimiento());
@@ -487,7 +485,6 @@ public class AlumnoService {
             alumno.getEdad(),
             alumno.getTelefono(),
             alumno.getSexo(),
-            alumno.getModalidad(),
             alumno.getDni(),
             alumno.getEmail(),
             alumno.getFechaNacimiento(),

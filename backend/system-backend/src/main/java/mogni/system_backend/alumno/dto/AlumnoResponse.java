@@ -4,7 +4,6 @@ import java.time.LocalDate;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import mogni.system_backend.alumno.entity.Modalidad;
 import mogni.system_backend.auth.entity.Rol;
 import mogni.system_backend.inscripcion.dto.InscripcionResponse;
 
@@ -17,7 +16,6 @@ public class AlumnoResponse {
     private int edad;
     private String telefono;
     private String sexo;
-    private Modalidad modalidad;
     private String dni;
     private String email;
     private LocalDate fechaNacimiento;

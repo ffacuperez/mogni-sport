@@ -4,7 +4,6 @@ import { Field, FormActions, PageHeader, Panel, ReadOnly } from '../../shared/co
 import { inputClass } from '../../shared/components/clases';
 import { formatearMonto } from '../../shared/services/texto';
 import { MEDIOS_DE_PAGO } from '../../cuota/services/cuotasService';
-import { MODALIDADES } from '../services/alumnosService';
 
 // Mismo criterio que el backend: algo@dominio.ext, sin espacios
 const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -21,7 +20,6 @@ export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel,
       fechaNacimiento: '',
       telefono: '',
       sexo: '',
-      modalidad: '',
       membresiaId: '',
       medioDePago: '',
       objetivo: '',
@@ -49,12 +47,6 @@ export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel,
 
     if (!EMAIL_REGEX.test(formData.email.trim())) {
       onError('El email no tiene un formato válido.');
-      return;
-    }
-
-    // HU-253: obligatoria al registrar y al modificar
-    if (!formData.modalidad) {
-      onError('Debe seleccionar la modalidad del alumno.');
       return;
     }
 
@@ -148,14 +140,6 @@ export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel,
               <option value="Femenino">Femenino</option>
               <option value="Masculino">Masculino</option>
               <option value="Otro">Otro</option>
-            </select>
-          ))}
-          {campo('modalidad', 'Modalidad', (id) => (
-            <select id={id} name="modalidad" value={formData.modalidad} onChange={handleChange} required className={inputClass}>
-              <option value="" disabled>Seleccione una modalidad</option>
-              {Object.entries(MODALIDADES).map(([valor, texto]) => (
-                <option key={valor} value={valor}>{texto}</option>
-              ))}
             </select>
           ))}
           {campo('objetivo', 'Objetivo del alumno', (id) => <textarea id={id} name="objetivo" value={formData.objetivo} onChange={handleChange} rows="2" className={inputClass} />, 'md:col-span-2')}

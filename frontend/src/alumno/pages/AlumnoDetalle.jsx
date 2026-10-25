@@ -1,7 +1,6 @@
 import { ArrowLeft, Pencil, Power, RefreshCw } from 'lucide-react';
 
 import { formatearFecha } from '../../shared/services/texto';
-import { describirModalidad } from '../services/alumnosService';
 import { Badge, Button, PageHeader, Panel } from '../../shared/components/ui';
 
 const TONO_ESTADO_INSCRIPCION = {
@@ -79,7 +78,6 @@ export default function AlumnoDetalle({ alumno, onBack, onEdit, onEditMembresia,
             <Dato label="Edad">{alumno.edad != null ? `${alumno.edad} años` : ''}</Dato>
             <Dato label="Teléfono" mono>{alumno.telefono}</Dato>
             <Dato label="Sexo">{alumno.sexo}</Dato>
-            <Dato label="Modalidad">{describirModalidad(alumno)}</Dato>
             <Dato label="Objetivo" ancho>{alumno.objetivo}</Dato>
             <Dato label="Antecedentes de salud" ancho>{alumno.antecedentes}</Dato>
           </dl>

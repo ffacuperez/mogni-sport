@@ -9,7 +9,6 @@ import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
 import lombok.Setter;
-import mogni.system_backend.alumno.entity.Modalidad;
 import mogni.system_backend.pago.entity.MedioDePago;
 
 @Getter
@@ -39,9 +38,6 @@ public class RegistrarAlumnoRequest {
 
     @NotBlank(message = "El sexo es obligatorio")
     private String sexo;
-
-    @NotNull(message = "La modalidad es obligatoria")
-    private Modalidad modalidad;
 
     @NotNull(message = "Debe asignarse una membresía al inscribir al alumno")
     private Long membresiaId;

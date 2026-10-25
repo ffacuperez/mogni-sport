@@ -247,7 +247,7 @@ function ReservarTurnos() {
     consultar(datos.fechaSeleccionada);
   };
 
-  // 403: alumno inactivo u online. El mensaje con el motivo lo manda el backend
+  // 403: alumno inactivo. El mensaje con el motivo lo manda el backend
   if (error?.status === 403) return <AccesoBloqueado mensaje={error.message} />;
 
   if (error && !datos) {

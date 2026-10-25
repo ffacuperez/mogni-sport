@@ -13,7 +13,6 @@ import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
 import mogni.system_backend.alumno.dto.ActualizarAlumnoRequest;
-import mogni.system_backend.alumno.entity.Modalidad;
 
 class ActualizarAlumnoRequestValidationTest {
 
@@ -40,21 +39,12 @@ class ActualizarAlumnoRequestValidationTest {
         request.setFechaNacimiento(LocalDate.now().minusYears(20));
         request.setTelefono("1122334455");
         request.setSexo("Masculino");
-        request.setModalidad(Modalidad.ONLINE);
         return request;
     }
 
     @Test
-    void conModalidadEsValido() {
+    void requestValidoEsValido() {
         assertTrue(validator.validate(requestValido()).isEmpty());
-    }
-
-    // HU-253: la modalidad también es obligatoria al modificar
-    @Test
-    void sinModalidadFalla() {
-        ActualizarAlumnoRequest request = requestValido();
-        request.setModalidad(null);
-        assertFalse(validator.validate(request).isEmpty());
     }
 
     // El sexo es obligatorio también al modificar: a los alumnos viejos sin sexo se les pide al editarlos

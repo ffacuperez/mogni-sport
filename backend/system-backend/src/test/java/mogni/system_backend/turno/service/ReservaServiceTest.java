@@ -27,7 +27,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import mogni.system_backend.alumno.entity.Alumno;
-import mogni.system_backend.alumno.entity.Modalidad;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
@@ -84,7 +83,7 @@ class ReservaServiceTest {
 
     @BeforeEach
     void setUp() {
-        alumno = alumno(10L, Modalidad.PRESENCIAL, true, 3);
+        alumno = alumno(10L, true, 3);
 
         lenient().when(alumnoRepository.findByCuentaEmailIgnoreCase(EMAIL)).thenAnswer(inv -> Optional.of(alumno));
         lenient().when(alumnoRepository.findByIdConBloqueo(anyLong())).thenAnswer(inv -> Optional.of(alumno));
@@ -117,10 +116,9 @@ class ReservaServiceTest {
 
     // --- Armado del escenario ---
 
-    private static Alumno alumno(Long id, Modalidad modalidad, boolean activa, Integer frecuenciaSemanal) {
+    private static Alumno alumno(Long id, boolean activa, Integer frecuenciaSemanal) {
         Alumno a = new Alumno();
         a.setId(id);
-        a.setModalidad(modalidad);
         a.setCuenta(new Cuenta(id, "a" + id + "@mail.com", "hash", Rol.ALUMNO, false, activa, null));
         if (frecuenciaSemanal != null) {
             Membresia membresia = new Membresia(1L, "Plan", 30000.0, frecuenciaSemanal, null);
@@ -130,7 +128,7 @@ class ReservaServiceTest {
     }
 
     private static Alumno otroAlumno(Long id) {
-        return alumno(id, Modalidad.PRESENCIAL, true, 5);
+        return alumno(id, true, 5);
     }
 
     private Turno turno(LocalDate fecha, String inicio, int cupo) {
@@ -209,7 +207,7 @@ class ReservaServiceTest {
 
     @Test
     void alumnoInactivoNoPuedeReservar() {
-        alumno = alumno(10L, Modalidad.PRESENCIAL, false, 3);
+        alumno = alumno(10L, false, 3);
         Turno turno = turno(MARTES, "19:00", 5);
 
         AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class, () -> reservar(turno));
@@ -218,17 +216,8 @@ class ReservaServiceTest {
     }
 
     @Test
-    void alumnoOnlineNoPuedeReservar() {
-        alumno = alumno(10L, Modalidad.ONLINE, true, 3);
-        Turno turno = turno(MARTES, "19:00", 5);
-
-        AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class, () -> reservar(turno));
-        assertEquals("La reserva de turnos es solo para alumnos presenciales.", ex.getMessage());
-    }
-
-    @Test
     void alumnoSinMembresiaActivaNoPuedeReservar() {
-        alumno = alumno(10L, Modalidad.PRESENCIAL, true, null);
+        alumno = alumno(10L, true, null);
         Turno turno = turno(MARTES, "19:00", 5);
 
         assertThrows(AccesoDenegadoException.class, () -> reservar(turno));
@@ -376,7 +365,7 @@ class ReservaServiceTest {
 
     @Test
     void sinTurnosRestantesEnLaSemanaDa409() {
-        alumno = alumno(10L, Modalidad.PRESENCIAL, true, 2);
+        alumno = alumno(10L, true, 2);
         // Semana del lunes 12/10 al domingo 18/10: ya tiene 2 reservas (lunes y viernes)
         yaReservado(alumno, turno(MARTES.minusDays(1), "19:00", 5), EstadoReserva.RESERVADA);
         yaReservado(alumno, turno(MARTES.plusDays(3), "19:00", 5), EstadoReserva.RESERVADA);
@@ -388,7 +377,7 @@ class ReservaServiceTest {
 
     @Test
     void laUltimaReservaDeLaSemanaDejaCeroTurnosRestantes() {
-        alumno = alumno(10L, Modalidad.PRESENCIAL, true, 2);
+        alumno = alumno(10L, true, 2);
         yaReservado(alumno, turno(MARTES.minusDays(1), "19:00", 5), EstadoReserva.RESERVADA);
         Turno turno = turno(MARTES, "19:00", 5);
 
@@ -397,7 +386,7 @@ class ReservaServiceTest {
 
     @Test
     void lasReservasDeOtraSemanaNoCuentanParaElTope() {
-        alumno = alumno(10L, Modalidad.PRESENCIAL, true, 1);
+        alumno = alumno(10L, true, 1);
         // Domingo 11/10: es de la semana anterior (la semana va de lunes a domingo)
         yaReservado(alumno, turno(MARTES.minusDays(2), "19:00", 5), EstadoReserva.RESERVADA);
         Turno turno = turno(MARTES, "19:00", 5);
@@ -409,7 +398,7 @@ class ReservaServiceTest {
 
     @Test
     void lasReservasCanceladasNoCuentanParaElTopeSemanal() {
-        alumno = alumno(10L, Modalidad.PRESENCIAL, true, 1);
+        alumno = alumno(10L, true, 1);
         yaReservado(alumno, turno(MARTES.minusDays(1), "19:00", 5), EstadoReserva.CANCELADA);
         Turno turno = turno(MARTES, "19:00", 5);
 

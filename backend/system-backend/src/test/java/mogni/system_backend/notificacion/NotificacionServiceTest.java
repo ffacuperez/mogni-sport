@@ -120,7 +120,7 @@ class NotificacionServiceTest {
 
     @Test
     void en_mora_sigue_notificando_vencida_sin_tipo_nuevo() {
-        // El tipo CUOTA_EN_MORA queda para la rama de notificaciones (sección 15 del rediseño)
+        // El tipo CUOTA_EN_MORA queda para la rama de notificaciones (rediseño de cuotas)
         List<NotificacionResponse> resultado = notificacionesCon(cuota(10L, hoy.minusDays(60)));
 
         assertEquals(1, resultado.size());

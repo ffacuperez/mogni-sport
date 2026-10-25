@@ -31,7 +31,7 @@ public class CuotaResponse {
     private boolean puedeRenovar;
     /** Desde qué día se puede renovar (10 días antes del vencimiento); null si no tiene cuotas. */
     private LocalDate renovableDesde;
-    /** Membresía ya pagada para el período siguiente (cambio programado, 20.10); null si no tiene. */
+    /** Membresía ya pagada para el período siguiente (cambio programado); null si no tiene. */
     private String membresiaProgramada;
     /** Desde qué día rige la membresía programada; null si no tiene. */
     private LocalDate programadaDesde;

@@ -18,11 +18,11 @@ import mogni.system_backend.inscripcion.repository.InscripcionRepository;
 import mogni.system_backend.turno.service.CancelacionPorSistemaService;
 
 /**
- * "Gestionar alumnos en mora" (rediseño de cuotas, sección 13). La situación de pago se calcula, así que lo único
+ * "Gestionar alumnos en mora" (rediseño de cuotas, puesta al día). La situación de pago se calcula, así que lo único
  * que cambia datos con el paso del tiempo está acá, en este orden:
  * <ol>
- *   <li>activa las inscripciones PROGRAMADA cuyo período ya empezó (cambio de membresía pagado por adelantado,
- *       20.10): la activa del alumno termina ese día y la programada pasa a ACTIVA;</li>
+ *   <li>activa las inscripciones PROGRAMADA cuyo período ya empezó (cambio de membresía pagado por adelantado):
+ *       la activa del alumno termina ese día y la programada pasa a ACTIVA;</li>
  *   <li>cancela los turnos que todavía no empezaron de los alumnos EN_MORA (el lugar se libera solo, porque los
  *       lugares se cuentan con las reservas RESERVADA).</li>
  * </ol>

@@ -50,7 +50,7 @@ public class CuotaService {
     }
 
     static CuotaResponse mapearAResponse(Alumno alumno, Cuota cuota, LocalDate hoy) {
-        // La membresía que usa hoy sale de la inscripción activa; la cuota puede ser de una programada (20.10)
+        // La membresía que usa hoy sale de la inscripción activa; la cuota puede ser de una programada
         Membresia membresia = alumno.buscarInscripcionActiva().map(Inscripcion::getMembresia).orElse(null);
         Inscripcion programada = alumno.buscarInscripcionProgramada().orElse(null);
         // El precio es lo que va a pagar en la próxima renovación: el de la programada si ya pagó el cambio

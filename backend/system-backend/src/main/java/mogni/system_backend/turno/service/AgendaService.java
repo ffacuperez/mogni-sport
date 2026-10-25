@@ -268,7 +268,7 @@ public class AgendaService {
 
     private static AlumnoAgendaResponse mapearAlumno(Reserva reserva, Cuota cuota, LocalDate hoy) {
         Alumno alumno = reserva.getAlumno();
-        // La membresía que usa hoy es la de la inscripción ACTIVA: la última cuota puede ser de una programada (20.10)
+        // La membresía que usa hoy es la de la inscripción ACTIVA: la última cuota puede ser de una programada
         String membresia = alumno.buscarInscripcionActiva()
                 .map(inscripcion -> inscripcion.getMembresia().getNombre())
                 .orElse(null);

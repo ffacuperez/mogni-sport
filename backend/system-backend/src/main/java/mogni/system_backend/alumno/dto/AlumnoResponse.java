@@ -37,7 +37,7 @@ public class AlumnoResponse {
      * su última cuota todavía cubre hoy y se reactiva su misma inscripción. Null si está activo.
      */
     private Boolean reactivacionRequierePago;
-    /** Membresía ya pagada para el período siguiente (cambio programado, 20.10); null si no tiene. */
+    /** Membresía ya pagada para el período siguiente (cambio programado); null si no tiene. */
     private String membresiaProgramada;
     /** Desde qué día rige la membresía programada; null si no tiene. */
     private LocalDate programadaDesde;

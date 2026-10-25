@@ -19,7 +19,7 @@ function Dato({ label, children, destacado = false }) {
 /**
  * MOGNI-45 y MOGNI-80: renovación del alumno. Pide al backend la vista previa (período, precio, recargo y total) y la
  * muestra en grande para confirmar: un pago registrado no se puede deshacer. Se puede renovar con otra membresía
- * (20.10): por defecto viene la actual y, al elegir otra, la vista previa dice desde cuándo rige.
+ *: por defecto viene la actual y, al elegir otra, la vista previa dice desde cuándo rige.
  */
 export default function RegistrarPagoModal({ cuota, membresias, onConfirm, onCancel, onError }) {
   const actualId = cuota.membresiaId != null ? String(cuota.membresiaId) : '';

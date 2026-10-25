@@ -117,7 +117,7 @@ JOIN membresias m ON m.nombre = i.membresia;
 -- 7) Cuotas: períodos ya pagados (inicio → vencimiento), con su precio sin recargo. Son de 30 días, salvo la
 --    diferencia del cambio de membresía de Nicolás, que termina el mismo día que la cuota original ($38.000 −
 --    $18.000 = $20.000). La situación de cada alumno se calcula con su última cuota (activa o programada).
-INSERT INTO cuotas (inscripcion_id, fecha_inicio, fecha_vencimiento, monto_esperado)
+INSERT INTO cuotas (inscripcion_id, fecha_inicio, fecha_vencimiento, precio)
 SELECT i.id, CURRENT_DATE + c.inicio, CURRENT_DATE + c.fin, c.precio
 FROM (VALUES
     ('30111222', 'ACTIVA',     -70, -40, 25000),
@@ -145,7 +145,7 @@ JOIN inscripciones i ON i.alumno_id = a.id AND i.estado = c.estado;
 --    hacia arriba ($25.000 → total $27.500, recargo $2.500).
 --    Joaquín pagó ayer el mes siguiente con Full 5x (queda programado).
 INSERT INTO pagos (cuota_id, monto, recargo, medio_de_pago, fecha_pago)
-SELECT cu.id, cu.monto_esperado + p.recargo, p.recargo, p.medio, CURRENT_DATE + p.fecha_pago
+SELECT cu.id, cu.precio + p.recargo, p.recargo, p.medio, CURRENT_DATE + p.fecha_pago
 FROM (VALUES
     ('30111222', 'ACTIVA',     -70, 0,    'EFECTIVO',      -70),
     ('30111222', 'ACTIVA',     -35, 2500, 'TRANSFERENCIA', -35),

@@ -76,7 +76,7 @@ export default function AlumnoPerfil() {
             icono={CreditCard}
             etiqueta="Membresía"
             valor={inscripcion ? inscripcion.membresia : 'Sin membresía'}
-            // Cambio ya pagado para el mes siguiente (20.10)
+            // Cambio ya pagado para el mes siguiente
             detalle={alumno.membresiaProgramada
               && `Membresía ${alumno.membresiaProgramada} a partir del ${formatearFecha(alumno.programadaDesde)}`}
             extra={inscripcion && <Badge tone={activa ? 'success' : 'error'}>{inscripcion.estado}</Badge>}

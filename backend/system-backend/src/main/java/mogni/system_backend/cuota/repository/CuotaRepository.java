@@ -18,7 +18,7 @@ import mogni.system_backend.inscripcion.entity.Inscripcion;
 public interface CuotaRepository extends JpaRepository<Cuota, Long> {
 
     /**
-     * Inscripciones de las que sale "hasta cuándo pagó": la activa y la programada (ver 20.10). La membresía que el
+     * Inscripciones de las que sale "hasta cuándo pagó": la activa y la programada. La membresía que el
      * alumno usa hoy no sale de acá sino de su inscripción ACTIVA.
      */
     List<EstadoInscripcion> ESTADOS_CON_PERIODO_PAGADO = List.of(EstadoInscripcion.ACTIVA, EstadoInscripcion.PROGRAMADA);

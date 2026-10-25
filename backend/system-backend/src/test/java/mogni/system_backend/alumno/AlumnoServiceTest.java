@@ -813,7 +813,7 @@ class AlumnoServiceTest {
         verify(alumnoRepository, never()).save(any());
     }
 
-    // --- Con un cambio de membresía programado (20.10) ---
+    // --- Con un cambio de membresía programado ---
 
     private final Membresia full = new Membresia(8L, "Full", 38000.0, 5, null);
 

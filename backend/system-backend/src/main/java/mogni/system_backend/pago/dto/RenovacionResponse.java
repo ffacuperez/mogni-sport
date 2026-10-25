@@ -33,7 +33,7 @@ public class RenovacionResponse {
     private BigDecimal total;
     /** Membresía que usa hoy (la de su inscripción activa). */
     private String membresiaActual;
-    /** true si renueva con una membresía distinta a la actual (20.10). */
+    /** true si renueva con una membresía distinta a la actual. */
     private boolean cambioDeMembresia;
     /** Solo con cambio: desde qué día rige la membresía nueva (hoy si está vencida o en mora). */
     private LocalDate rigeDesde;

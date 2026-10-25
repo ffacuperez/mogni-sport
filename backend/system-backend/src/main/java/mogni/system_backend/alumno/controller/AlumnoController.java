@@ -110,7 +110,7 @@ public class AlumnoController {
 
     /**
      * MOGNI-45: vista previa de la renovación (período, precio, recargo y total). Con membresiaId, renovando con otra
-     * membresía (20.10); sin él, con la actual. Solo PROPIETARIO (ver SecurityConfig).
+     * membresía; sin él, con la actual. Solo PROPIETARIO (ver SecurityConfig).
      */
     @GetMapping("/{id}/renovacion")
     public ResponseEntity<RenovacionResponse> previsualizarRenovacion(

@@ -31,7 +31,7 @@ const fromApi = (c) => ({
   cuotaId: c.cuotaId,
   membresia: c.membresiaNombre,
   membresiaId: c.membresiaId,
-  // Cambio de membresía ya pagado para el mes siguiente (20.10)
+  // Cambio de membresía ya pagado para el mes siguiente
   membresiaProgramada: c.membresiaProgramada,
   programadaDesde: c.programadaDesde,
   inicio: c.fechaInicio,
@@ -55,7 +55,7 @@ const numeroONull = (valor) => (valor != null ? Number(valor) : null);
 
 /**
  * MOGNI-45: vista previa de la renovación (período que va a cubrir, precio, recargo si está en mora y total).
- * Con membresiaId, renovando con otra membresía (20.10): dice además desde cuándo rige y si queda programada.
+ * Con membresiaId, renovando con otra membresía: dice además desde cuándo rige y si queda programada.
  * El cálculo lo hace el backend; si no se puede renovar, motivo dice por qué.
  */
 export async function obtenerRenovacion(alumnoId, membresiaId = null) {
@@ -71,7 +71,7 @@ export async function obtenerRenovacion(alumnoId, membresiaId = null) {
 
 /**
  * Renovación del alumno: el backend crea la cuota del período siguiente y su pago (monto y fecha automáticos). Con
- * membresiaId renueva con otra membresía (20.10); sin él, con la actual.
+ * membresiaId renueva con otra membresía; sin él, con la actual.
  */
 export function registrarPago({ alumnoId, medioDePago, membresiaId = null }) {
   return request('/pagos', { method: 'POST', body: { alumnoId, medioDePago, membresiaId } });

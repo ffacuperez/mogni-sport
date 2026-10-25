@@ -308,7 +308,7 @@ class PagoServiceTest {
         assertFalse(historial.get(1).isCambioDeMembresia());
     }
 
-    // --- Renovar con otra membresía (20.10) ---
+    // --- Renovar con otra membresía ---
 
     private final Membresia full = new Membresia(8L, "Full", 38000.0, 5, null);
 

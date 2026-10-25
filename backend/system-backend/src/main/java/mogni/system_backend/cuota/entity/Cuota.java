@@ -23,9 +23,6 @@ import mogni.system_backend.membresia.entity.Membresia;
  * Un período de 30 días ya pagado (regla C1): se crea solo al pagar (alta, renovación o reactivación), siempre
  * junto con su único pago, así que no tiene estado. Lo que cambia con el tiempo es la situación de pago del alumno
  * ({@link SituacionPago}), que se calcula con el vencimiento de su última cuota.
- *
- * <p>Las columnas viejas {@code estado} y {@code periodo} siguen en la base (las usan otras ramas) pero ya no se
- * cargan: ver {@code MigracionCuotasPeriodoPagado}.
  */
 @Entity
 @Table(name = "cuotas")
@@ -43,8 +40,8 @@ public class Cuota {
     @JoinColumn(name = "inscripcion_id", nullable = false)
     private Inscripcion inscripcion;
 
-    /** Sin NOT NULL en la base (Postgres no deja agregarlo con filas existentes); siempre lo carga el código. */
-    @Column(name = "fecha_inicio")
+    /** Inicio del período pagado. */
+    @Column(nullable = false)
     private LocalDate fechaInicio;
 
     /** Fin del período: inicio + 30 días (salvo la cuota de un cambio de membresía, que termina con la anterior). */
@@ -53,9 +50,9 @@ public class Cuota {
 
     /**
      * Importe cobrado por el período, sin recargo: el precio vigente de la membresía al pagar o, en un cambio de
-     * membresía, la diferencia (0 si la nueva no es más cara). La columna conserva su nombre viejo.
+     * membresía, la diferencia (0 si la nueva no es más cara).
      */
-    @Column(name = "monto_esperado", nullable = false, precision = 12, scale = 2)
+    @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal precio;
 
     /** Cuota de 30 días desde {@code inicio}, al precio actual de la membresía de su inscripción. */

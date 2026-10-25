@@ -63,7 +63,7 @@ public class PagoService {
 
     /**
      * Cálculo de una renovación: lo usan la vista previa y el registro, así nunca muestran cosas distintas.
-     * {@code membresia} es con la que renueva y {@code actual} la que usa hoy; si son distintas es un cambio (20.10).
+     * {@code membresia} es con la que renueva y {@code actual} la que usa hoy; si son distintas es un cambio.
      */
     record Renovacion(boolean puedeRenovar, String motivo, SituacionPago situacion, Membresia membresia,
                       Membresia actual, LocalDate inicio, BigDecimal precio, BigDecimal recargo, LocalDate hoy) {
@@ -153,7 +153,7 @@ public class PagoService {
 
     /**
      * Renueva al alumno: crea la cuota del período siguiente y su pago (fecha de hoy, precio vigente y recargo si
-     * está en mora). Con otra membresía (20.10) la cuota va en una inscripción nueva: PROGRAMADA si el período empieza
+     * está en mora). Con otra membresía la cuota va en una inscripción nueva: PROGRAMADA si el período empieza
      * en el futuro (la activa sigue hasta ese día y la activa ponerAlDia()), o ACTIVA desde hoy si está vencida o en
      * mora (la actual termina hoy). La fila del alumno queda bloqueada hasta el fin de la transacción, así dos
      * registros simultáneos (doble clic) se hacen uno detrás de otro y el segundo ya no está dentro de la ventana.
@@ -183,7 +183,7 @@ public class PagoService {
                 nueva = Inscripcion.nueva(alumno, renovacion.membresia(), hoy, EstadoInscripcion.ACTIVA);
             }
             cuota = nueva.agregarCuota(renovacion.inicio());
-            // Inscripción nueva: save hace persist (no merge), así la cuota guardada es este mismo objeto (ver 20.6)
+            // Inscripción nueva: save hace persist (no merge), así la cuota guardada es este mismo objeto (ver cuotaGuardada en AlumnoService)
             inscripcionRepository.save(nueva);
             log.info("Renovación del alumno {} con cambio de {} a {}, {} desde el {}", alumno.getId(),
                     renovacion.actual().getNombre(), renovacion.membresia().getNombre(),
@@ -222,7 +222,7 @@ public class PagoService {
                     boolean cambioDeMembresia = !cuota.getId().equals(primeraCuotaPorVencimiento.get(cuota.getFechaVencimiento()));
                     return new HistorialPagoResponse(p.getId(), p.getFechaPago(), p.getMedioDePago(),
                             cuota.getFechaInicio(), cuota.getFechaVencimiento(), cuota.membresiaCubierta().getNombre(),
-                            cuota.getPrecio(), p.recargoOCero(), p.getMonto(), cambioDeMembresia);
+                            cuota.getPrecio(), p.getRecargo(), p.getMonto(), cambioDeMembresia);
                 })
                 .toList();
     }
@@ -231,6 +231,6 @@ public class PagoService {
         Cuota cuota = pago.getCuota();
         return new PagoResponse(pago.getId(), cuota.getId(), cuota.getInscripcion().getAlumno().getId(),
                 cuota.membresiaCubierta().getNombre(), cuota.getFechaInicio(), cuota.getFechaVencimiento(),
-                cuota.getPrecio(), pago.recargoOCero(), pago.getMonto(), pago.getMedioDePago(), pago.getFechaPago());
+                cuota.getPrecio(), pago.getRecargo(), pago.getMonto(), pago.getMedioDePago(), pago.getFechaPago());
     }
 }

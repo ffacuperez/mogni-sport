@@ -43,7 +43,7 @@ const fromApi = (a) => ({
   // Solo para inactivos: si al reactivarlo hay que cobrar la primera cuota o todavía tiene días pagos
   reactivacionRequierePago: a.reactivacionRequierePago ?? null,
   vencimientoUltimaCuota: a.vencimientoUltimaCuota ?? '',
-  // Cambio de membresía ya pagado para el mes siguiente (20.10); null si no tiene
+  // Cambio de membresía ya pagado para el mes siguiente; null si no tiene
   membresiaProgramada: a.membresiaProgramada ?? null,
   programadaDesde: a.programadaDesde ?? null,
 });

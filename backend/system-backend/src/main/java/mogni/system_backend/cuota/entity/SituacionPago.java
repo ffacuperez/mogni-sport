@@ -3,7 +3,7 @@ package mogni.system_backend.cuota.entity;
 import java.time.LocalDate;
 
 /**
- * Situación de pago del alumno (sección 4 del rediseño de cuotas). No se guarda: se calcula comparando el
+ * Situación de pago del alumno (rediseño de cuotas). No se guarda: se calcula comparando el
  * vencimiento de su última cuota con la fecha de hoy, como la edad con la fecha de nacimiento.
  */
 public enum SituacionPago {

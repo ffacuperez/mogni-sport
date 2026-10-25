@@ -73,7 +73,7 @@ public class MembresiaService {
             throw new RegistroInvalidoException(
                 "No se puede eliminar la membresía porque tiene alumnos con inscripciones activas");
         }
-        // MP7 (20.10): alumnos que ya pagaron esta membresía para el mes siguiente
+        // MP7: alumnos que ya pagaron esta membresía para el mes siguiente
         if (inscripcionRepository.existsByMembresiaIdAndEstado(id, EstadoInscripcion.PROGRAMADA)) {
             throw new RegistroInvalidoException(
                 "No se puede eliminar la membresía porque tiene alumnos que ya la pagaron para el mes siguiente");

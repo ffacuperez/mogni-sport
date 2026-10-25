@@ -74,7 +74,7 @@ class PuestaAlDiaServiceTest {
         return alumno;
     }
 
-    // --- Activación de inscripciones programadas (20.10) ---
+    // --- Activación de inscripciones programadas ---
 
     /** El alumno pagó por adelantado "Full" desde {@code inicio}: su programada, con la cuota pagada. */
     private Inscripcion programadaDesde(Alumno alumno, LocalDate inicio) {

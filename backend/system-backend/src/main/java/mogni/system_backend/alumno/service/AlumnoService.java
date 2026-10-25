@@ -292,7 +292,7 @@ public class AlumnoService {
 
         if (conDiasPagos.isPresent()) {
             Inscripcion deLaUltima = conDiasPagos.get().getInscripcion();
-            // MP6 (20.10): si la última cuota es de un cambio programado que todavía no empezó, vuelve la inscripción
+            // MP6: si la última cuota es de un cambio programado que todavía no empezó, vuelve la inscripción
             // que cubre hoy y la del cambio vuelve a esperar como PROGRAMADA
             Inscripcion queCubreHoy = conDiasPagos.get().getFechaInicio().isAfter(hoy)
                     ? inscripcionQueCubre(alumno, hoy).orElse(deLaUltima)
@@ -396,7 +396,7 @@ public class AlumnoService {
         if (mismaMembresia) {
             return CambioMembresia.rechazado("Elegí una membresía distinta a la actual", cuota);
         }
-        // MP4 (20.10): con un cambio ya pagado para el mes siguiente no se cambia desde hoy (no se deshacen pagos)
+        // MP4: con un cambio ya pagado para el mes siguiente no se cambia desde hoy (no se deshacen pagos)
         Optional<Inscripcion> programada = alumno.buscarInscripcionProgramada();
         if (programada.isPresent()) {
             return CambioMembresia.rechazado("No se puede cambiar la membresía: el alumno tiene un cambio a "

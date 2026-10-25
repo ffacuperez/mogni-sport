@@ -11,7 +11,7 @@ const COLUMNAS = [
   { label: '', className: 'w-12' },
   { label: 'Alumno', className: 'text-center' },
   { label: 'DNI', className: 'text-center' },
-  // La membresía es la que usa hoy; el precio, el de la que va a renovar (puede ser una programada, 20.10)
+  // La membresía es la que usa hoy; el precio, el de la que va a renovar (puede ser una programada)
   { label: 'Membresía activa', className: 'text-center' },
   { label: 'Vencimiento', className: 'text-center' },
   { label: 'Próxima cuota', className: 'text-center' },

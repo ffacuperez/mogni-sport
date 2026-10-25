@@ -95,7 +95,7 @@ public class Alumno {
 
     /**
      * Hasta cuándo pagó: la última cuota entre la inscripción ACTIVA y la PROGRAMADA. Con ella se calcula la situación
-     * de pago. La membresía que usa hoy, en cambio, es siempre la de la ACTIVA (ver 20.10, "dos preguntas").
+     * de pago. La membresía que usa hoy, en cambio, es siempre la de la ACTIVA.
      */
     public Optional<Cuota> buscarUltimaCuotaPagada() {
         return inscripciones.stream()

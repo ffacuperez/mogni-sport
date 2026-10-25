@@ -20,7 +20,7 @@ public class RegistrarPagoRequest {
     private MedioDePago medioDePago;
 
     /**
-     * Membresía con la que renueva (20.10). Opcional: sin ella, o con la misma que tiene, es una renovación común. Si
+     * Membresía con la que renueva. Opcional: sin ella, o con la misma que tiene, es una renovación común. Si
      * es otra y paga por adelantado, queda programada desde el inicio del período; si está vencida o en mora, rige hoy.
      */
     private Long membresiaId;

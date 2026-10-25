@@ -45,7 +45,7 @@ public class AgendaController {
     @GetMapping("/dia")
     public ResponseEntity<AgendaDiaResponse> consultarDia(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
-        // Los turnos cancelados por mora no tienen que aparecer ocupados (rediseño de cuotas, sección 13)
+        // Los turnos cancelados por mora no tienen que aparecer ocupados (rediseño de cuotas, puesta al día)
         puestaAlDiaService.ponerAlDia();
         return ResponseEntity.ok(agendaService.consultarDia(fecha));
     }

@@ -21,6 +21,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import mogni.system_backend.auth.entity.Cuenta;
+import mogni.system_backend.cuota.entity.Cuota;
 import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
 import mogni.system_backend.inscripcion.entity.Inscripcion;
 
@@ -78,6 +79,36 @@ public class Alumno {
         return inscripciones.stream()
                 .filter(i -> i.getEstado() == EstadoInscripcion.ACTIVA)
                 .max(Comparator.comparing(Inscripcion::getFechaInicio));
+    }
+
+    /** La inscripción PROGRAMADA (como mucho hay una): la membresía ya pagada para el período siguiente. */
+    public Optional<Inscripcion> buscarInscripcionProgramada() {
+        return inscripciones.stream()
+                .filter(i -> i.getEstado() == EstadoInscripcion.PROGRAMADA)
+                .max(Comparator.comparing(Inscripcion::getFechaInicio));
+    }
+
+    /** Última cuota de la inscripción ACTIVA (sin la programada). */
+    public Optional<Cuota> buscarUltimaCuotaActiva() {
+        return buscarInscripcionActiva().flatMap(Inscripcion::buscarUltimaCuota);
+    }
+
+    /**
+     * Hasta cuándo pagó: la última cuota entre la inscripción ACTIVA y la PROGRAMADA. Con ella se calcula la situación
+     * de pago. La membresía que usa hoy, en cambio, es siempre la de la ACTIVA.
+     */
+    public Optional<Cuota> buscarUltimaCuotaPagada() {
+        return inscripciones.stream()
+                .filter(i -> i.getEstado() == EstadoInscripcion.ACTIVA || i.getEstado() == EstadoInscripcion.PROGRAMADA)
+                .flatMap(i -> i.getCuotas().stream())
+                .max(Inscripcion.ORDEN_CUOTAS);
+    }
+
+    /** Última cuota de cualquier inscripción (por ejemplo, para saber si un alumno inactivo todavía tiene días pagos). */
+    public Optional<Cuota> buscarUltimaCuota() {
+        return inscripciones.stream()
+                .flatMap(inscripcion -> inscripcion.getCuotas().stream())
+                .max(Inscripcion.ORDEN_CUOTAS);
     }
 
     /** La inscripción ACTIVA si tiene; si no, la más reciente (CANCELADA). Vacío si nunca tuvo. */

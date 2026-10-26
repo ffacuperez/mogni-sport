@@ -41,7 +41,7 @@ class CuentaServiceTest {
 
     @BeforeEach
     void setUp() {
-        cuenta = new Cuenta(1L, "lucia@mail.com", "hash-dni", Rol.ALUMNO, true, true);
+        cuenta = new Cuenta(1L, "lucia@mail.com", "hash-dni", Rol.ALUMNO, true, true, null);
         when(cuentaRepository.findByEmailIgnoreCase("lucia@mail.com")).thenReturn(Optional.of(cuenta));
     }
 

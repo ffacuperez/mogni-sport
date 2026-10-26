@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X } from 'lucide-react';
 
 import { cx, FOCUS, inputClass, labelClass } from './clases';
@@ -40,19 +41,18 @@ export function Button({ variant = 'secondary', size = 'md', className, type = '
 }
 
 /**
- * Logo: "M" estilizada en rojo + wordmark. onDark: sobre el sidebar oscuro (texto blanco).
- * Cuando exista el logo definitivo, se reemplaza solo acá.
+ * Logo: isotipo (logo.svg, cuadrado 600x600 con su propio fondo rojo redondeado) + wordmark.
+ * onDark: sobre el sidebar oscuro (texto blanco).
  */
 export function Logo({ size = 'md', onDark = false, className }) {
   const grande = size === 'lg';
   return (
     <div className={cx('flex items-center gap-2.5 select-none', className)}>
-      <span className={cx(
-        'flex items-center justify-center rounded-lg bg-primary font-black text-on-dark',
-        grande ? 'h-12 w-12 text-2xl' : 'h-9 w-9 text-lg',
-      )}>
-        M
-      </span>
+      <img
+        src="/logo.svg"
+        alt=""
+        className={cx('shrink-0 object-contain', grande ? 'h-12 w-12' : 'h-9 w-9')}
+      />
       <span className="leading-none">
         <span className={cx('block font-extrabold tracking-tight', onDark ? 'text-on-dark' : 'text-ink', grande ? 'text-2xl' : 'text-base')}>MOGNI</span>
         <span className={cx('block font-semibold tracking-[0.3em] text-primary', onDark && 'text-primary-light', grande ? 'mt-1 text-xs' : 'mt-0.5 text-[10px]')}>SPORT</span>
@@ -133,6 +133,7 @@ export function SearchInput({ value, onChange, placeholder, label, className }) 
 const TONOS = {
   success: 'bg-success-bg text-success',
   warning: 'bg-warning-bg text-warning-text',
+  alert: 'bg-alert-bg text-alert',
   error: 'bg-error-bg text-error',
   info: 'bg-info-bg text-info',
   neutral: 'bg-row-hover text-ink-soft',
@@ -148,7 +149,7 @@ export function Badge({ tone = 'neutral', className, children }) {
 
 /** Tarjeta de resumen (guía 5.7): ícono + número + etiqueta, card blanca sobre fondo gris. */
 export function Stat({ label, value, tone = 'neutral', icon: Icon }) {
-  const colorIcono = { neutral: 'bg-row-hover text-ink-soft', success: 'bg-success-bg text-success', warning: 'bg-warning-bg text-warning-text', error: 'bg-error-bg text-error', primary: 'bg-error-bg text-primary' }[tone];
+  const colorIcono = { neutral: 'bg-row-hover text-ink-soft', success: 'bg-success-bg text-success', warning: 'bg-warning-bg text-warning-text', alert: 'bg-alert-bg text-alert', error: 'bg-error-bg text-error', primary: 'bg-error-bg text-primary' }[tone];
   return (
     <Panel className="flex items-center gap-4 p-4">
       {Icon && (
@@ -234,7 +235,10 @@ export function SelectDot({ selected }) {
   );
 }
 
-/** Modal (guía 4.7): overlay negro al 50 %, card blanca, radio 12px. Cierra con Escape o clic afuera. */
+/**
+ * Modal (guía 4.7): overlay negro al 50 %, card blanca, radio 12px. Cierra con Escape o clic afuera.
+ * size: sm (formularios cortos), lg (560px) o xl (880px, tablas como el historial de pagos).
+ */
 export function Modal({ title, subtitle, onClose, size = 'sm', children, cerrable = true }) {
   useEffect(() => {
     if (!cerrable) return undefined;
@@ -243,7 +247,8 @@ export function Modal({ title, subtitle, onClose, size = 'sm', children, cerrabl
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, cerrable]);
 
-  return (
+  // Portal a body: si una página ancestro tiene transform (p. ej. animate-fade-in), el fixed quedaría encerrado en ella
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-fade-in"
       onMouseDown={(e) => { if (cerrable && e.target === e.currentTarget) onClose?.(); }}
@@ -254,7 +259,7 @@ export function Modal({ title, subtitle, onClose, size = 'sm', children, cerrabl
         aria-label={title}
         className={cx(
           'w-full rounded-xl bg-card p-6 shadow-modal animate-pop-in',
-          size === 'lg' ? 'max-w-[560px]' : 'max-w-md',
+          { sm: 'max-w-md', lg: 'max-w-[560px]', xl: 'max-w-[880px]' }[size] ?? 'max-w-md',
         )}
       >
         <div className="mb-5 flex items-start justify-between gap-4">
@@ -270,7 +275,8 @@ export function Modal({ title, subtitle, onClose, size = 'sm', children, cerrabl
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

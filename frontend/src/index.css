@@ -37,6 +37,8 @@
   --color-warning: #f9a825;
   --color-warning-text: #f57f17;
   --color-warning-bg: #fff8e1;
+  --color-alert: #ea580c;
+  --color-alert-bg: #fdede4;
   --color-error: #d32f2f;
   --color-error-bg: #ffebee;
   --color-info: #1976d2;
@@ -50,6 +52,8 @@
   --animate-fade-in: fade-in 0.25s ease-out both;
   --animate-pop-in: pop-in 0.2s ease-out both;
   --animate-slide-down: slide-down 0.25s ease-out both;
+  --animate-slide-up: slide-up 0.25s ease-out both;
+  --animate-slide-in-right: slide-in-right 0.25s ease-out both;
   --animate-scan: scan 1.2s linear infinite;
 
   @keyframes fade-in {
@@ -63,6 +67,14 @@
   @keyframes slide-down {
     from { opacity: 0; transform: translate(-50%, -12px); }
     to { opacity: 1; transform: translate(-50%, 0); }
+  }
+  @keyframes slide-up {
+    from { transform: translateY(100%); }
+    to { transform: none; }
+  }
+  @keyframes slide-in-right {
+    from { transform: translateX(100%); }
+    to { transform: none; }
   }
   @keyframes scan {
     from { background-position: -100% 0; }

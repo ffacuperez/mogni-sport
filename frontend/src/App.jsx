@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
-import { CreditCard, Home as IconHome, LogOut, Users, Wallet } from 'lucide-react';
+import { Calendar, Clock, CreditCard, Home as IconHome, LogOut, Users, Wallet } from 'lucide-react';
 
 import Home from './home/pages/Home';
 import Login from './auth/pages/Login';
@@ -9,12 +9,19 @@ import AlumnosList from './alumno/pages/AlumnosList';
 import AlumnoForm from './alumno/pages/AlumnoForm';
 import AlumnoDetalle from './alumno/pages/AlumnoDetalle';
 import AlumnoMembresiaForm from './alumno/pages/AlumnoMembresiaForm';
-import AlumnoDashboard from './alumno/pages/AlumnoDashboard';
+import ReactivarAlumnoModal from './alumno/pages/ReactivarAlumnoModal';
+import AlumnoLayout from './alumno/pages/AlumnoLayout';
+import AlumnoPerfil from './alumno/pages/AlumnoPerfil';
+import SeccionProximamente from './alumno/pages/SeccionProximamente';
+import Notificaciones from './notificacion/pages/Notificaciones';
 import MembresiasList from './membresia/pages/MembresiasList';
 import MembresiaForm from './membresia/pages/MembresiaForm';
 import CuotasList from './cuota/pages/CuotasList';
 import RegistrarPagoModal from './cuota/pages/RegistrarPagoModal';
 import HistorialPagosModal from './cuota/pages/HistorialPagosModal';
+import HorariosGimnasio from './turno/pages/HorariosGimnasio';
+import TurnosAlumno from './turno/pages/TurnosAlumno';
+import Agenda from './turno/pages/Agenda';
 import ConfirmModal from './shared/components/ConfirmModal';
 import Toast from './shared/components/Toast';
 import { useToast } from './shared/hooks/useToast';
@@ -24,6 +31,7 @@ import { debeCambiarPassword, getRol, hasSession, logout, ROL_ALUMNO, ROLES_GEST
 import { setUnauthorizedHandler } from './shared/services/httpClient';
 import {
   actualizarAlumno,
+  cambiarMembresia,
   crearAlumno,
   darDeBajaAlumno,
   listarAlumnos,
@@ -36,7 +44,14 @@ import {
   eliminarMembresia,
   listarMembresias,
 } from './membresia/services/membresiasService';
-import { listarCuotas, obtenerHistorialDePagos, registrarPago } from './cuota/services/cuotasService';
+import {
+  formatearFecha,
+  formatearMonto,
+  labelMedioDePago,
+  listarCuotas,
+  obtenerHistorialDePagos,
+  registrarPago,
+} from './cuota/services/cuotasService';
 
 // Las pantallas con :id en la URL esperan a tener el alumno. Si no está en la lista (p. ej. se recargó
 // la página en un alumno dado de baja) se pide al backend.
@@ -63,6 +78,8 @@ function MainApp({ onLogout }) {
   const navigate = useNavigate();
   // Cobranzas (HU-45) es solo del propietario; el backend también lo exige
   const esPropietario = getRol() === 'PROPIETARIO';
+  // Agenda de turnos (MOGNI-257): propietario y entrenador; el backend también lo exige
+  const puedeVerAgenda = esPropietario || getRol() === 'ENTRENADOR';
   const { pathname } = useLocation();
   const [alumnos, setAlumnos] = useState([]);
   const [membresias, setMembresias] = useState([]);
@@ -70,12 +87,11 @@ function MainApp({ onLogout }) {
 
   const [selectedMembresiaId, setSelectedMembresiaId] = useState(null);
   const [searchAlumno, setSearchAlumno] = useState('');
-  const [mostrarInactivos, setMostrarInactivos] = useState(false);
-  const [inactivosCargados, setInactivosCargados] = useState(false);
 
   // --- Cuotas (HU-45) ---
   const [cuotas, setCuotas] = useState([]);
   const [cargandoCuotas, setCargandoCuotas] = useState(false);
+  // Una fila por alumno: se selecciona por alumnoId
   const [selectedCuotaId, setSelectedCuotaId] = useState(null);
   const [searchCuota, setSearchCuota] = useState('');
   const [filtroCuota, setFiltroCuota] = useState('Todas');
@@ -86,6 +102,9 @@ function MainApp({ onLogout }) {
   const [pagosHistorial, setPagosHistorial] = useState([]);
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
 
+  // --- Reactivación con pago (MOGNI-246) ---
+  const [alumnoAReactivar, setAlumnoAReactivar] = useState(null);
+
   const [modalConfig, setModalConfig] = useState({ isOpen: false, title: '', message: '', danger: false, onConfirm: null });
   const [toast, mostrarToast] = useToast();
 
@@ -93,9 +112,9 @@ function MainApp({ onLogout }) {
   const cerrarModal = () => setModalConfig(prev => ({ ...prev, isOpen: false }));
 
   useEffect(() => {
-    Promise.all([listarAlumnos(), listarMembresias()])
-      .then(([alumnosData, membresiasData]) => {
-        setAlumnos(alumnosData);
+    Promise.all([listarAlumnos(), listarAlumnos({ activo: false }), listarMembresias()])
+      .then(([alumnosActivos, alumnosInactivos, membresiasData]) => {
+        setAlumnos([...alumnosActivos, ...alumnosInactivos]);
         setMembresias(membresiasData);
       })
       .catch((error) => displayToast(error.message, true))
@@ -153,49 +172,63 @@ function MainApp({ onLogout }) {
     });
   };
 
-  // HU-246: por defecto solo activos. Los dados de baja se piden al backend la primera vez que se activa el filtro.
-  const handleToggleMostrarInactivos = async () => {
-    const mostrar = !mostrarInactivos;
-    setMostrarInactivos(mostrar);
-    if (!mostrar || inactivosCargados) return;
-    try {
-      const inactivos = await listarAlumnos({ activo: false });
-      setAlumnos(prev => [...prev, ...inactivos.filter(i => !prev.some(a => a.id === i.id))]);
-      setInactivosCargados(true);
-    } catch (error) {
-      displayToast(error.message, true);
-    }
-  };
+  const reemplazarAlumno = (actualizado) => setAlumnos(prev => prev.map(a => a.id === actualizado.id ? actualizado : a));
 
+  // MOGNI-246: la baja cancela la inscripción y los turnos; la reactivación cobra la primera cuota salvo que todavía
+  // tenga días pagos (en ese caso vuelve con su misma inscripción, sin cobrar)
   const handleToggleEstadoAlumno = (alumno) => {
+    const nombre = `${alumno.nombre} ${alumno.apellido}`;
 
-    const isActivo = alumno.estado === 'Activo';
-    const actionText = isActivo ? 'dar de baja' : 'activar';
-    const newEstado = isActivo ? 'Inactivo' : 'Activo';
+    if (alumno.estado === 'Activo') {
+      showModal(
+        'Confirmar baja',
+        `¿Estás seguro de que deseas dar de baja al alumno ${nombre}? Se cancelarán su inscripción y sus turnos reservados que todavía no empezaron. Si ya pagó el mes siguiente, no se devuelve.`,
+        async () => {
+          // Se queda en el detalle, que ya muestra el estado actualizado
+          await ejecutar(async () => reemplazarAlumno(await darDeBajaAlumno(alumno.id)),
+            'El alumno ha sido dado de baja correctamente.');
+        },
+        { danger: true }
+      );
+      return;
+    }
+
+    if (alumno.reactivacionRequierePago) {
+      setAlumnoAReactivar(alumno);
+      return;
+    }
 
     showModal(
-      'Confirmar Acción',
-      `¿Estás seguro de que deseas ${actionText} al alumno ${alumno.nombre} ${alumno.apellido}?`,
+      'Confirmar reactivación',
+      `${nombre} todavía tiene días pagos hasta el ${formatearFecha(alumno.vencimientoUltimaCuota)}: se reactiva con su misma membresía, sin cobrar nada. ¿Confirmás?`,
       async () => {
-        // Se queda en el detalle, que ya muestra el estado actualizado
-        await ejecutar(async () => {
-          const actualizado = isActivo ? await darDeBajaAlumno(alumno.id) : await reactivarAlumno(alumno.id);
-          setAlumnos(prev => prev.map(a => a.id === actualizado.id ? actualizado : a));
-        }, `El alumno ha sido ${newEstado === 'Activo' ? 'activado' : 'dado de baja'} correctamente.`);
-      },
-      { danger: isActivo }
+        await ejecutar(async () => reemplazarAlumno(await reactivarAlumno(alumno.id)),
+          'El alumno ha sido activado correctamente.');
+      }
     );
+  };
+
+  const handleReactivarConPago = async (datos) => {
+    const ok = await ejecutar(async () => reemplazarAlumno(await reactivarAlumno(alumnoAReactivar.id, datos)),
+      'El alumno fue reactivado y el pago de la primera cuota quedó registrado.');
+    if (ok) setAlumnoAReactivar(null);
   };
 
   const handleSaveAlumno = (formData, isEdit) => {
     // HU-247: si cambia el DNI se avisa que también cambia la contraseña inicial. Cancelar no guarda nada.
     const original = isEdit ? alumnos.find(a => a.id === formData.id) : null;
     const dniCambio = Boolean(original) && original.dni !== formData.dni;
-    let mensaje = '¿Desea confirmar el alta del nuevo alumno?';
+    let mensaje;
     if (isEdit) {
       mensaje = dniCambio
         ? 'Cambiar el DNI también cambiará la contraseña inicial del alumno si aún no la modificó. ¿Estás seguro?'
         : '¿Desea confirmar los cambios en el alumno?';
+    } else {
+      // MOGNI-73: el alta registra el pago de la primera cuota, que no se puede deshacer
+      const membresia = membresias.find(m => String(m.id) === String(formData.membresiaId));
+      const monto = membresia ? `${formatearMonto(membresia.precio)} ` : '';
+      mensaje = `¿Desea confirmar el alta del nuevo alumno? Se registrará el pago de la primera cuota (${monto}en ${
+        labelMedioDePago(formData.medioDePago).toLowerCase()}). El pago no se puede deshacer.`;
     }
     showModal(
       isEdit ? (dniCambio ? 'Confirmar cambio de DNI' : 'Confirmar Cambios') : 'Confirmar Alta',
@@ -210,21 +243,12 @@ function MainApp({ onLogout }) {
     );
   };
 
-  // Cambio de membresía de un alumno: el backend cancela la inscripción activa y crea una nueva
-  const handleSaveMembresiaAlumno = (formData) => {
-    showModal(
-      'Confirmar cambio de membresía',
-      formData.membresiaId
-        ? '¿Desea cambiar la membresía del alumno? Se cancelará la inscripción activa y se creará una nueva; los días ya pagados de la cuota actual se respetan.'
-        : '¿Desea dejar al alumno sin membresía? Se cancelará la inscripción activa.',
-      async () => {
-        const ok = await ejecutar(async () => {
-          const guardado = await actualizarAlumno(formData.id, formData);
-          setAlumnos(prev => prev.map(a => a.id === guardado.id ? guardado : a));
-        }, 'La membresía del alumno fue actualizada correctamente.');
-        if (ok) navigate(`/alumnos/${formData.id}`);
-      }
-    );
+  // Cambio de membresía (reglas M1 a M9): el aviso sale de la vista previa del backend (qué cambia y cuánto cobrar)
+  // La confirmación (con la diferencia a cobrar y el medio de pago) ya la mostró AlumnoMembresiaForm
+  const handleSaveMembresiaAlumno = async (alumnoId, datos) => {
+    const ok = await ejecutar(async () => reemplazarAlumno(await cambiarMembresia(alumnoId, datos)),
+      'La membresía del alumno fue actualizada correctamente.');
+    if (ok) navigate(`/alumnos/${alumnoId}`);
   };
 
   const handleSaveMembresia = (formData, isEdit) => {
@@ -251,13 +275,12 @@ function MainApp({ onLogout }) {
     );
   };
 
-  // HU-45: registra el pago en el backend (la cuota pasa a PAGADA) y refresca la lista.
+  // MOGNI-45: renovación (el backend crea la cuota del período siguiente y su pago) y refresca la lista.
   // Si falla, el modal queda abierto para corregir los datos.
   const handleRegistrarPago = async (datos) => {
     const ok = await ejecutar(() => registrarPago(datos), 'El pago fue registrado correctamente.');
     if (ok) {
       setCuotaAPagar(null);
-      setSelectedCuotaId(null);
       cargarCuotas();
     }
   };
@@ -297,10 +320,13 @@ function MainApp({ onLogout }) {
 
   const rol = getRol();
   const navItems = [
+    ...(puedeVerAgenda ? [{ to: '/agenda', label: 'Agenda', icon: Calendar }] : []),
     { to: '/alumnos', label: 'Alumnos', icon: Users },
     { to: '/membresias', label: 'Membresías', icon: CreditCard, onClick: () => setSelectedMembresiaId(null) },
     // Cobranzas (HU-45) es solo del propietario
     ...(esPropietario ? [{ to: '/cuotas', label: 'Cuotas', icon: Wallet, onClick: () => setSelectedCuotaId(null) }] : []),
+    // Franjas horarias y cupo (HU-252): solo el propietario
+    ...(esPropietario ? [{ to: '/horarios', label: 'Horarios', icon: Clock }] : []),
   ];
   const seccionActual = navItems.find(item => pathname.startsWith(item.to))?.label ?? 'Panel';
   // Guía 4.5: ítems de 44px, activo con borde izquierdo rojo de 3px sobre #3A3A3A
@@ -373,10 +399,9 @@ function MainApp({ onLogout }) {
               cargando={!cargado}
               onSelect={(id) => navigate(`/alumnos/${id}`)}
               onAdd={() => navigate('/alumnos/nuevo')}
+              onReactivate={handleToggleEstadoAlumno}
               search={searchAlumno}
               setSearch={setSearchAlumno}
-              mostrarInactivos={mostrarInactivos}
-              onToggleMostrarInactivos={handleToggleMostrarInactivos}
             />
           } />
 
@@ -423,7 +448,7 @@ function MainApp({ onLogout }) {
                 <AlumnoMembresiaForm
                   alumno={alumno}
                   membresias={membresias}
-                  onSave={handleSaveMembresiaAlumno}
+                  onSave={(datos) => handleSaveMembresiaAlumno(alumno.id, datos)}
                   onCancel={() => navigate(`/alumnos/${alumno.id}`)}
                   onError={(msg) => displayToast(msg, true)}
                 />
@@ -479,12 +504,21 @@ function MainApp({ onLogout }) {
               setSelectedId={setSelectedCuotaId}
               onRegistrarPago={setCuotaAPagar}
               onVerHistorial={handleVerHistorial}
+              onVerAlumno={(fila) => navigate(`/alumnos/${fila.alumnoId}`)}
               searchTerm={searchCuota}
               setSearchTerm={setSearchCuota}
               filtro={filtroCuota}
               setFiltro={setFiltroCuota}
             />
           ) : <Navigate to="/alumnos" replace />} />
+
+          <Route path="agenda" element={puedeVerAgenda
+            ? <Agenda esPropietario={esPropietario} alumnos={alumnos} alumnosCargados={cargado} />
+            : <Navigate to="/alumnos" replace />} />
+
+          <Route path="horarios" element={esPropietario
+            ? <HorariosGimnasio onToast={displayToast} />
+            : <Navigate to="/alumnos" replace />} />
 
           <Route path="*" element={<Navigate to="/alumnos" replace />} />
         </Routes>
@@ -504,8 +538,19 @@ function MainApp({ onLogout }) {
       {cuotaAPagar && (
         <RegistrarPagoModal
           cuota={cuotaAPagar}
+          membresias={membresias}
           onConfirm={handleRegistrarPago}
           onCancel={() => setCuotaAPagar(null)}
+          onError={(msg) => displayToast(msg, true)}
+        />
+      )}
+
+      {alumnoAReactivar && (
+        <ReactivarAlumnoModal
+          alumno={alumnoAReactivar}
+          membresias={membresias}
+          onConfirm={handleReactivarConPago}
+          onCancel={() => setAlumnoAReactivar(null)}
           onError={(msg) => displayToast(msg, true)}
         />
       )}
@@ -602,29 +647,20 @@ export default function App() {
           : <Login onLogin={handleLogin} onBack={() => navigate('/')} />
       } />
 
-      {/* Dashboard: solo rol ALUMNO */}
+      {/* App del alumno: solo rol ALUMNO. Inicio y Rutinas todavía no están desarrolladas */}
       <Route path="/mi-cuenta" element={
         <RequiereRol sesion={authSession} permitido={esAlumno}>
-          <div className="min-h-screen bg-page text-ink">
-            <header className="sticky top-0 z-30 bg-sidebar">
-              <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-                <Logo onDark />
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className={`flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-on-dark transition-colors hover:bg-sidebar-hover ${FOCUS}`}
-                >
-                  <LogOut className="h-5 w-5 text-ink-muted" /> Cerrar sesión
-                </button>
-              </div>
-            </header>
-
-            <div className="px-4 py-8 sm:px-6">
-              <AlumnoDashboard />
-            </div>
-          </div>
+          <AlumnoLayout onLogout={handleLogout} />
         </RequiereRol>
-      } />
+      }>
+        <Route index element={<Navigate to="perfil" replace />} />
+        <Route path="inicio" element={<SeccionProximamente titulo="Inicio" />} />
+        <Route path="turnos" element={<TurnosAlumno />} />
+        <Route path="rutinas" element={<SeccionProximamente titulo="Rutinas" />} />
+        <Route path="perfil" element={<AlumnoPerfil />} />
+        <Route path="notificaciones" element={<Notificaciones />} />
+        <Route path="*" element={<Navigate to="perfil" replace />} />
+      </Route>
 
       {/* Panel de gestión: solo PROPIETARIO, ENTRENADOR y NUTRICIONISTA. Sus rutas están en MainApp */}
       <Route path="/*" element={

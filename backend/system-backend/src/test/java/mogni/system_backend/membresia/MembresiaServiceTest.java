@@ -2,6 +2,7 @@ package mogni.system_backend.membresia;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -109,6 +110,19 @@ class MembresiaServiceTest {
         when(inscripcionRepository.existsByMembresiaIdAndEstado(3L, EstadoInscripcion.ACTIVA)).thenReturn(true);
 
         assertThrows(RegistroInvalidoException.class, () -> membresiaService.eliminarMembresia(3L));
+        verify(membresiaRepository, never()).delete(any());
+    }
+
+    @Test
+    void eliminarMembresia_rechazaSiAlguienYaLaPagoParaElMesSiguiente() {
+        Membresia membresia = new Membresia();
+        when(membresiaRepository.findById(3L)).thenReturn(Optional.of(membresia));
+        when(inscripcionRepository.existsByMembresiaIdAndEstado(3L, EstadoInscripcion.ACTIVA)).thenReturn(false);
+        when(inscripcionRepository.existsByMembresiaIdAndEstado(3L, EstadoInscripcion.PROGRAMADA)).thenReturn(true);
+
+        RegistroInvalidoException ex = assertThrows(RegistroInvalidoException.class,
+                () -> membresiaService.eliminarMembresia(3L));
+        assertTrue(ex.getMessage().contains("mes siguiente"));
         verify(membresiaRepository, never()).delete(any());
     }
 

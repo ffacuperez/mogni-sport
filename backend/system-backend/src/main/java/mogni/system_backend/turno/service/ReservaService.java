@@ -1,0 +1,149 @@
+package mogni.system_backend.turno.service;
+
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.temporal.TemporalAdjusters;
+import java.time.temporal.TemporalAdjusters;
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import mogni.system_backend.alumno.entity.Alumno;
+import mogni.system_backend.alumno.repository.AlumnoRepository;
+import mogni.system_backend.config.ZonaHoraria;
+import mogni.system_backend.exception.AccesoDenegadoException;
+import mogni.system_backend.exception.ConflictoException;
+import mogni.system_backend.exception.RecursoNoEncontradoException;
+import mogni.system_backend.exception.RegistroInvalidoException;
+import mogni.system_backend.turno.dto.ReservaResponse;
+import mogni.system_backend.turno.entity.ClaseExtra;
+import mogni.system_backend.turno.entity.EstadoReserva;
+import mogni.system_backend.turno.entity.EstadoTurno;
+import mogni.system_backend.turno.entity.Reserva;
+import mogni.system_backend.turno.entity.Turno;
+import mogni.system_backend.turno.repository.ReservaRepository;
+import mogni.system_backend.turno.repository.TurnoRepository;
+import mogni.system_backend.turno.repository.ClaseExtraRepository;
+
+/**
+ * HU-254: reservar un turno. Las reglas se validan acá aunque la pantalla ya las muestre (el frontend solo dibuja).
+ * Para que sea seguro ante concurrencia se bloquean, en este orden, la fila del alumno (sus reglas por día y por
+ * semana) y la fila del turno (el cupo). Siempre el mismo orden, así dos reservas nunca se traban entre sí.
+ */
+@Service
+public class ReservaService {
+
+    private final AlumnoRepository alumnoRepository;
+    private final TurnoRepository turnoRepository;
+    private final ReservaRepository reservaRepository;
+    private final ClaseExtraRepository claseExtraRepository;
+
+    public ReservaService(AlumnoRepository alumnoRepository,
+                          TurnoRepository turnoRepository,
+                          ReservaRepository reservaRepository,
+                          ClaseExtraRepository claseExtraRepository) {
+        this.alumnoRepository = alumnoRepository;
+        this.turnoRepository = turnoRepository;
+        this.reservaRepository = reservaRepository;
+        this.claseExtraRepository = claseExtraRepository;
+    }
+
+    @Transactional
+    public ReservaResponse reservar(String email, Long turnoId) {
+        return reservar(email, turnoId, ZonaHoraria.ahora());
+    }
+
+    /** Igual que el anterior, con "ahora" como parámetro para poder probarlo con cualquier fecha y hora. */
+    ReservaResponse reservar(String email, Long turnoId, LocalDateTime ahora) {
+        Alumno alumno = alumnoRepository.findByCuentaEmailIgnoreCase(email)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No hay un alumno asociado a esta cuenta"));
+        ConsultaTurnosService.validarAcceso(alumno);
+        if (ConsultaTurnosService.estaEnMora(alumno, ahora.toLocalDate())) {
+            throw new AccesoDenegadoException("Tenés la cuota en mora: regularizá el pago para reservar turnos.");
+        }
+
+        alumnoRepository.findByIdConBloqueo(alumno.getId());
+        Turno turno = turnoRepository.findByIdConBloqueo(turnoId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No existe el turno que querés reservar."));
+
+        validarTurno(turno, ahora);
+        ClaseExtra claseExtra = validarAlumno(alumno, turno);
+        validarCupo(turno);
+
+        Reserva reserva = reservaRepository.save(new Reserva(null, alumno, turno, ahora, EstadoReserva.RESERVADA));
+        if (claseExtra != null) {
+            claseExtra.setReservaUsoId(reserva.getId());
+            claseExtraRepository.save(claseExtra);
+        }
+        LocalDate lunes = turno.getFecha().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        long reservasEnLaSemana = reservaRepository.findByAlumnoIdAndEstadoAndTurnoFechaBetween(
+                alumno.getId(), EstadoReserva.RESERVADA,
+                lunes, lunes.plusDays(6)).size();
+        int restantes = Math.max(0, frecuenciaSemanal(alumno) - (int) reservasEnLaSemana);
+        return new ReservaResponse(
+                reserva.getId(),
+                turno.getId(),
+                turno.getFecha(),
+                FranjaHorariaService.formatearHora(turno.getHoraInicio()),
+                FranjaHorariaService.formatearHora(turno.getHoraFin()),
+                reserva.getEstado(),
+                restantes);
+    }
+
+    /** Fecha (hoy o mañana), que no haya empezado y que el gimnasio no lo haya cancelado. */
+    private void validarTurno(Turno turno, LocalDateTime ahora) {
+        LocalDate hoy = ahora.toLocalDate();
+        if (!turno.getFecha().equals(hoy) && !turno.getFecha().equals(hoy.plusDays(1))) {
+            throw new RegistroInvalidoException("Solo podés reservar turnos de hoy y mañana.");
+        }
+        if (turno.getEstado() == EstadoTurno.CANCELADO) {
+            throw new ConflictoException("Este turno fue cancelado por el gimnasio.");
+        }
+        if (turno.getFecha().equals(hoy) && !turno.getHoraInicio().isAfter(ahora.toLocalTime())) {
+            throw new RegistroInvalidoException("Este turno ya empezó, elegí uno más tarde.");
+        }
+    }
+
+    /** Mismo turno, un solo turno por día y tope semanal de la membresía. Devuelve las reservas de la semana. */
+    private ClaseExtra validarAlumno(Alumno alumno, Turno turno) {
+        LocalDate lunes = turno.getFecha().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        List<Reserva> deLaSemana = reservaRepository.findByAlumnoIdAndEstadoAndTurnoFechaBetween(
+                alumno.getId(), EstadoReserva.RESERVADA, lunes, lunes.plusDays(6));
+
+        if (deLaSemana.stream().anyMatch(r -> r.getTurno().getId().equals(turno.getId()))) {
+            throw new ConflictoException("Ya reservaste este turno.");
+        }
+        if (deLaSemana.stream().anyMatch(r -> r.getTurno().getFecha().equals(turno.getFecha()))) {
+            throw new ConflictoException("Ya tenés un turno reservado este día.");
+        }
+        int frecuencia = frecuenciaSemanal(alumno);
+        if (frecuencia == 0) {
+            throw new AccesoDenegadoException("No tenés una membresía activa para reservar turnos.");
+        }
+        if (deLaSemana.size() >= frecuencia) {
+            List<ClaseExtra> disponibles = claseExtraRepository.buscarDisponiblesConBloqueo(
+                    alumno.getId(), turno.getFecha());
+            if (disponibles.isEmpty()) {
+                throw new ConflictoException("Ya usaste todos los turnos de tu membresía en esta semana.");
+            }
+            return disponibles.get(0);
+        }
+        return null;
+    }
+
+    /** Las reservas canceladas no ocupan lugar. Se cuenta con el turno ya bloqueado. */
+    private void validarCupo(Turno turno) {
+        long ocupados = reservaRepository.countByTurnoIdAndEstado(turno.getId(), EstadoReserva.RESERVADA);
+        if (ocupados >= turno.getCupoMaximo()) {
+            throw new ConflictoException("Este turno está completo.");
+        }
+    }
+
+    private static int frecuenciaSemanal(Alumno alumno) {
+        return alumno.buscarInscripcionActiva()
+                .map(inscripcion -> inscripcion.getMembresia().getFrecuenciaSemanal())
+                .orElse(0);
+    }
+}

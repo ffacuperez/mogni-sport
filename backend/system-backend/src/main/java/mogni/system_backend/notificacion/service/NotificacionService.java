@@ -15,10 +15,10 @@ import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.cuota.entity.Cuota;
-import mogni.system_backend.cuota.entity.EstadoCuota;
+import mogni.system_backend.cuota.entity.ReglasCuota;
+import mogni.system_backend.cuota.entity.SituacionPago;
 import mogni.system_backend.cuota.repository.CuotaRepository;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
-import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
 import mogni.system_backend.notificacion.dto.NotificacionResponse;
 import mogni.system_backend.notificacion.dto.TipoNotificacion;
 import mogni.system_backend.notificacion.entity.AvisoTurno;
@@ -34,7 +34,7 @@ import mogni.system_backend.notificacion.repository.AvisoTurnoRepository;
 public class NotificacionService {
 
     /** Mismo umbral que "Próxima a vencer" en la pantalla de cuotas (HU-46). */
-    public static final int DIAS_AVISO_VENCIMIENTO = 5;
+    public static final int DIAS_AVISO_VENCIMIENTO = ReglasCuota.DIAS_AVISO_VENCIMIENTO;
 
     private static final Locale ES_AR = Locale.forLanguageTag("es-AR");
     private static final DateTimeFormatter DIA_Y_FECHA = DateTimeFormatter.ofPattern("EEEE dd/MM", ES_AR);
@@ -60,10 +60,10 @@ public class NotificacionService {
         Alumno alumno = alumnoRepository.findByCuentaEmailIgnoreCase(email)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No hay un alumno asociado a esta cuenta"));
         LocalDate hoy = ZonaHoraria.hoy();
-        List<NotificacionResponse> notificacionesCuotas =
-                cuotaRepository.buscar(EstadoInscripcion.ACTIVA, null, alumno.getId()).stream()
-                .map(cuota -> notificacionDe(cuota, hoy))
-                .flatMap(Optional::stream)
+        // Solo la última cuota: las de meses ya pagados tienen vencimientos pasados y no deben avisar "vencida"
+        List<NotificacionResponse> notificacionesCuotas = cuotaRepository.buscarUltimaCuota(alumno.getId())
+                .flatMap(cuota -> notificacionDe(cuota, hoy))
+                .stream()
                 .toList();
         List<NotificacionResponse> notificacionesTurnos = avisoTurnoRepository
                 .findByAlumnoIdOrderByFechaDescIdDesc(alumno.getId()).stream()
@@ -106,16 +106,19 @@ public class NotificacionService {
                 aviso.getFechaTurno());
     }
 
-    /** Notificación vigente de una cuota (vacía si está pagada o falta para su vencimiento). También la usan las push. */
+    /**
+     * Notificación vigente de la última cuota del alumno, según su situación de pago: "por vencer" si está
+     * PROXIMA_A_VENCER, "vencida" si está VENCIDA o EN_MORA, ninguna si está AL_DIA. También la usan las push.
+     */
     public Optional<NotificacionResponse> notificacionDe(Cuota cuota, LocalDate hoy) {
-        if (cuota.getEstado() == EstadoCuota.PAGADA) {
+        SituacionPago situacion = SituacionPago.de(cuota, hoy);
+        if (situacion == SituacionPago.AL_DIA) {
             return Optional.empty();
         }
         LocalDate vencimiento = cuota.getFechaVencimiento();
         String membresia = cuota.getInscripcion().getMembresia().getNombre();
 
-        // También se mira la fecha, por si la tarea de las 01:00 todavía no la pasó a ATRASADA
-        if (cuota.getEstado() == EstadoCuota.ATRASADA || vencimiento.isBefore(hoy)) {
+        if (situacion == SituacionPago.VENCIDA || situacion == SituacionPago.EN_MORA) {
             return Optional.of(new NotificacionResponse(
                     idDe(cuota), TipoNotificacion.CUOTA_VENCIDA,
                     "Tu cuota está vencida",
@@ -125,9 +128,6 @@ public class NotificacionService {
         }
 
         long dias = ChronoUnit.DAYS.between(hoy, vencimiento);
-        if (dias > DIAS_AVISO_VENCIMIENTO) {
-            return Optional.empty();
-        }
         return Optional.of(new NotificacionResponse(
                 idDe(cuota), TipoNotificacion.CUOTA_POR_VENCER,
                 "Tu cuota está por vencer",

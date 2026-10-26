@@ -1,8 +1,9 @@
 package mogni.system_backend.alumno.service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.Period;
-import java.util.Comparator;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -15,12 +16,16 @@ import org.springframework.transaction.annotation.Transactional;
 import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.alumno.dto.ActualizarAlumnoRequest;
 import mogni.system_backend.alumno.dto.AlumnoResponse;
+import mogni.system_backend.alumno.dto.CambiarMembresiaRequest;
+import mogni.system_backend.alumno.dto.CambioMembresiaResponse;
+import mogni.system_backend.alumno.dto.ReactivarAlumnoRequest;
 import mogni.system_backend.alumno.dto.RegistrarAlumnoRequest;
 import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
 import mogni.system_backend.cuota.entity.Cuota;
-import mogni.system_backend.cuota.entity.EstadoCuota;
+import mogni.system_backend.cuota.entity.ReglasCuota;
+import mogni.system_backend.cuota.entity.SituacionPago;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
 import mogni.system_backend.inscripcion.dto.InscripcionResponse;
@@ -28,6 +33,9 @@ import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
 import mogni.system_backend.inscripcion.entity.Inscripcion;
 import mogni.system_backend.membresia.entity.Membresia;
 import mogni.system_backend.membresia.repository.MembresiaRepository;
+import mogni.system_backend.pago.entity.MedioDePago;
+import mogni.system_backend.pago.entity.Pago;
+import mogni.system_backend.pago.repository.PagoRepository;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.auth.repository.CuentaRepository;
 
@@ -35,29 +43,42 @@ import mogni.system_backend.auth.repository.CuentaRepository;
 public class AlumnoService {
 
     private static final int EDAD_MINIMA = 16;
+    private static final DateTimeFormatter FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final BigDecimal SIN_RECARGO = BigDecimal.ZERO.setScale(2);
 
     private final AlumnoRepository alumnoRepository;
     private final CuentaRepository cuentaRepository;
     private final MembresiaRepository membresiaRepository;
+    private final PagoRepository pagoRepository;
+    private final BajaAlumnoService bajaAlumnoService;
     private final PasswordEncoder passwordEncoder;
 
     public AlumnoService(AlumnoRepository alumnoRepository,
                           CuentaRepository cuentaRepository,
                           MembresiaRepository membresiaRepository,
+                          PagoRepository pagoRepository,
+                          BajaAlumnoService bajaAlumnoService,
                           PasswordEncoder passwordEncoder) {
         this.alumnoRepository = alumnoRepository;
         this.cuentaRepository = cuentaRepository;
         this.membresiaRepository = membresiaRepository;
+        this.pagoRepository = pagoRepository;
+        this.bajaAlumnoService = bajaAlumnoService;
         this.passwordEncoder = passwordEncoder;
     }
 
+    /**
+     * MOGNI-73: el alta siempre se hace con la primera cuota pagada. En la misma transacción se crean el alumno, su
+     * cuenta, la inscripción, la primera cuota (hoy → hoy + 30, al precio vigente) y su pago.
+     */
     @Transactional
     public AlumnoResponse registrarAlumno(RegistrarAlumnoRequest request) {
 
         String dniNormalizado = normalizarDni(request.getDni());
         String email = normalizarEmail(request.getEmail());
+        LocalDate hoy = ZonaHoraria.hoy();
 
-        int edad = Period.between(request.getFechaNacimiento(), ZonaHoraria.hoy()).getYears();
+        int edad = Period.between(request.getFechaNacimiento(), hoy).getYears();
         if (edad < EDAD_MINIMA) {
             throw new RegistroInvalidoException(
                 "El alumno debe tener al menos " + EDAD_MINIMA + " años para registrarse");
@@ -72,6 +93,7 @@ public class AlumnoService {
         }
 
         Membresia membresia = buscarMembresiaOLanzarError(request.getMembresiaId());
+        validarMedioDePago(request.getMedioDePago());
 
         Cuenta cuenta = new Cuenta();
         cuenta.setEmail(email);
@@ -86,16 +108,16 @@ public class AlumnoService {
         alumno.setEdad(edad);
         alumno.setTelefono(request.getTelefono());
         alumno.setSexo(request.getSexo());
-        alumno.setModalidad(request.getModalidad());
         alumno.setDni(dniNormalizado);
         alumno.setEmail(email);
         alumno.setFechaNacimiento(request.getFechaNacimiento());
         alumno.setObjetivo(request.getObjetivo());
         alumno.setCuestionarioSalud(request.getCuestionarioSalud());
         alumno.setCuenta(cuenta);
-        alumno.agregarInscripcion(nuevaInscripcion(membresia));
+        Cuota primeraCuota = inscribirConPrimeraCuota(alumno, membresia, hoy);
 
         Alumno alumnoGuardado = alumnoRepository.save(alumno);
+        pagoRepository.save(Pago.de(primeraCuota, SIN_RECARGO, request.getMedioDePago(), hoy));
 
         return mapearAResponse(alumnoGuardado);
     }
@@ -151,14 +173,12 @@ public class AlumnoService {
         alumno.setEdad(edad);
         alumno.setTelefono(request.getTelefono());
         alumno.setSexo(request.getSexo());
-        alumno.setModalidad(request.getModalidad());
         alumno.setDni(dniNormalizado);
         alumno.setEmail(email);
         alumno.setFechaNacimiento(request.getFechaNacimiento());
         alumno.setObjetivo(request.getObjetivo());
         alumno.setCuestionarioSalud(request.getCuestionarioSalud());
         alumno.getCuenta().setEmail(email);
-        cambiarMembresia(alumno, request.getMembresiaId());
 
         // Si el alumno todavía no cambió la contraseña inicial (que es su DNI), pasa a ser el DNI nuevo.
         // Si ya la cambió, solo se actualiza el DNI.
@@ -170,29 +190,167 @@ public class AlumnoService {
         return mapearAResponse(alumnoActualizado);
     }
 
+    /** Vista previa del cambio de membresía, para el aviso de confirmación del front. */
+    @Transactional(readOnly = true)
+    public CambioMembresiaResponse previsualizarCambioMembresia(Long id, Long membresiaId) {
+        Alumno alumno = buscarAlumnoOLanzarError(id);
+        Membresia nueva = buscarMembresiaOLanzarError(membresiaId);
+        CambioMembresia cambio = evaluarCambioMembresia(alumno, nueva, ZonaHoraria.hoy());
+        BigDecimal precioNuevo = precio(nueva);
+        BigDecimal pagado = cambio.pagadoDelPeriodo();
+        BigDecimal diferencia = cambio.diferencia();
+        return new CambioMembresiaResponse(
+            cambio.permitido(),
+            cambio.motivo(),
+            alumno.buscarInscripcionActiva().map(i -> i.getMembresia().getNombre()).orElse(null),
+            nueva.getNombre(),
+            ZonaHoraria.hoy(),
+            cambio.cuotaVigente().map(Cuota::getFechaVencimiento).orElse(null),
+            pagado,
+            precioNuevo,
+            diferencia,
+            pagado != null && precioNuevo.compareTo(pagado) < 0,
+            diferencia != null && diferencia.signum() > 0,
+            cambio.cuotaVigente()
+                    .map(c -> ReglasCuota.diasHastaVencimiento(c.getFechaVencimiento(), ZonaHoraria.hoy()))
+                    .orElse(null)
+        );
+    }
+
     /**
-     * Baja lógica: el alumno no se borra, su cuenta pasa a inactiva (y por lo tanto no puede iniciar sesión).
+     * Cambio de membresía (reglas M1 a M9). La inscripción activa se cancela con fecha de fin hoy y su cuota queda tal
+     * cual se pagó; se crea una inscripción nueva con la membresía nueva desde hoy y una cuota desde hoy hasta el mismo
+     * vencimiento, por la diferencia a cobrar, con su pago (fecha hoy). Si la nueva no es más cara, la cuota y el pago
+     * son de $0 y el pago copia el medio del pago anterior (no se cobra nada, el medio es irrelevante).
+     */
+    @Transactional
+    public AlumnoResponse cambiarMembresia(Long id, CambiarMembresiaRequest request) {
+        LocalDate hoy = ZonaHoraria.hoy();
+        Alumno alumno = buscarAlumnoOLanzarError(id);
+        Membresia nueva = buscarMembresiaOLanzarError(request.getMembresiaId());
+        CambioMembresia cambio = evaluarCambioMembresia(alumno, nueva, hoy);
+        if (!cambio.permitido()) {
+            throw new RegistroInvalidoException(cambio.motivo());
+        }
+
+        Optional<Cuota> vigente = cambio.cuotaVigente();
+        MedioDePago medioDePago = vigente.isPresent() ? medioDePagoDelCambio(cambio, request) : null;
+
+        alumno.buscarInscripcionActiva().ifPresent(i -> i.cancelar(hoy));
+        Inscripcion inscripcionNueva = nuevaInscripcion(nueva, hoy);
+        alumno.agregarInscripcion(inscripcionNueva);
+        // Datos viejos sin cuotas: no hay período que completar, la próxima renovación empieza hoy
+        vigente.ifPresent(c -> inscripcionNueva.agregarCuotaPorCambio(hoy, c.getFechaVencimiento(), cambio.diferencia()));
+
+        Alumno guardado = alumnoRepository.save(alumno);
+        if (vigente.isPresent()) {
+            pagoRepository.save(Pago.de(cuotaGuardada(guardado), SIN_RECARGO, medioDePago, hoy));
+        }
+        return mapearAResponse(guardado);
+    }
+
+    /** Con diferencia a cobrar el medio es obligatorio; sin diferencia se copia el del pago anterior. */
+    private MedioDePago medioDePagoDelCambio(CambioMembresia cambio, CambiarMembresiaRequest request) {
+        if (cambio.diferencia().signum() > 0) {
+            if (request.getMedioDePago() == null) {
+                throw new RegistroInvalidoException("Seleccioná el medio de pago de la diferencia");
+            }
+            return request.getMedioDePago();
+        }
+        return pagoRepository.findFirstByCuotaIdOrderByIdAsc(cambio.cuotaVigente().get().getId())
+                .map(Pago::getMedioDePago)
+                // Datos viejos: la cuota anterior puede no tener pago
+                .or(() -> Optional.ofNullable(request.getMedioDePago()))
+                .orElseThrow(() -> new RegistroInvalidoException("Seleccioná el medio de pago"));
+    }
+
+    /**
+     * Baja lógica (MOGNI-246): el alumno no se borra, su cuenta pasa a inactiva (no puede iniciar sesión), se cancela
+     * su inscripción y sus turnos que todavía no empezaron. Si ya había pagado el mes siguiente, no se devuelve.
      */
     @Transactional
     public AlumnoResponse darDeBajaAlumno(Long id) {
-        return cambiarEstado(id, false);
-    }
-
-    @Transactional
-    public AlumnoResponse reactivarAlumno(Long id) {
-        return cambiarEstado(id, true);
-    }
-
-    private AlumnoResponse cambiarEstado(Long id, boolean activo) {
         Alumno alumno = buscarAlumnoOLanzarError(id);
-        if (activo) {
-            alumno.getCuenta().setActiva(true);
-            alumno.getCuenta().setFechaBaja(null);
-        } else if (alumno.getCuenta().isActiva()) {
-            alumno.getCuenta().setActiva(false);
-            alumno.getCuenta().setFechaBaja(ZonaHoraria.hoy());
-        }
+        bajaAlumnoService.darDeBaja(alumno, ZonaHoraria.ahora());
         return mapearAResponse(alumnoRepository.save(alumno));
+    }
+
+    /**
+     * Reactivación (MOGNI-246). Si su última cuota todavía cubre hoy, se reactiva la misma inscripción sin cobrar
+     * nada. Si no, es como un alta: se crean una inscripción nueva con la membresía elegida y su primera cuota pagada
+     * (hoy → hoy + 30), sin recargo: la deuda anterior se olvida.
+     */
+    @Transactional
+    public AlumnoResponse reactivarAlumno(Long id, ReactivarAlumnoRequest request) {
+        Alumno alumno = buscarAlumnoOLanzarError(id);
+        if (alumno.getCuenta().isActiva()) {
+            return mapearAResponse(alumno);
+        }
+        LocalDate hoy = ZonaHoraria.hoy();
+        Optional<Cuota> conDiasPagos = alumno.buscarUltimaCuota()
+                .filter(cuota -> !hoy.isAfter(cuota.getFechaVencimiento()));
+
+        if (conDiasPagos.isPresent()) {
+            Inscripcion deLaUltima = conDiasPagos.get().getInscripcion();
+            // MP6: si la última cuota es de un cambio programado que todavía no empezó, vuelve la inscripción
+            // que cubre hoy y la del cambio vuelve a esperar como PROGRAMADA
+            Inscripcion queCubreHoy = conDiasPagos.get().getFechaInicio().isAfter(hoy)
+                    ? inscripcionQueCubre(alumno, hoy).orElse(deLaUltima)
+                    : deLaUltima;
+            cancelarInscripcionesActivas(alumno, queCubreHoy, hoy);
+            queCubreHoy.reactivar();
+            if (deLaUltima != queCubreHoy) {
+                deLaUltima.programar();
+            }
+            activarCuenta(alumno);
+            return mapearAResponse(alumnoRepository.save(alumno));
+        }
+
+        Long membresiaId = request != null ? request.getMembresiaId() : null;
+        MedioDePago medioDePago = request != null ? request.getMedioDePago() : null;
+        if (membresiaId == null || medioDePago == null) {
+            throw new RegistroInvalidoException(
+                "Para reactivar al alumno elegí la membresía y el medio de pago de la primera cuota");
+        }
+        Membresia membresia = buscarMembresiaOLanzarError(membresiaId);
+        cancelarInscripcionesActivas(alumno, null, hoy);
+        inscribirConPrimeraCuota(alumno, membresia, hoy);
+        activarCuenta(alumno);
+        Alumno guardado = alumnoRepository.save(alumno);
+        pagoRepository.save(Pago.de(cuotaGuardada(guardado), SIN_RECARGO, medioDePago, hoy));
+        return mapearAResponse(guardado);
+    }
+
+    /**
+     * La cuota recién creada, tal como quedó guardada. Con un alumno que ya existía, save() hace un merge: la
+     * inscripción y la cuota nuevas que se guardan son copias de las que se armaron, así que el pago tiene que apuntar
+     * a la copia guardada (si apunta al objeto original, Hibernate lo rechaza por no estar guardado). Es la última
+     * cuota de la inscripción activa, que es la nueva.
+     */
+    private static Cuota cuotaGuardada(Alumno guardado) {
+        return guardado.buscarUltimaCuotaActiva().orElseThrow();
+    }
+
+    private static void activarCuenta(Alumno alumno) {
+        alumno.getCuenta().setActiva(true);
+        alumno.getCuenta().setFechaBaja(null);
+    }
+
+    /** La inscripción de la última cuota que cubre ese día (de cualquier estado). */
+    private static Optional<Inscripcion> inscripcionQueCubre(Alumno alumno, LocalDate dia) {
+        return alumno.getInscripciones().stream()
+                .flatMap(i -> i.getCuotas().stream())
+                .filter(c -> c.getFechaInicio() != null && !dia.isBefore(c.getFechaInicio())
+                        && !dia.isAfter(c.getFechaVencimiento()))
+                .max(Inscripcion.ORDEN_CUOTAS)
+                .map(Cuota::getInscripcion);
+    }
+
+    /** Datos viejos: alumnos dados de baja antes del rediseño pueden tener todavía una inscripción ACTIVA. */
+    private static void cancelarInscripcionesActivas(Alumno alumno, Inscripcion excepto, LocalDate hoy) {
+        alumno.getInscripciones().stream()
+                .filter(i -> i != excepto && i.getEstado() == EstadoInscripcion.ACTIVA)
+                .forEach(i -> i.cancelar(hoy));
     }
 
     private Alumno buscarAlumnoOLanzarError(Long id) {
@@ -201,66 +359,93 @@ public class AlumnoService {
     }
 
     /**
-     * Si la membresía elegida es distinta a la de la inscripción activa, cancela la activa
-     * y crea una inscripción nueva. Null deja al alumno sin inscripción activa.
-     *
-     * No se permite cambiar (ni quitar) la membresía si la cuota actual todavía no está pagada:
-     * al cancelar la inscripción esa deuda dejaría de verse en la pantalla de Cuotas (que solo
-     * lista inscripciones ACTIVAS). Si la cuota actual ya está pagada y todavía le quedan días de
-     * vigencia, esos días no se pierden: la cuota de la nueva inscripción vence 30 días después del
-     * vencimiento de la anterior, no de hoy.
+     * Resultado de validar un cambio de membresía: lo usan la vista previa y el cambio, así nunca difieren.
+     * pagadoDelPeriodo y diferencia son null si no hay cuota vigente (datos viejos) o si no se permite.
      */
-    private void cambiarMembresia(Alumno alumno, Long membresiaId) {
-        Optional<Inscripcion> activa = alumno.buscarInscripcionActiva();
-        Long membresiaActualId = activa.map(i -> i.getMembresia().getId()).orElse(null);
-        if (Objects.equals(membresiaActualId, membresiaId)) {
-            return;
-        }
+    record CambioMembresia(boolean permitido, String motivo, Optional<Cuota> cuotaVigente,
+                           BigDecimal pagadoDelPeriodo, BigDecimal diferencia) {
 
-        LocalDate vencimientoAPreservar = activa.flatMap(this::vencimientoAPreservar).orElse(null);
-
-        activa.ifPresent(i -> i.cancelar(ZonaHoraria.hoy()));
-        if (membresiaId != null) {
-            alumno.agregarInscripcion(nuevaInscripcion(buscarMembresiaOLanzarError(membresiaId), vencimientoAPreservar));
+        static CambioMembresia rechazado(String motivo, Optional<Cuota> cuotaVigente) {
+            return new CambioMembresia(false, motivo, cuotaVigente, null, null);
         }
     }
 
     /**
-     * Valida que la cuota más reciente de la inscripción esté pagada (si no, corta el cambio de
-     * membresía) y, si todavía le quedan días de vigencia, devuelve su fecha de vencimiento para
-     * que la nueva cuota la herede. Sin cuotas (caso legacy) no hay nada que validar ni preservar.
+     * Lo pagado por el período vigente, sin recargo: la cuota vigente más las de cambios de membresía anteriores del
+     * mismo período (todas terminan el mismo día). Así, si ya cambió una vez, no se le cobra dos veces lo mismo.
      */
-    private Optional<LocalDate> vencimientoAPreservar(Inscripcion inscripcion) {
-        Optional<Cuota> cuotaActual = inscripcion.getCuotas().stream()
-                .max(Comparator.comparing(Cuota::getFechaVencimiento));
-        if (cuotaActual.isEmpty()) {
-            return Optional.empty();
-        }
-        Cuota cuota = cuotaActual.get();
-        if (cuota.getEstado() != EstadoCuota.PAGADA) {
-            throw new RegistroInvalidoException(
-                "No se puede cambiar la membresía: la cuota actual todavía no está pagada");
-        }
-        return cuota.getFechaVencimiento().isAfter(ZonaHoraria.hoy())
-                ? Optional.of(cuota.getFechaVencimiento())
-                : Optional.empty();
+    static BigDecimal pagadoDelPeriodo(Alumno alumno, Cuota vigente) {
+        return alumno.getInscripciones().stream()
+                .flatMap(i -> i.getCuotas().stream())
+                .filter(c -> c.getFechaVencimiento().equals(vigente.getFechaVencimiento()))
+                .map(Cuota::getPrecio)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2);
     }
 
-    private Inscripcion nuevaInscripcion(Membresia membresia) {
-        return nuevaInscripcion(membresia, null);
+    /** Reglas M1, M2 y M9 del rediseño de cuotas, y la diferencia a cobrar (M5). */
+    static CambioMembresia evaluarCambioMembresia(Alumno alumno, Membresia nueva, LocalDate hoy) {
+        Optional<Cuota> cuota = alumno.buscarUltimaCuotaActiva();
+        if (!alumno.getCuenta().isActiva()) {
+            return CambioMembresia.rechazado(
+                "No se puede cambiar la membresía de un alumno inactivo: se elige al reactivarlo", cuota);
+        }
+        boolean mismaMembresia = alumno.buscarInscripcionActiva()
+                .map(i -> Objects.equals(i.getMembresia().getId(), nueva.getId()))
+                .orElse(false);
+        if (mismaMembresia) {
+            return CambioMembresia.rechazado("Elegí una membresía distinta a la actual", cuota);
+        }
+        // MP4: con un cambio ya pagado para el mes siguiente no se cambia desde hoy (no se deshacen pagos)
+        Optional<Inscripcion> programada = alumno.buscarInscripcionProgramada();
+        if (programada.isPresent()) {
+            return CambioMembresia.rechazado("No se puede cambiar la membresía: el alumno tiene un cambio a "
+                    + programada.get().getMembresia().getNombre() + " desde el "
+                    + programada.get().getFechaInicio().format(FECHA)
+                    + ", ya pagado. Se va a poder cambiar desde ese día", cuota);
+        }
+        if (cuota.isEmpty()) {
+            // Solo con datos viejos: no hay período que completar ni nada que cobrar
+            return new CambioMembresia(true, null, cuota, null, null);
+        }
+        SituacionPago situacion = SituacionPago.de(cuota.get(), hoy);
+        if (situacion == SituacionPago.VENCIDA || situacion == SituacionPago.EN_MORA) {
+            return CambioMembresia.rechazado("No se puede cambiar la membresía: la cuota está "
+                    + (situacion == SituacionPago.VENCIDA ? "vencida" : "en mora")
+                    + ". Primero hay que registrar el pago", cuota);
+        }
+        LocalDate inicio = cuota.get().getFechaInicio();
+        if (inicio != null && inicio.isAfter(hoy)) {
+            return CambioMembresia.rechazado("No se puede cambiar la membresía: ya pagó el período que empieza el "
+                    + inicio.format(FECHA) + ". Se va a poder cambiar desde ese día", cuota);
+        }
+        BigDecimal pagado = pagadoDelPeriodo(alumno, cuota.get());
+        return new CambioMembresia(true, null, cuota, pagado, ReglasCuota.diferenciaCambio(pagado, precio(nueva)));
     }
 
-    private Inscripcion nuevaInscripcion(Membresia membresia, LocalDate vencimientoAPreservar) {
+    /** Inscripción nueva desde hoy con su primera cuota (hoy → hoy + 30). El pago lo guarda quien la llama. */
+    private static Cuota inscribirConPrimeraCuota(Alumno alumno, Membresia membresia, LocalDate hoy) {
+        Inscripcion inscripcion = nuevaInscripcion(membresia, hoy);
+        alumno.agregarInscripcion(inscripcion);
+        return inscripcion.agregarCuota(hoy);
+    }
+
+    private static Inscripcion nuevaInscripcion(Membresia membresia, LocalDate hoy) {
         Inscripcion inscripcion = new Inscripcion();
-        inscripcion.setFechaInicio(ZonaHoraria.hoy());
+        inscripcion.setFechaInicio(hoy);
         inscripcion.setEstado(EstadoInscripcion.ACTIVA);
         inscripcion.setMembresia(membresia);
-        if (vencimientoAPreservar != null) {
-            inscripcion.generarPrimeraCuota(vencimientoAPreservar);
-        } else {
-            inscripcion.generarPrimeraCuota();
-        }
         return inscripcion;
+    }
+
+    private static BigDecimal precio(Membresia membresia) {
+        return BigDecimal.valueOf(membresia.getPrecioActual()).setScale(2);
+    }
+
+    private static void validarMedioDePago(MedioDePago medioDePago) {
+        if (medioDePago == null) {
+            throw new RegistroInvalidoException("Debe seleccionarse el medio de pago de la primera cuota");
+        }
     }
 
     private String normalizarDni(String dni) {
@@ -285,7 +470,14 @@ public class AlumnoService {
 
     private AlumnoResponse mapearAResponse(Alumno alumno) {
         Optional<Inscripcion> activa = alumno.buscarInscripcionActiva();
+        Optional<Inscripcion> programada = alumno.buscarInscripcionProgramada();
         Membresia membresia = activa.map(Inscripcion::getMembresia).orElse(null);
+        boolean cuentaActiva = alumno.getCuenta().isActiva();
+        // Solo para inactivos: así el listado de activos no carga las cuotas de cada alumno
+        LocalDate vencimientoUltimaCuota = cuentaActiva ? null
+                : alumno.buscarUltimaCuota().map(Cuota::getFechaVencimiento).orElse(null);
+        Boolean reactivacionRequierePago = cuentaActiva ? null
+                : vencimientoUltimaCuota == null || ZonaHoraria.hoy().isAfter(vencimientoUltimaCuota);
         return new AlumnoResponse(
             alumno.getId(),
             alumno.getNombre(),
@@ -293,19 +485,22 @@ public class AlumnoService {
             alumno.getEdad(),
             alumno.getTelefono(),
             alumno.getSexo(),
-            alumno.getModalidad(),
             alumno.getDni(),
             alumno.getEmail(),
             alumno.getFechaNacimiento(),
             alumno.getObjetivo(),
             alumno.getCuestionarioSalud(),
             alumno.getCuenta().getRol(),
-            alumno.getCuenta().isActiva(),
+            cuentaActiva,
             alumno.getCuenta().getFechaBaja(),
             membresia != null ? membresia.getId() : null,
             membresia != null ? membresia.getNombre() : null,
             activa.map(Inscripcion::getFechaInicio).orElse(null),
-            alumno.buscarInscripcionActual().map(this::mapearInscripcion).orElse(null)
+            alumno.buscarInscripcionActual().map(this::mapearInscripcion).orElse(null),
+            vencimientoUltimaCuota,
+            reactivacionRequierePago,
+            programada.map(i -> i.getMembresia().getNombre()).orElse(null),
+            programada.map(Inscripcion::getFechaInicio).orElse(null)
         );
     }
 

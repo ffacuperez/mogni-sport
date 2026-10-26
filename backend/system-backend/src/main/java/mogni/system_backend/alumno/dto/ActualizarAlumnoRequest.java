@@ -9,7 +9,6 @@ import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
 import lombok.Setter;
-import mogni.system_backend.alumno.entity.Modalidad;
 
 @Getter
 @Setter
@@ -36,13 +35,8 @@ public class ActualizarAlumnoRequest {
     @Pattern(regexp = "^[-0-9+ ]{6,20}$", message = "El teléfono no tiene un formato válido")
     private String telefono;
 
+    @NotBlank(message = "El sexo es obligatorio")
     private String sexo;
-
-    @NotNull(message = "La modalidad es obligatoria")
-    private Modalidad modalidad;
-
-    /** Si cambia, se cancela la inscripción activa y se crea una nueva. Null = sin membresía. */
-    private Long membresiaId;
 
     private String objetivo;
 

@@ -23,7 +23,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import mogni.system_backend.alumno.entity.Alumno;
-import mogni.system_backend.alumno.entity.Modalidad;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
@@ -64,7 +63,7 @@ class MisTurnosServiceTest {
 
     @BeforeEach
     void setUp() {
-        alumno = alumno(10L, Modalidad.PRESENCIAL, true);
+        alumno = alumno(10L, true);
 
         lenient().when(alumnoRepository.findByCuentaEmailIgnoreCase(EMAIL)).thenAnswer(inv -> Optional.of(alumno));
         lenient().when(reservaRepository.findByAlumnoIdAndEstadoAndTurnoFechaGreaterThanEqual(
@@ -82,10 +81,9 @@ class MisTurnosServiceTest {
 
     // --- Armado del escenario ---
 
-    private static Alumno alumno(Long id, Modalidad modalidad, boolean activa) {
+    private static Alumno alumno(Long id, boolean activa) {
         Alumno a = new Alumno();
         a.setId(id);
-        a.setModalidad(modalidad);
         a.setCuenta(new Cuenta(id, "a" + id + "@mail.com", "hash", Rol.ALUMNO, false, activa, null));
         return a;
     }
@@ -214,7 +212,7 @@ class MisTurnosServiceTest {
 
     @Test
     void noVeLosTurnosReservadosPorOtroAlumno() {
-        Alumno otro = alumno(20L, Modalidad.PRESENCIAL, true);
+        Alumno otro = alumno(20L, true);
         reservar(otro, turno(MARTES.plusDays(1), "17:00", "18:00"), EstadoReserva.RESERVADA);
         Reserva mia = reservar(turno(MARTES.plusDays(1), "18:00", "19:00"));
 
@@ -241,16 +239,8 @@ class MisTurnosServiceTest {
     // --- Acceso ---
 
     @Test
-    void alumnoOnlineNoPuedeConsultar() {
-        alumno = alumno(10L, Modalidad.ONLINE, true);
-
-        AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class, this::consultar);
-        assertEquals("La reserva de turnos es solo para alumnos presenciales.", ex.getMessage());
-    }
-
-    @Test
     void alumnoInactivoNoPuedeConsultar() {
-        alumno = alumno(10L, Modalidad.PRESENCIAL, false);
+        alumno = alumno(10L, false);
 
         AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class, this::consultar);
         assertEquals("Tu cuenta está inactiva.", ex.getMessage());

@@ -29,7 +29,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import mogni.system_backend.alumno.entity.Alumno;
-import mogni.system_backend.alumno.entity.Modalidad;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
@@ -80,8 +79,8 @@ class ConsultaTurnosServiceTest {
 
     @BeforeEach
     void setUp() {
-        alumno = alumno(10L, Modalidad.PRESENCIAL, true, 3);
-        otroAlumno = alumno(20L, Modalidad.PRESENCIAL, true, 5);
+        alumno = alumno(10L, true, 3);
+        otroAlumno = alumno(20L, true, 5);
 
         lenient().when(alumnoRepository.findByCuentaEmailIgnoreCase(EMAIL)).thenAnswer(inv -> Optional.of(alumno));
         lenient().when(generacionTurnosService.obtenerOGenerarTurnos(any(LocalDate.class)))
@@ -110,10 +109,9 @@ class ConsultaTurnosServiceTest {
 
     // --- Armado del escenario ---
 
-    private static Alumno alumno(Long id, Modalidad modalidad, boolean activa, Integer frecuenciaSemanal) {
+    private static Alumno alumno(Long id, boolean activa, Integer frecuenciaSemanal) {
         Alumno a = new Alumno();
         a.setId(id);
-        a.setModalidad(modalidad);
         a.setCuenta(new Cuenta(id, "a" + id + "@mail.com", "hash", Rol.ALUMNO, false, activa, null));
         if (frecuenciaSemanal != null) {
             Membresia membresia = new Membresia(1L, "Plan", 30000.0, frecuenciaSemanal, null);
@@ -153,18 +151,10 @@ class ConsultaTurnosServiceTest {
     // Pruebas 2 y 3
     @Test
     void alumnoInactivoNoPuedeConsultar() {
-        alumno = alumno(10L, Modalidad.PRESENCIAL, false, 3);
+        alumno = alumno(10L, false, 3);
 
         AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class, () -> consultar(null, MARTES_10_30));
         assertEquals("Tu cuenta está inactiva.", ex.getMessage());
-    }
-
-    @Test
-    void alumnoOnlineNoPuedeConsultar() {
-        alumno = alumno(10L, Modalidad.ONLINE, true, 3);
-
-        AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class, () -> consultar(null, MARTES_10_30));
-        assertEquals("La reserva de turnos es solo para alumnos presenciales.", ex.getMessage());
     }
 
     @Test
@@ -363,7 +353,7 @@ class ConsultaTurnosServiceTest {
     // Prueba 19
     @Test
     void conElContadorEnCeroNoSePuedeElegirNingunTurno() {
-        alumno = alumno(10L, Modalidad.PRESENCIAL, true, 1);
+        alumno = alumno(10L, true, 1);
         Turno lunes = turno(MARTES.minusDays(1), "08:00", 5);
         reservar(alumno, lunes, EstadoReserva.RESERVADA);
         turno(MIERCOLES, "08:00", 5);
@@ -391,7 +381,7 @@ class ConsultaTurnosServiceTest {
 
     @Test
     void sinInscripcionActivaNoLeQuedanTurnos() {
-        alumno = alumno(10L, Modalidad.PRESENCIAL, true, null);
+        alumno = alumno(10L, true, null);
         turno(MIERCOLES, "08:00", 5);
 
         TurnosDisponiblesResponse response = consultar(MIERCOLES, MARTES_10_30);
@@ -402,12 +392,50 @@ class ConsultaTurnosServiceTest {
 
     @Test
     void elContadorNuncaEsNegativo() {
-        alumno = alumno(10L, Modalidad.PRESENCIAL, true, 1);
+        alumno = alumno(10L, true, 1);
         reservar(alumno, turno(MARTES.minusDays(1), "08:00", 5), EstadoReserva.RESERVADA);
         reservar(alumno, turno(MARTES, "08:00", 5), EstadoReserva.RESERVADA);
 
         assertEquals(0, consultar(MIERCOLES, MARTES_10_30).getTurnosRestantesSemana());
         verify(reservaRepository).findByAlumnoIdAndEstadoAndTurnoFechaBetween(
                 eq(10L), eq(EstadoReserva.RESERVADA), eq(LocalDate.of(2026, 10, 12)), eq(LocalDate.of(2026, 10, 18)));
+    }
+
+    // --- Cuota en mora (MOGNI-259) ---
+
+    @Test
+    void alumnoEnMoraVeLosTurnosPeroNoPuedeElegirNinguno() {
+        alumno.buscarInscripcionActiva().orElseThrow().agregarCuota(MARTES.minusDays(32)); // venció hace 2 días
+        turno(MARTES, "19:00", 5);
+
+        TurnosDisponiblesResponse response = consultar(null, MARTES_10_30);
+
+        assertTrue(response.isBloqueadoPorMora());
+        assertEquals(1, response.getTurnos().size());
+        assertFalse(buscar(response, "19:00").isSeleccionable());
+    }
+
+    @Test
+    void conElMesSiguientePagadoEnUnaProgramadaNoEstaEnMora() {
+        // La cuota de la activa venció hace 2 días, pero ya pagó el período siguiente con otra membresía
+        alumno.buscarInscripcionActiva().orElseThrow().agregarCuota(MARTES.minusDays(32));
+        Inscripcion.nueva(alumno, new Membresia(9L, "Full", 38000.0, 5, null), MARTES.minusDays(2),
+                EstadoInscripcion.PROGRAMADA).agregarCuota(MARTES.minusDays(2));
+        turno(MARTES, "19:00", 5);
+
+        TurnosDisponiblesResponse response = consultar(null, MARTES_10_30);
+
+        assertFalse(response.isBloqueadoPorMora());
+    }
+
+    @Test
+    void alumnoVencidoNoEstaBloqueado() {
+        alumno.buscarInscripcionActiva().orElseThrow().agregarCuota(MARTES.minusDays(31)); // venció ayer
+        turno(MARTES, "19:00", 5);
+
+        TurnosDisponiblesResponse response = consultar(null, MARTES_10_30);
+
+        assertFalse(response.isBloqueadoPorMora());
+        assertTrue(buscar(response, "19:00").isSeleccionable());
     }
 }

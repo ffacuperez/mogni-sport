@@ -1,21 +1,29 @@
-import { AlertTriangle, Clock, History, Receipt, Wallet } from 'lucide-react';
+import { AlertTriangle, CircleCheck, Clock, History, OctagonAlert, UserRound, Wallet } from 'lucide-react';
 
-import { avisoVencimiento, formatearFecha, formatearMonto, tonoEstadoCuota } from '../services/cuotasService';
+import { avisoVencimiento, formatearFecha, formatearMonto, SITUACIONES, tonoEstadoCuota } from '../services/cuotasService';
 import { normalizar } from '../../shared/services/texto';
 import { Badge, Button, EmptyRow, PageHeader, Panel, Row, SearchInput, SelectDot, Stat, Table } from '../../shared/components/ui';
 
-// Un filtro por cada estado que se muestra en la tabla
-const FILTROS = ['Todas', 'Al día', 'Próxima a vencer', 'Vencida'];
+// Un filtro por cada situación que se muestra en la tabla (HU-46)
+const FILTROS = ['Todas', SITUACIONES.EN_MORA, SITUACIONES.VENCIDA, SITUACIONES.PROXIMA_A_VENCER, SITUACIONES.AL_DIA];
 
 const COLUMNAS = [
   { label: '', className: 'w-12' },
-  { label: 'Alumno' },
-  { label: 'DNI' },
-  { label: 'Membresía' },
-  { label: 'Monto', className: 'text-right' },
-  { label: 'Vencimiento' },
-  { label: 'Estado' },
+  { label: 'Alumno', className: 'text-center' },
+  { label: 'DNI', className: 'text-center' },
+  // La membresía es la que usa hoy; el precio, el de la que va a renovar (puede ser una programada)
+  { label: 'Membresía activa', className: 'text-center' },
+  { label: 'Vencimiento', className: 'text-center' },
+  { label: 'Próxima cuota', className: 'text-center' },
+  { label: 'Estado', className: 'text-center' },
 ];
+
+
+/** Texto que explica por qué no se puede registrar el pago de la fila seleccionada. */
+function motivoSinRenovacion(fila) {
+  if (fila.renovableDesde) return `El pago se habilita desde el ${formatearFecha(fila.renovableDesde)}.`;
+  return 'El alumno no tiene una membresía activa.';
+}
 
 export default function CuotasList({
   cuotas,
@@ -24,6 +32,7 @@ export default function CuotasList({
   setSelectedId,
   onRegistrarPago,
   onVerHistorial,
+  onVerAlumno,
   searchTerm,
   setSearchTerm,
   filtro,
@@ -37,51 +46,54 @@ export default function CuotasList({
     || normalizar(c.apellido).includes(termino)
     || normalizar(`${c.nombre} ${c.apellido}`).includes(termino);
 
-  // El backend ya devuelve solo cuotas de alumnos activos con inscripción activa.
+  // Una fila por alumno activo; el orden (en mora, vencidas, por vencimiento) ya viene del backend
   const filas = cuotas
     .filter(coincide)
     .filter((cuota) => filtro === 'Todas' || cuota.estado === filtro);
 
-  const seleccion = filas.find((c) => c.id === selectedId);
+  // La selección es por alumno: después de renovar, la fila sigue siendo la misma
+  const seleccion = filas.find((c) => c.alumnoId === selectedId);
 
-  const porCobrar = cuotas.filter((c) => c.pagable);
   const cantidad = (estado) => cuotas.filter((c) => c.estado === estado).length;
-  const totalPorCobrar = porCobrar.reduce((total, c) => total + c.monto, 0);
+  const contador = (f) => (f === 'Todas' ? cuotas.length : cantidad(f));
 
-  let vacio = 'No hay cuotas que coincidan con la búsqueda.';
+  let vacio = 'No hay alumnos que coincidan con la búsqueda.';
   if (cargando) vacio = 'Cargando cuotas...';
-  else if (cuotas.length === 0) vacio = 'No hay cuotas registradas.';
+  else if (cuotas.length === 0) vacio = 'No hay alumnos activos.';
 
   return (
     <div className="animate-fade-in">
-      <PageHeader eyebrow="Cobranzas · Propietario" title="Cuotas" />
+      <PageHeader eyebrow="Cobranzas · Propietario" title="Cuotas" subtitle="Situación de pago de cada alumno activo según su última cuota." />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Por cobrar" value={porCobrar.length} icon={Receipt} />
-        <Stat label="Vencidas" value={cantidad('Vencida')} tone={cantidad('Vencida') ? 'error' : 'neutral'} icon={AlertTriangle} />
-        <Stat label="Próximas a vencer" value={cantidad('Próxima a vencer')} tone={cantidad('Próxima a vencer') ? 'warning' : 'neutral'} icon={Clock} />
-        <Stat label="Monto pendiente" value={formatearMonto(totalPorCobrar)} tone="primary" icon={Wallet} />
+        <Stat label="En mora" value={cantidad(SITUACIONES.EN_MORA)} tone={cantidad(SITUACIONES.EN_MORA) ? 'error' : 'neutral'} icon={OctagonAlert} />
+        <Stat label="Vencidas" value={cantidad(SITUACIONES.VENCIDA)} tone={cantidad(SITUACIONES.VENCIDA) ? 'alert' : 'neutral'} icon={AlertTriangle} />
+        <Stat label="Próximas a vencer" value={cantidad(SITUACIONES.PROXIMA_A_VENCER)} tone={cantidad(SITUACIONES.PROXIMA_A_VENCER) ? 'warning' : 'neutral'} icon={Clock} />
+        <Stat label="Al día" value={cantidad(SITUACIONES.AL_DIA)} tone="success" icon={CircleCheck} />
       </div>
 
       <Panel className="p-4 sm:p-5">
         <div className="mb-4 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="primary" onClick={() => onRegistrarPago(seleccion)} disabled={!seleccion?.pagable}>
+            <Button variant="primary" onClick={() => onRegistrarPago(seleccion)} disabled={!seleccion?.puedeRenovar}>
               <Wallet className="h-4 w-4" /> Registrar pago
             </Button>
             <Button onClick={() => onVerHistorial(seleccion)} disabled={!seleccion}>
               <History className="h-4 w-4" /> Ver historial
             </Button>
+            <Button onClick={() => onVerAlumno(seleccion)} disabled={!seleccion}>
+              <UserRound className="h-4 w-4" /> Ver alumno
+            </Button>
             <p className="text-sm text-ink-muted">
-              {!seleccion && 'Seleccioná una cuota para registrar el pago o ver el historial.'}
-              {seleccion && !seleccion.pagable && 'La cuota seleccionada ya está pagada.'}
+              {!seleccion && 'Seleccioná un alumno para registrar el pago, ver el historial o ir a su ficha.'}
+              {seleccion && !seleccion.puedeRenovar && motivoSinRenovacion(seleccion)}
             </p>
           </div>
 
-          <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar por nombre o DNI" label="Buscar cuota por nombre o DNI" />
+          <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar por nombre o DNI" label="Buscar alumno por nombre o DNI" />
         </div>
 
-        <div className="mb-5 flex flex-wrap gap-2" role="group" aria-label="Filtrar por estado">
+        <div className="mb-5 flex flex-wrap gap-2" role="group" aria-label="Filtrar por situación">
           {FILTROS.map((f) => (
             <button
               key={f}
@@ -94,31 +106,33 @@ export default function CuotasList({
                   : 'border-line bg-card text-ink-soft hover:bg-row-hover hover:text-ink'
               }`}
             >
-              {f}
+              {f} <span className="tabular-nums opacity-80">({contador(f)})</span>
             </button>
           ))}
         </div>
 
         <Table columns={COLUMNAS} cargando={cargando}>
           {filas.map((cuota) => {
-            const seleccionada = selectedId === cuota.id;
+            const seleccionada = selectedId === cuota.alumnoId;
+            const aviso = avisoVencimiento(cuota);
             return (
-              <Row key={cuota.id} selected={seleccionada} onActivate={() => setSelectedId(seleccionada ? null : cuota.id)}>
+              <Row key={cuota.alumnoId} selected={seleccionada} onActivate={() => setSelectedId(seleccionada ? null : cuota.alumnoId)}>
                 <td className="px-3"><SelectDot selected={seleccionada} /></td>
-                <td className="px-3 font-semibold text-ink">{cuota.apellido}, {cuota.nombre}</td>
-                <td className="px-3 tabular-nums text-ink-soft">{cuota.dni}</td>
-                <td className="px-3">{cuota.membresia}</td>
-                <td className="px-3 text-right tabular-nums">{formatearMonto(cuota.monto)}</td>
-                <td className="px-3">
-                  <span className="tabular-nums">{formatearFecha(cuota.vencimiento)}</span>
-                  {avisoVencimiento(cuota) && (
-                    <span className={`block text-xs ${{ 'Vencida': 'text-error', 'Próxima a vencer': 'text-warning-text' }[cuota.estado] ?? 'text-success'}`}>
-                      {avisoVencimiento(cuota)}
+                <td className="px-3 text-center font-semibold text-ink">{cuota.apellido}, {cuota.nombre}</td>
+                <td className="px-3 text-center tabular-nums text-ink-soft">{cuota.dni}</td>
+                <td className="px-3 py-2 text-center">
+                  {cuota.membresia ?? '—'}
+                  {cuota.membresiaProgramada && (
+                    <span className="mt-1 block text-xs text-ink-soft">
+                      → {cuota.membresiaProgramada} desde {formatearFecha(cuota.programadaDesde)}
                     </span>
                   )}
                 </td>
-                <td className="px-3">
+                <td className="px-3 text-center tabular-nums">{formatearFecha(cuota.vencimiento)}</td>
+                <td className="px-3 text-center tabular-nums">{cuota.precio != null ? formatearMonto(cuota.precio) : '—'}</td>
+                <td className="px-3 py-2 text-center">
                   <Badge tone={tonoEstadoCuota(cuota.estado)}>{cuota.estado}</Badge>
+                  {aviso && <span className="mt-1 block text-xs text-error">{aviso}</span>}
                 </td>
               </Row>
             );

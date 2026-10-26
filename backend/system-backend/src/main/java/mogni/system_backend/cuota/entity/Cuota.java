@@ -2,12 +2,9 @@ package mogni.system_backend.cuota.entity;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.YearMonth;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -20,7 +17,13 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import mogni.system_backend.inscripcion.entity.Inscripcion;
+import mogni.system_backend.membresia.entity.Membresia;
 
+/**
+ * Un período de 30 días ya pagado (regla C1): se crea solo al pagar (alta, renovación o reactivación), siempre
+ * junto con su único pago, así que no tiene estado. Lo que cambia con el tiempo es la situación de pago del alumno
+ * ({@link SituacionPago}), que se calcula con el vencimiento de su última cuota.
+ */
 @Entity
 @Table(name = "cuotas")
 @Getter
@@ -28,8 +31,6 @@ import mogni.system_backend.inscripcion.entity.Inscripcion;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Cuota {
-
-    public static final int DIAS_VENCIMIENTO = 30;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -39,39 +40,47 @@ public class Cuota {
     @JoinColumn(name = "inscripcion_id", nullable = false)
     private Inscripcion inscripcion;
 
-    /** Mes que cubre la cuota, formato "2026-10". */
-    @Column(nullable = false, length = 7)
-    private String periodo;
+    /** Inicio del período pagado. */
+    @Column(nullable = false)
+    private LocalDate fechaInicio;
 
-    @Column(nullable = false, precision = 12, scale = 2)
-    private BigDecimal montoEsperado;
-
+    /** Fin del período: inicio + 30 días (salvo la cuota de un cambio de membresía, que termina con la anterior). */
     @Column(nullable = false)
     private LocalDate fechaVencimiento;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private EstadoCuota estado = EstadoCuota.PENDIENTE;
+    /**
+     * Importe cobrado por el período, sin recargo: el precio vigente de la membresía al pagar o, en un cambio de
+     * membresía, la diferencia (0 si la nueva no es más cara).
+     */
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal precio;
 
-    /** Primera cuota de una inscripción: PENDIENTE, al precio actual de la membresía, vence a 30 días del inicio. */
-    public static Cuota primeraDe(Inscripcion inscripcion) {
-        Cuota cuota = new Cuota();
-        cuota.setInscripcion(inscripcion);
-        cuota.setPeriodo(YearMonth.from(inscripcion.getFechaInicio()).toString());
-        cuota.setMontoEsperado(BigDecimal.valueOf(inscripcion.getMembresia().getPrecioActual()));
-        cuota.setFechaVencimiento(inscripcion.getFechaInicio().plusDays(DIAS_VENCIMIENTO));
-        cuota.setEstado(EstadoCuota.PENDIENTE);
-        return cuota;
+    /** Cuota de 30 días desde {@code inicio}, al precio actual de la membresía de su inscripción. */
+    public static Cuota nueva(Inscripcion inscripcion, LocalDate inicio) {
+        return conPeriodo(inscripcion, inicio, inicio.plusDays(ReglasCuota.DIAS_CUOTA),
+                BigDecimal.valueOf(inscripcion.getMembresia().getPrecioActual()).setScale(2));
     }
 
     /**
-     * Primera cuota de una inscripción creada por un cambio de membresía, cuando a la cuota paga de la
-     * inscripción anterior todavía le quedaban días de vigencia: vence 30 días después de ESE vencimiento
-     * (no de hoy), para no perder los días ya pagados.
+     * Cuota de un cambio de membresía (regla M4): desde {@code inicio} (hoy) hasta el mismo vencimiento de la cuota
+     * anterior, por la diferencia a cobrar (puede ser 0).
      */
-    public static Cuota primeraDe(Inscripcion inscripcion, LocalDate fechaVencimientoAnterior) {
-        Cuota cuota = primeraDe(inscripcion);
-        cuota.setFechaVencimiento(fechaVencimientoAnterior.plusDays(DIAS_VENCIMIENTO));
+    public static Cuota porCambioDeMembresia(Inscripcion inscripcion, LocalDate inicio, LocalDate vencimiento,
+                                             BigDecimal diferencia) {
+        return conPeriodo(inscripcion, inicio, vencimiento, diferencia.setScale(2));
+    }
+
+    private static Cuota conPeriodo(Inscripcion inscripcion, LocalDate inicio, LocalDate vencimiento, BigDecimal precio) {
+        Cuota cuota = new Cuota();
+        cuota.setInscripcion(inscripcion);
+        cuota.setFechaInicio(inicio);
+        cuota.setFechaVencimiento(vencimiento);
+        cuota.setPrecio(precio);
         return cuota;
+    }
+
+    /** Membresía que cubrió este período: la de su inscripción (cada cuota queda en la inscripción con la que se pagó). */
+    public Membresia membresiaCubierta() {
+        return inscripcion.getMembresia();
     }
 }

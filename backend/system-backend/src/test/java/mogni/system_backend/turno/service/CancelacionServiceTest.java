@@ -22,7 +22,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import mogni.system_backend.alumno.entity.Alumno;
-import mogni.system_backend.alumno.entity.Modalidad;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
@@ -122,7 +121,6 @@ class CancelacionServiceTest {
     private static Alumno alumno(Long id, String email) {
         Alumno a = new Alumno();
         a.setId(id);
-        a.setModalidad(Modalidad.PRESENCIAL);
         a.setCuenta(new Cuenta(id, email, "hash", Rol.ALUMNO, false, true, null));
         Membresia membresia = new Membresia(1L, "Plan", 30000.0, 3, null);
         a.agregarInscripcion(new Inscripcion(1L, MARTES.minusMonths(1), null, EstadoInscripcion.ACTIVA, a, membresia));

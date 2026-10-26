@@ -4,7 +4,6 @@ import java.time.LocalDate;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import mogni.system_backend.alumno.entity.Modalidad;
 import mogni.system_backend.auth.entity.Rol;
 import mogni.system_backend.inscripcion.dto.InscripcionResponse;
 
@@ -17,7 +16,6 @@ public class AlumnoResponse {
     private int edad;
     private String telefono;
     private String sexo;
-    private Modalidad modalidad;
     private String dni;
     private String email;
     private LocalDate fechaNacimiento;
@@ -32,4 +30,15 @@ public class AlumnoResponse {
     private LocalDate fechaInicioInscripcion;
     /** Inscripción activa o, si no tiene, la última (con su estado). Null si nunca tuvo. */
     private InscripcionResponse inscripcionActual;
+    /** Solo para alumnos inactivos: vencimiento de su última cuota (de cualquier inscripción); null si no tiene. */
+    private LocalDate vencimientoUltimaCuota;
+    /**
+     * Solo para alumnos inactivos: true si al reactivarlo hay que elegir membresía y cobrar la primera cuota; false si
+     * su última cuota todavía cubre hoy y se reactiva su misma inscripción. Null si está activo.
+     */
+    private Boolean reactivacionRequierePago;
+    /** Membresía ya pagada para el período siguiente (cambio programado); null si no tiene. */
+    private String membresiaProgramada;
+    /** Desde qué día rige la membresía programada; null si no tiene. */
+    private LocalDate programadaDesde;
 }

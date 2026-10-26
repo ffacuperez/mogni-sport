@@ -21,7 +21,6 @@ import mogni.system_backend.cuota.entity.Cuota;
 import mogni.system_backend.cuota.repository.CuotaRepository;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
-import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
 import mogni.system_backend.notificacion.dto.NotificacionResponse;
 import mogni.system_backend.notificacion.dto.SuscripcionPushRequest;
 import mogni.system_backend.notificacion.entity.AvisoPushEnviado;
@@ -109,8 +108,9 @@ public class PushService {
     }
 
     /**
-     * Todos los días a las 10:00 (hora de Argentina), después de que la tarea de la 01:00 marcó las atrasadas.
-     * Por cada cuota impaga con notificación vigente que todavía no se avisó en ese estado, manda la push.
+     * Todos los días a las 10:00 (hora de Argentina). La situación de pago se calcula con la fecha (no hay tarea que
+     * marque estados), así que no depende del orden respecto de la tarea de la 01:00.
+     * Por cada última cuota con notificación vigente que todavía no se avisó con ese tipo, manda la push.
      * Si el alumno no tiene dispositivos registrados no se marca como enviada: le llega cuando active las push.
      */
     @Scheduled(cron = "0 0 10 * * *", zone = ZonaHoraria.ZONA)
@@ -120,7 +120,8 @@ public class PushService {
         }
         LocalDate hoy = ZonaHoraria.hoy();
         int enviados = 0;
-        for (Cuota cuota : cuotaRepository.buscar(EstadoInscripcion.ACTIVA, null, null)) {
+        // Solo la última cuota de cada alumno: las de meses ya pagados no tienen que avisar "vencida"
+        for (Cuota cuota : cuotaRepository.buscarUltimasCuotas().values()) {
             NotificacionResponse notificacion = notificacionService.notificacionDe(cuota, hoy).orElse(null);
             if (notificacion == null || avisoRepository.existsByCuotaIdAndTipo(cuota.getId(), notificacion.getTipo())) {
                 continue;

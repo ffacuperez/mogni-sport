@@ -1,66 +1,80 @@
 import { request } from '../../shared/services/httpClient';
-
-const DIAS_PROXIMO_A_VENCER = 5; // Criterio de aceptación HU-46.
+import { formatearFecha } from '../../shared/services/texto';
 
 export const MEDIOS_DE_PAGO = [
   { value: 'EFECTIVO', label: 'Efectivo' },
   { value: 'TRANSFERENCIA', label: 'Transferencia' },
 ];
 
-function hoySinHora() {
-  return new Date(new Date().toDateString());
-}
-
-/** Días que faltan para el vencimiento (negativo si ya venció). */
-function diasHasta(fechaISO) {
-  const fecha = new Date(`${fechaISO}T00:00:00`);
-  return Math.round((fecha - hoySinHora()) / 86400000);
-}
+/** Situación de pago que calcula el backend (no se guarda) -> texto de la pantalla (HU-46). */
+export const SITUACIONES = {
+  AL_DIA: 'Al día',
+  PROXIMA_A_VENCER: 'Próxima a vencer',
+  VENCIDA: 'Vencida',
+  EN_MORA: 'En mora',
+};
 
 /**
- * Estado que se muestra en la pantalla, a partir del estado del backend:
- * ATRASADA -> "Vencida"; PENDIENTE que vence en 5 días o menos -> "Próxima a vencer";
- * PAGADA o PENDIENTE con más de 5 días por delante -> "Al día" (no requiere ninguna acción todavía).
- * Si una cuota "Al día" está paga o no, lo indica `pagable` (y el aviso bajo la fecha).
- * También lo usa la agenda (MOGNI-257) con la cuota cruda que manda el backend ({ estado, fechaVencimiento }).
+ * Texto de la situación de pago del alumno, según su última cuota. La calcula el backend; también lo usa la agenda
+ * (MOGNI-257) con la cuota que manda el backend ({ situacion, fechaVencimiento }). Sin cuotas (datos viejos): "Sin cuotas".
  */
 export function estadoVisible(cuota) {
-  if (cuota.estado === 'ATRASADA') return 'Vencida';
-  if (cuota.estado === 'PENDIENTE' && diasHasta(cuota.fechaVencimiento) <= DIAS_PROXIMO_A_VENCER) return 'Próxima a vencer';
-  return 'Al día';
+  return SITUACIONES[cuota?.situacion] ?? 'Sin cuotas';
 }
 
-// Backend -> forma que usan las pantallas
+// Backend -> forma que usan las pantallas: una fila por alumno activo con su última cuota
 const fromApi = (c) => ({
-  id: c.id,
   alumnoId: c.alumnoId,
   nombre: c.alumnoNombre,
   apellido: c.alumnoApellido,
   dni: c.alumnoDni,
+  cuotaId: c.cuotaId,
   membresia: c.membresiaNombre,
-  periodo: c.periodo,
-  monto: Number(c.montoEsperado),
+  membresiaId: c.membresiaId,
+  // Cambio de membresía ya pagado para el mes siguiente
+  membresiaProgramada: c.membresiaProgramada,
+  programadaDesde: c.programadaDesde,
+  inicio: c.fechaInicio,
   vencimiento: c.fechaVencimiento,
-  estadoApi: c.estado,
+  // Precio actual de la membresía que va a renovar (la programada si tiene): lo que va a pagar
+  precio: c.precioMembresia != null ? Number(c.precioMembresia) : null,
+  situacion: c.situacion,
   estado: estadoVisible(c),
-  diasParaVencer: diasHasta(c.fechaVencimiento),
-  // HU-45: solo se pueden pagar las cuotas que todavía no están pagas
-  pagable: c.estado === 'PENDIENTE' || c.estado === 'ATRASADA',
+  diasEnMora: c.diasEnMora,
+  puedeRenovar: c.puedeRenovar,
+  renovableDesde: c.renovableDesde,
 });
 
-/** Cuotas de los alumnos activos. Filtros opcionales: estado del backend (PENDIENTE/PAGADA/ATRASADA) y alumnoId. */
-export async function listarCuotas({ estado, alumnoId } = {}) {
-  const params = new URLSearchParams();
-  if (estado) params.set('estado', estado);
-  if (alumnoId) params.set('alumnoId', alumnoId);
-  const query = params.toString();
-  const data = await request(`/cuotas${query ? `?${query}` : ''}`);
+/** MOGNI-46: una fila por alumno activo, ya ordenadas por el backend (en mora, vencidas y por vencimiento). */
+export async function listarCuotas() {
+  const data = await request('/cuotas');
   return data.map(fromApi);
 }
 
-/** El monto no lo ingresa el propietario: el backend siempre usa el monto esperado de la cuota, igual que la fecha (siempre hoy). */
-export function registrarPago({ cuotaId, medioDePago }) {
-  return request('/pagos', { method: 'POST', body: { cuotaId, medioDePago } });
+const numeroONull = (valor) => (valor != null ? Number(valor) : null);
+
+/**
+ * MOGNI-45: vista previa de la renovación (período que va a cubrir, precio, recargo si está en mora y total).
+ * Con membresiaId, renovando con otra membresía: dice además desde cuándo rige y si queda programada.
+ * El cálculo lo hace el backend; si no se puede renovar, motivo dice por qué.
+ */
+export async function obtenerRenovacion(alumnoId, membresiaId = null) {
+  const query = membresiaId ? `?membresiaId=${membresiaId}` : '';
+  const r = await request(`/alumnos/${alumnoId}/renovacion${query}`);
+  return {
+    ...r,
+    precio: numeroONull(r.precio),
+    recargo: numeroONull(r.recargo),
+    total: numeroONull(r.total),
+  };
+}
+
+/**
+ * Renovación del alumno: el backend crea la cuota del período siguiente y su pago (monto y fecha automáticos). Con
+ * membresiaId renueva con otra membresía; sin él, con la actual.
+ */
+export function registrarPago({ alumnoId, medioDePago, membresiaId = null }) {
+  return request('/pagos', { method: 'POST', body: { alumnoId, medioDePago, membresiaId } });
 }
 
 /** HU-48: historial de pagos de un alumno, ya ordenado por el backend del más reciente al más antiguo. */
@@ -68,10 +82,15 @@ export async function obtenerHistorialDePagos(alumnoId) {
   const data = await request(`/alumnos/${alumnoId}/pagos`);
   return data.map((p) => ({
     id: p.pagoId,
-    monto: Number(p.monto),
-    medioDePago: p.medioDePago,
     fecha: p.fechaPago,
-    periodo: p.periodo,
+    medioDePago: p.medioDePago,
+    inicio: p.fechaInicio,
+    vencimiento: p.fechaVencimiento,
+    membresia: p.membresiaNombre,
+    precio: Number(p.precio),
+    recargo: Number(p.recargo ?? 0),
+    monto: Number(p.monto),
+    cambioDeMembresia: p.cambioDeMembresia,
   }));
 }
 
@@ -80,17 +99,17 @@ export function labelMedioDePago(medio) {
   return MEDIOS_DE_PAGO.find((m) => m.value === medio)?.label ?? medio;
 }
 
-/** Aviso corto bajo la fecha: pagada, cuántos días faltan o cuántos pasaron. null si no hace falta. */
+/** "06/10/2026 al 05/11/2026" */
+export function formatearPeriodo(inicio, fin) {
+  if (!inicio || !fin) return '—';
+  return `${formatearFecha(inicio)} al ${formatearFecha(fin)}`;
+}
+
+/** Aviso corto bajo la situación: hace cuánto está en mora. Las demás situaciones no llevan aviso (la fila ya muestra el vencimiento). */
 export function avisoVencimiento(cuota) {
-  if (!cuota.pagable) return 'Pagada';
-  const d = cuota.diasParaVencer;
-  if (cuota.estado === 'Próxima a vencer') {
-    if (d <= 0) return 'Vence hoy';
-    return d === 1 ? 'Vence mañana' : `Vence en ${d} días`;
-  }
-  if (cuota.estado === 'Vencida') {
-    const atraso = Math.max(-d, 1);
-    return atraso === 1 ? 'Venció hace 1 día' : `Venció hace ${atraso} días`;
+  if (cuota.situacion === 'EN_MORA') {
+    if (cuota.diasEnMora === 0) return 'Desde hoy';
+    return cuota.diasEnMora === 1 ? 'Hace 1 día' : `Hace ${cuota.diasEnMora} días`;
   }
   return null;
 }
@@ -103,6 +122,8 @@ export function tonoEstadoCuota(estado) {
     case 'Próxima a vencer':
       return 'warning';
     case 'Vencida':
+      return 'alert';
+    case 'En mora':
       return 'error';
     default:
       return 'neutral';
@@ -110,10 +131,3 @@ export function tonoEstadoCuota(estado) {
 }
 
 export { formatearFecha, formatearMonto } from '../../shared/services/texto';
-
-/** "2026-10" -> "10/2026" */
-export function formatearPeriodo(periodo) {
-  if (!periodo) return '—';
-  const [y, m] = periodo.split('-');
-  return `${m}/${y}`;
-}

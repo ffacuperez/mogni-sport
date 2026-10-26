@@ -16,9 +16,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import mogni.system_backend.alumno.entity.Alumno;
-import mogni.system_backend.alumno.entity.Modalidad;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.config.ZonaHoraria;
+import mogni.system_backend.cuota.entity.SituacionPago;
 import mogni.system_backend.exception.AccesoDenegadoException;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
@@ -101,7 +101,8 @@ public class ConsultaTurnosService {
                 .toList();
 
         Map<Long, Long> ocupados = contarReservasActivas(turnosAMostrar);
-        boolean puedeElegir = !tieneReservaEnElDia && turnosRestantes > 0;
+        boolean bloqueadoPorMora = estaEnMora(alumno, hoy);
+        boolean puedeElegir = !tieneReservaEnElDia && turnosRestantes > 0 && !bloqueadoPorMora;
         List<TurnoDisponibleResponse> turnos = turnosAMostrar.stream()
                 .map(turno -> mapearTurno(turno, ocupados.getOrDefault(turno.getId(), 0L),
                         turnosReservadosEnElDia.contains(turno.getId()), puedeElegir))
@@ -117,16 +118,19 @@ public class ConsultaTurnosService {
                 .toList();
 
         return new TurnosDisponiblesResponse(hoy, seleccionada, dias, turnosRestantes, frecuenciaSemanal,
-                tieneReservaEnElDia, turnos);
+                tieneReservaEnElDia, turnos, bloqueadoPorMora);
     }
 
-    /** Solo los alumnos con la cuenta activa y modalidad presencial acceden a los turnos. */
+    /** MOGNI-254/259: en mora no puede reservar (vencida todavía sí). Sin cuotas (datos viejos) no se bloquea. */
+    static boolean estaEnMora(Alumno alumno, LocalDate hoy) {
+        // Hasta cuándo pagó (activa + programada): quien pagó por adelantado con otra membresía no está en mora
+        return SituacionPago.de(alumno.buscarUltimaCuotaPagada().orElse(null), hoy) == SituacionPago.EN_MORA;
+    }
+
+    /** Solo los alumnos con la cuenta activa acceden a los turnos. */
     static void validarAcceso(Alumno alumno) {
         if (!alumno.getCuenta().isActiva()) {
             throw new AccesoDenegadoException("Tu cuenta está inactiva.");
-        }
-        if (alumno.getModalidad() != Modalidad.PRESENCIAL) {
-            throw new AccesoDenegadoException("La reserva de turnos es solo para alumnos presenciales.");
         }
     }
 

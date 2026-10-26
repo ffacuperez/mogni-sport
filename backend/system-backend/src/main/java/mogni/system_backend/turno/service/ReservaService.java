@@ -60,6 +60,9 @@ public class ReservaService {
         Alumno alumno = alumnoRepository.findByCuentaEmailIgnoreCase(email)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No hay un alumno asociado a esta cuenta"));
         ConsultaTurnosService.validarAcceso(alumno);
+        if (ConsultaTurnosService.estaEnMora(alumno, ahora.toLocalDate())) {
+            throw new AccesoDenegadoException("Tenés la cuota en mora: regularizá el pago para reservar turnos.");
+        }
 
         alumnoRepository.findByIdConBloqueo(alumno.getId());
         Turno turno = turnoRepository.findByIdConBloqueo(turnoId)

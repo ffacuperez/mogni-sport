@@ -15,7 +15,7 @@ import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
 import mogni.system_backend.alumno.dto.RegistrarAlumnoRequest;
-import mogni.system_backend.alumno.entity.Modalidad;
+import mogni.system_backend.pago.entity.MedioDePago;
 
 class RegistrarAlumnoRequestValidationTest {
 
@@ -41,8 +41,9 @@ class RegistrarAlumnoRequestValidationTest {
         request.setEmail("juan@email.com");
         request.setFechaNacimiento(LocalDate.now().minusYears(20));
         request.setTelefono("1122334455");
+        request.setSexo("Femenino");
         request.setMembresiaId(1L);
-        request.setModalidad(Modalidad.PRESENCIAL);
+        request.setMedioDePago(MedioDePago.EFECTIVO);
         return request;
     }
 
@@ -89,6 +90,13 @@ class RegistrarAlumnoRequestValidationTest {
     }
 
     @Test
+    void sinSexoFalla() {
+        RegistrarAlumnoRequest request = requestValido();
+        request.setSexo(" ");
+        assertFalse(validator.validate(request).isEmpty());
+    }
+
+    @Test
     void sinTelefonoFalla() {
         RegistrarAlumnoRequest request = requestValido();
         request.setTelefono(null);
@@ -110,11 +118,11 @@ class RegistrarAlumnoRequestValidationTest {
         assertFalse(validator.validate(request).isEmpty());
     }
 
-    // HU-253: la modalidad es obligatoria
+    // MOGNI-73: el alta incluye el pago de la primera cuota
     @Test
-    void sinModalidadFalla() {
+    void sinMedioDePagoFalla() {
         RegistrarAlumnoRequest request = requestValido();
-        request.setModalidad(null);
+        request.setMedioDePago(null);
         assertFalse(validator.validate(request).isEmpty());
     }
 

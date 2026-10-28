@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
-import { Calendar, Clock, CreditCard, Home as IconHome, LogOut, Users, Wallet } from 'lucide-react';
+import { Calendar, Clock, CreditCard, Dumbbell, Home as IconHome, LogOut, Users, Wallet } from 'lucide-react';
 
 import Home from './home/pages/Home';
 import Login from './auth/pages/Login';
@@ -16,6 +16,8 @@ import SeccionProximamente from './alumno/pages/SeccionProximamente';
 import Notificaciones from './notificacion/pages/Notificaciones';
 import MembresiasList from './membresia/pages/MembresiasList';
 import MembresiaForm from './membresia/pages/MembresiaForm';
+import EjerciciosList from './ejercicio/pages/EjerciciosList';
+import EjercicioForm from './ejercicio/pages/EjercicioForm';
 import CuotasList from './cuota/pages/CuotasList';
 import RegistrarPagoModal from './cuota/pages/RegistrarPagoModal';
 import HistorialPagosModal from './cuota/pages/HistorialPagosModal';
@@ -45,6 +47,13 @@ import {
   listarMembresias,
 } from './membresia/services/membresiasService';
 import {
+  actualizarEjercicio,
+  crearEjercicio,
+  eliminarEjercicio,
+  listarEjercicios,
+  toggleEstadoEjercicio,
+} from './ejercicio/services/ejerciciosService';
+import {
   formatearFecha,
   formatearMonto,
   labelMedioDePago,
@@ -73,6 +82,15 @@ function ConMembresia({ membresias, cargado, onNoEncontrada, children }) {
   return membresia ? children(membresia) : <Cargando />;
 }
 
+function ConEjercicio({ ejercicios, cargado, onNoEncontrado, children }) {
+  const { id } = useParams();
+  const ejercicio = ejercicios.find(e => String(e.id) === id);
+  useEffect(() => {
+    if (cargado && !ejercicio) onNoEncontrado();
+  }, [cargado, ejercicio]);
+  return ejercicio ? children(ejercicio) : <Cargando />;
+}
+
 // --- MAIN APP COMPONENT ---
 function MainApp({ onLogout }) {
   const navigate = useNavigate();
@@ -83,9 +101,11 @@ function MainApp({ onLogout }) {
   const { pathname } = useLocation();
   const [alumnos, setAlumnos] = useState([]);
   const [membresias, setMembresias] = useState([]);
+  const [ejercicios, setEjercicios] = useState([]);
   const [cargado, setCargado] = useState(false);
 
   const [selectedMembresiaId, setSelectedMembresiaId] = useState(null);
+  const [selectedEjercicioId, setSelectedEjercicioId] = useState(null);
   const [searchAlumno, setSearchAlumno] = useState('');
 
   // --- Cuotas (HU-45) ---
@@ -112,6 +132,7 @@ function MainApp({ onLogout }) {
   const cerrarModal = () => setModalConfig(prev => ({ ...prev, isOpen: false }));
 
   useEffect(() => {
+    // 1. Cargamos prioritariamente alumnos y membresías para que la app nunca se quede en 0
     Promise.all([listarAlumnos(), listarAlumnos({ activo: false }), listarMembresias()])
       .then(([alumnosActivos, alumnosInactivos, membresiasData]) => {
         setAlumnos([...alumnosActivos, ...alumnosInactivos]);
@@ -119,19 +140,17 @@ function MainApp({ onLogout }) {
       })
       .catch((error) => displayToast(error.message, true))
       .finally(() => setCargado(true));
+
+    // 2. Intentamos cargar los ejercicios por separado de forma independiente
+    listarEjercicios()
+      .then((ejerciciosData) => {
+        setEjercicios(ejerciciosData);
+      })
+      .catch((error) => {
+        console.warn('El backend aún no tiene el módulo de ejercicios desplegado:', error.message);
+      });
   }, []);
-
-  const cargarCuotas = async () => {
-    setCargandoCuotas(true);
-    try {
-      setCuotas(await listarCuotas());
-    } catch (error) {
-      displayToast(error.message, true);
-    } finally {
-      setCargandoCuotas(false);
-    }
-  };
-
+  
   // Cada vez que se entra a Cuotas se trae el estado actualizado (los vencimientos cambian día a día)
   useEffect(() => {
     if (esPropietario && pathname.startsWith('/cuotas')) cargarCuotas();
@@ -243,8 +262,7 @@ function MainApp({ onLogout }) {
     );
   };
 
-  // Cambio de membresía (reglas M1 a M9): el aviso sale de la vista previa del backend (qué cambia y cuánto cobrar)
-  // La confirmación (con la diferencia a cobrar y el medio de pago) ya la mostró AlumnoMembresiaForm
+  // Cambio de membresía (reglas M1 al M9)
   const handleSaveMembresiaAlumno = async (alumnoId, datos) => {
     const ok = await ejecutar(async () => reemplazarAlumno(await cambiarMembresia(alumnoId, datos)),
       'La membresía del alumno fue actualizada correctamente.');
@@ -275,31 +293,6 @@ function MainApp({ onLogout }) {
     );
   };
 
-  // MOGNI-45: renovación (el backend crea la cuota del período siguiente y su pago) y refresca la lista.
-  // Si falla, el modal queda abierto para corregir los datos.
-  const handleRegistrarPago = async (datos) => {
-    const ok = await ejecutar(() => registrarPago(datos), 'El pago fue registrado correctamente.');
-    if (ok) {
-      setCuotaAPagar(null);
-      cargarCuotas();
-    }
-  };
-
-  // HU-48: historial de pagos del alumno de la cuota seleccionada.
-  const handleVerHistorial = async (cuota) => {
-    if (!cuota) return;
-    setAlumnoHistorial({ nombre: cuota.nombre, apellido: cuota.apellido, dni: cuota.dni });
-    setCargandoHistorial(true);
-    try {
-      setPagosHistorial(await obtenerHistorialDePagos(cuota.alumnoId));
-    } catch (error) {
-      displayToast(error.message, true);
-      setAlumnoHistorial(null);
-    } finally {
-      setCargandoHistorial(false);
-    }
-  };
-
   const handleDeleteMembresia = () => {
     const membresia = membresias.find(m => m.id === selectedMembresiaId);
     if (!membresia) return;
@@ -318,17 +311,93 @@ function MainApp({ onLogout }) {
     );
   };
 
+  // --- Manejadores de Ejercicios ---
+  const handleSaveEjercicio = (formData, isEdit) => {
+    showModal(
+      isEdit ? 'Confirmar Cambios' : 'Confirmar Creación',
+      isEdit ? '¿Desea confirmar los cambios en el ejercicio?' : '¿Desea confirmar la creación del nuevo ejercicio?',
+      async () => {
+        const ok = await ejecutar(async () => {
+          const guardado = isEdit ? await actualizarEjercicio(formData.id, formData) : await crearEjercicio(formData);
+          setEjercicios(prev => isEdit ? prev.map(e => e.id === guardado.id ? guardado : e) : [...prev, guardado]);
+        }, isEdit ? 'Ejercicio modificado correctamente.' : 'Ejercicio creado correctamente.');
+        if (ok) {
+          setSelectedEjercicioId(null);
+          navigate('/ejercicios');
+        }
+      }
+    );
+  };
+
+  const handleToggleEstadoEjercicio = (ejercicio) => {
+    const nuevoEstado = !ejercicio.activo;
+    showModal(
+      nuevoEstado ? 'Confirmar Activación' : 'Confirmar Baja',
+      `¿Estás seguro de que deseas ${nuevoEstado ? 'activar' : 'dar de baja'} el ejercicio ${ejercicio.nombre}?`,
+      async () => {
+        await ejecutar(async () => {
+          const actualizado = await toggleEstadoEjercicio(ejercicio.id);
+          setEjercicios(prev => prev.map(e => e.id === actualizado.id ? actualizado : e));
+        }, `El ejercicio fue ${nuevoEstado ? 'activado' : 'dado de baja'} correctamente.`);
+      }
+    );
+  };
+
+  const handleDeleteEjercicio = () => {
+    const ejercicio = ejercicios.find(e => e.id === selectedEjercicioId);
+    if (!ejercicio) return;
+
+    showModal(
+      'Confirmar Eliminación',
+      `¿Está seguro de que desea eliminar el ejercicio ${ejercicio.nombre}?`,
+      async () => {
+        const ok = await ejecutar(async () => {
+          await eliminarEjercicio(ejercicio.id);
+          setEjercicios(prev => prev.filter(e => e.id !== ejercicio.id));
+        }, 'Ejercicio eliminado correctamente.');
+        if (ok) setSelectedEjercicioId(null);
+      },
+      { danger: true }
+    );
+  };
+
+  // MOGNI-45: renovación
+  const handleRegistrarPago = async (datos) => {
+    const ok = await ejecutar(() => registrarPago(datos), 'El pago fue registrado correctamente.');
+    if (ok) {
+      setCuotaAPagar(null);
+      cargarCuotas();
+    }
+  };
+
+  // HU-48: historial de pagos
+  const handleVerHistorial = async (cuota) => {
+    if (!cuota) return;
+    setAlumnoHistorial({ nombre: cuota.nombre, apellido: cuota.apellido, dni: cuota.dni });
+    setCargandoHistorial(true);
+    try {
+      setPagosHistorial(await obtenerHistorialDePagos(cuota.alumnoId));
+    } catch (error) {
+      displayToast(error.message, true);
+      setAlumnoHistorial(null);
+    } finally {
+      setCargandoHistorial(false);
+    }
+  };
+
   const rol = getRol();
   const navItems = [
     ...(puedeVerAgenda ? [{ to: '/agenda', label: 'Agenda', icon: Calendar }] : []),
     { to: '/alumnos', label: 'Alumnos', icon: Users },
     { to: '/membresias', label: 'Membresías', icon: CreditCard, onClick: () => setSelectedMembresiaId(null) },
+    { to: '/ejercicios', label: 'Ejercicios', icon: Dumbbell, onClick: () => setSelectedEjercicioId(null) },
     // Cobranzas (HU-45) es solo del propietario
     ...(esPropietario ? [{ to: '/cuotas', label: 'Cuotas', icon: Wallet, onClick: () => setSelectedCuotaId(null) }] : []),
     // Franjas horarias y cupo (HU-252): solo el propietario
     ...(esPropietario ? [{ to: '/horarios', label: 'Horarios', icon: Clock }] : []),
   ];
   const seccionActual = navItems.find(item => pathname.startsWith(item.to))?.label ?? 'Panel';
+  
   // Guía 4.5: ítems de 44px, activo con borde izquierdo rojo de 3px sobre #3A3A3A
   const itemClass = (activo) => `group flex h-11 w-full shrink-0 cursor-pointer items-center gap-3 whitespace-nowrap border-l-3 px-4 text-sm font-medium text-on-dark transition-colors ${FOCUS} ${
     activo ? 'border-primary bg-sidebar-hover' : 'border-transparent hover:bg-sidebar-hover'
@@ -496,6 +565,48 @@ function MainApp({ onLogout }) {
             </ConMembresia>
           } />
 
+          {/* Rutas de Ejercicios */}
+          <Route path="ejercicios" element={
+            <EjerciciosList
+              ejercicios={ejercicios}
+              cargando={!cargado}
+              selectedId={selectedEjercicioId}
+              setSelectedId={setSelectedEjercicioId}
+              onAdd={() => navigate('/ejercicios/nuevo')}
+              onEdit={() => navigate(`/ejercicios/${selectedEjercicioId}/editar`)}
+              onToggleEstado={handleToggleEstadoEjercicio}
+              onDelete={handleDeleteEjercicio}
+            />
+          } />
+
+          <Route path="ejercicios/nuevo" element={
+            <EjercicioForm
+              onSave={handleSaveEjercicio}
+              onCancel={() => navigate('/ejercicios')}
+              onError={(msg) => displayToast(msg, true)}
+            />
+          } />
+
+          <Route path="ejercicios/:id/editar" element={
+            <ConEjercicio
+              ejercicios={ejercicios}
+              cargado={cargado}
+              onNoEncontrado={() => {
+                displayToast('No se encontró el ejercicio.', true);
+                navigate('/ejercicios', { replace: true });
+              }}
+            >
+              {(ejercicio) => (
+                <EjercicioForm
+                  ejercicioToEdit={ejercicio}
+                  onSave={handleSaveEjercicio}
+                  onCancel={() => navigate('/ejercicios')}
+                  onError={(msg) => displayToast(msg, true)}
+                />
+              )}
+            </ConEjercicio>
+          } />
+
           <Route path="cuotas" element={esPropietario ? (
             <CuotasList
               cuotas={cuotas}
@@ -627,7 +738,6 @@ export default function App() {
   }, []);
 
   // HU-248: con la contraseña inicial pendiente de cambio, esta pantalla va antes que cualquier otra
-  // (incluida la Home), sea cual sea la URL; solo se sale cambiándola o cerrando sesión.
   if (authSession.isAuthenticated && authSession.debeCambiarPassword) {
     return <CambiarPassword onSuccess={actualizarSesionDesdeToken} onLogout={handleLogout} />;
   }
@@ -647,7 +757,7 @@ export default function App() {
           : <Login onLogin={handleLogin} onBack={() => navigate('/')} />
       } />
 
-      {/* App del alumno: solo rol ALUMNO. Inicio y Rutinas todavía no están desarrolladas */}
+      {/* App del alumno: solo rol ALUMNO */}
       <Route path="/mi-cuenta" element={
         <RequiereRol sesion={authSession} permitido={esAlumno}>
           <AlumnoLayout onLogout={handleLogout} />

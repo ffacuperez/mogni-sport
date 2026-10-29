@@ -1,96 +1,124 @@
-import { useState } from 'react';
-import { Field, FormActions, PageHeader, Panel } from '../../shared/components/ui';
-import { inputClass } from '../../shared/components/clases';
+import React, { useState } from 'react';
 
-const GRUPOS_MUSCULARES = ['Piernas', 'Espalda', 'Pecho', 'Hombros', 'Brazos', 'Core', 'Glúteos'];
+export default function EjercicioForm({ 
+  onSubmit, 
+  onGuardar, 
+  onSave, 
+  agregarEjercicio, 
+  onCancel, 
+  initialData = {} 
+}) {
+  const [nombre, setNombre] = useState(initialData.nombre || '');
+  const [grupoMuscular, setGrupoMuscular] = useState(initialData.grupoMuscular || 'Piernas');
+  const [descripcion, setDescripcion] = useState(initialData.descripcion || '');
 
-export default function EjercicioForm({ ejercicioToEdit, onSave, onCancel, onError }) {
-  const isEdit = !!ejercicioToEdit;
-  
-  const [formData, setFormData] = useState(
-    ejercicioToEdit || {
-      nombre: '',
-      grupoMuscular: '',
-      descripcion: '',
-      activo: true
+  // Validación en tiempo real (solo letras, acentos, ñ y espacios)
+  const handleNombreChange = (e) => {
+    const valor = e.target.value;
+    const soloLetrasRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]*$/;
+
+    if (soloLetrasRegex.test(valor)) {
+      setNombre(valor);
     }
-  );
-
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.nombre.trim()) {
-      onError('El nombre del ejercicio es obligatorio.');
-      return;
-    }
-    if (!formData.grupoMuscular) {
-      onError('Debes seleccionar un grupo muscular.');
+
+    const nombreLimpio = nombre.trim();
+
+    if (nombreLimpio.length < 3) {
+      alert("El nombre del ejercicio debe tener al menos 3 caracteres.");
       return;
     }
 
-    onSave(formData, isEdit);
+    const ejercicioData = {
+      ...initialData,
+      nombre: nombreLimpio,
+      grupoMuscular,
+      descripcion
+    };
+
+    // Resuelve automáticamente según cuál prop le pasaste desde App.jsx
+    const submitCallback = onSubmit || onGuardar || onSave || agregarEjercicio;
+
+    if (submitCallback) {
+      submitCallback(ejercicioData);
+    } else {
+      console.error("No se encontró ninguna función de envío en las props.");
+    }
   };
 
   return (
-    <div className="mx-auto max-w-2xl animate-fade-in">
-      <PageHeader
-        eyebrow="Gestión · Ejercicios"
-        title={isEdit ? 'Modificación de ejercicio' : 'Alta de nuevo ejercicio'}
-      />
+    <div className="p-6 max-w-2xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200">
+      <h2 className="text-xl font-bold text-gray-900 mb-4">
+        {initialData.id ? 'Modificar ejercicio' : 'Alta de nuevo ejercicio'}
+      </h2>
 
-      <Panel as="form" onSubmit={handleSubmit} className="p-6 md:p-8" noValidate>
-        <div className="grid grid-cols-1 gap-6">
-          <Field label="Nombre del ejercicio" htmlFor="ejercicio-nombre">
-            <input 
-              id="ejercicio-nombre" 
-              type="text" 
-              name="nombre" 
-              value={formData.nombre} 
-              onChange={handleChange} 
-              required 
-              className={inputClass} 
-              placeholder="Ej: Sentadilla con barra"
-            />
-          </Field>
-
-          <Field label="Grupo muscular" htmlFor="ejercicio-grupo">
-            <select 
-              id="ejercicio-grupo" 
-              name="grupoMuscular" 
-              value={formData.grupoMuscular} 
-              onChange={handleChange} 
-              required 
-              className={inputClass}
-            >
-              <option value="">Seleccionar grupo...</option>
-              {GRUPOS_MUSCULARES.map((grupo) => (
-                <option key={grupo} value={grupo}>{grupo}</option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label="Descripción (opcional)" htmlFor="ejercicio-descripcion">
-            <textarea 
-              id="ejercicio-descripcion" 
-              name="descripcion" 
-              value={formData.descripcion} 
-              onChange={handleChange} 
-              rows={3}
-              className={inputClass}
-              placeholder="Detalles de la técnica o ejecución..."
-            />
-          </Field>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Nombre del ejercicio
+          </label>
+          <input
+            type="text"
+            value={nombre}
+            onChange={handleNombreChange}
+            placeholder="Ej. Sentadilla"
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+          />
+          <p className="text-xs text-gray-400 mt-1">Solo letras, acentos y espacios.</p>
         </div>
 
-        <FormActions onCancel={onCancel} />
-      </Panel>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Grupo muscular
+          </label>
+          <select
+            value={grupoMuscular}
+            onChange={(e) => setGrupoMuscular(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 bg-white"
+          >
+            <option value="Piernas">Piernas</option>
+            <option value="Espalda">Espalda</option>
+            <option value="Pecho">Pecho</option>
+            <option value="Hombros">Hombros</option>
+            <option value="Brazos">Brazos</option>
+            <option value="Core">Core</option>
+            <option value="Glúteos">Glúteos</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Descripción (opcional)
+          </label>
+          <textarea
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value)}
+            placeholder="Detalles de la técnica o ejecución..."
+            rows="3"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+          />
+        </div>
+
+        <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition shadow-sm"
+          >
+            Confirmar
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

@@ -150,7 +150,19 @@ function MainApp({ onLogout }) {
         console.warn('El backend aún no tiene el módulo de ejercicios desplegado:', error.message);
       });
   }, []);
-  
+
+  const cargarCuotas = async () => {
+    setCargandoCuotas(true);
+    try {
+      setCuotas(await listarCuotas());
+    } catch (error) {
+      displayToast(error.message, true);
+    } finally {
+      setCargandoCuotas(false);
+    }
+  };
+
+
   // Cada vez que se entra a Cuotas se trae el estado actualizado (los vencimientos cambian día a día)
   useEffect(() => {
     if (esPropietario && pathname.startsWith('/cuotas')) cargarCuotas();
@@ -329,31 +341,48 @@ function MainApp({ onLogout }) {
     );
   };
 
-  const handleToggleEstadoEjercicio = (ejercicio) => {
+const handleToggleEstadoEjercicio = (ejercicio, forzarDirecto = false) => {
     const nuevoEstado = !ejercicio.activo;
+
+    // Si está activando y forzarDirecto es true, lo hace de una sin mostrar el modal de confirmación
+    if (nuevoEstado && forzarDirecto) {
+      ejecutar(async () => {
+        const actualizado = await toggleEstadoEjercicio(ejercicio.id || ejercicio.idEjercicio);
+        setEjercicios(prev => prev.map(e => (e.id === actualizado.id || e.idEjercicio === actualizado.id) ? actualizado : e));
+      }, 'El ejercicio fue activado correctamente.');
+      return;
+    }
+
+    // Para cuando se desactiva (o si se requiere confirmación)
     showModal(
       nuevoEstado ? 'Confirmar Activación' : 'Confirmar Baja',
-      `¿Estás seguro de que deseas ${nuevoEstado ? 'activar' : 'dar de baja'} el ejercicio ${ejercicio.nombre}?`,
+      `¿Estás seguro de que deseas ${nuevoEstado ? 'activar' : 'desactivar'} el ejercicio ${ejercicio.nombre}?`,
       async () => {
         await ejecutar(async () => {
-          const actualizado = await toggleEstadoEjercicio(ejercicio.id);
-          setEjercicios(prev => prev.map(e => e.id === actualizado.id ? actualizado : e));
-        }, `El ejercicio fue ${nuevoEstado ? 'activado' : 'dado de baja'} correctamente.`);
+          const actualizado = await toggleEstadoEjercicio(ejercicio.id || ejercicio.idEjercicio);
+          setEjercicios(prev => prev.map(e => (e.id === actualizado.id || e.idEjercicio === actualizado.id) ? actualizado : e));
+        }, `El ejercicio fue ${nuevoEstado ? 'activado' : 'desactivado'} correctamente.`);
       }
     );
   };
 
   const handleDeleteEjercicio = () => {
-    const ejercicio = ejercicios.find(e => e.id === selectedEjercicioId);
-    if (!ejercicio) return;
+    // Buscamos contemplando tanto 'id' como 'idEjercicio' para evitar fallos
+    const ejercicio = ejercicios.find(e => (e.id === selectedEjercicioId || e.idEjercicio === selectedEjercicioId));
+    if (!ejercicio) {
+      console.warn("No se encontró el ejercicio con ID:", selectedEjercicioId);
+      return;
+    }
+
+    const idReal = ejercicio.id || ejercicio.idEjercicio;
 
     showModal(
       'Confirmar Eliminación',
       `¿Está seguro de que desea eliminar el ejercicio ${ejercicio.nombre}?`,
       async () => {
         const ok = await ejecutar(async () => {
-          await eliminarEjercicio(ejercicio.id);
-          setEjercicios(prev => prev.filter(e => e.id !== ejercicio.id));
+          await eliminarEjercicio(idReal);
+          setEjercicios(prev => prev.filter(e => (e.id || e.idEjercicio) !== idReal));
         }, 'Ejercicio eliminado correctamente.');
         if (ok) setSelectedEjercicioId(null);
       },
@@ -565,47 +594,49 @@ function MainApp({ onLogout }) {
             </ConMembresia>
           } />
 
-          {/* Rutas de Ejercicios */}
-          <Route path="ejercicios" element={
-            <EjerciciosList
-              ejercicios={ejercicios}
-              cargando={!cargado}
-              selectedId={selectedEjercicioId}
-              setSelectedId={setSelectedEjercicioId}
-              onAdd={() => navigate('/ejercicios/nuevo')}
-              onEdit={() => navigate(`/ejercicios/${selectedEjercicioId}/editar`)}
-              onToggleEstado={handleToggleEstadoEjercicio}
-              onDelete={handleDeleteEjercicio}
-            />
-          } />
+        {/* Rutas de Ejercicios */}
+        <Route path="ejercicios" element={
+          <EjerciciosList
+            ejercicios={ejercicios}
+            cargando={!cargado}
+            onAdd={() => navigate('/ejercicios/nuevo')}
+            onEdit={(idEjercicio) => {
+              setSelectedEjercicioId(idEjercicio);
+              navigate(`/ejercicios/${idEjercicio}/editar`);
+            }}
+            onToggleEstado={handleToggleEstadoEjercicio}
+            onDelete={(idEjercicio) => {
+              setSelectedEjercicioId(idEjercicio);
+              handleDeleteEjercicio();
+            }}
+          />
+        } />
 
-          <Route path="ejercicios/nuevo" element={
-            <EjercicioForm
-              onSave={handleSaveEjercicio}
-              onCancel={() => navigate('/ejercicios')}
-              onError={(msg) => displayToast(msg, true)}
-            />
-          } />
+        <Route path="ejercicios/nuevo" element={
+          <EjercicioForm
+            onSubmit={handleSaveEjercicio}
+            onCancel={() => navigate('/ejercicios')}
+          />
+        } />
 
-          <Route path="ejercicios/:id/editar" element={
-            <ConEjercicio
-              ejercicios={ejercicios}
-              cargado={cargado}
-              onNoEncontrado={() => {
-                displayToast('No se encontró el ejercicio.', true);
-                navigate('/ejercicios', { replace: true });
-              }}
-            >
-              {(ejercicio) => (
-                <EjercicioForm
-                  ejercicioToEdit={ejercicio}
-                  onSave={handleSaveEjercicio}
-                  onCancel={() => navigate('/ejercicios')}
-                  onError={(msg) => displayToast(msg, true)}
-                />
-              )}
-            </ConEjercicio>
-          } />
+        <Route path="ejercicios/:id/editar" element={
+          <ConEjercicio
+            ejercicios={ejercicios}
+            cargado={cargado}
+            onNoEncontrado={() => {
+              displayToast('No se encontró el ejercicio.', true);
+              navigate('/ejercicios', { replace: true });
+            }}
+          >
+            {(ejercicio) => (
+              <EjercicioForm
+                initialData={ejercicio}
+                onSubmit={(formData) => handleSaveEjercicio(formData, true)}
+                onCancel={() => navigate('/ejercicios')}
+              />
+            )}
+          </ConEjercicio>
+        } />
 
           <Route path="cuotas" element={esPropietario ? (
             <CuotasList

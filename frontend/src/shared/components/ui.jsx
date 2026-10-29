@@ -12,9 +12,11 @@ import { cx, FOCUS, inputClass, labelClass } from './clases';
 // secondary: acciones de edición (modificar, ver historial) — borde rojo sobre blanco
 // ghost: cancelar, cerrar, volver
 // danger: acciones destructivas (dar de baja, eliminar)
+// success: acciones que restituyen (reactivar) — borde verde sobre blanco
 const VARIANTES = {
   primary: 'bg-primary text-on-dark hover:bg-primary-hover',
   secondary: 'bg-card text-primary border border-primary hover:bg-error-bg',
+  success: 'bg-card text-success border border-success hover:bg-success-bg',
   ghost: 'text-ink-soft hover:bg-row-hover',
   danger: 'bg-primary text-on-dark hover:bg-primary-hover',
 };

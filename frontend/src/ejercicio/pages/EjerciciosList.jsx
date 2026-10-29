@@ -1,198 +1,165 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { Ban, ChevronDown, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
 
-export default function EjerciciosList({ ejercicios = [], onEdit, onToggleEstado, onDelete, onAdd }) {
-  const [openGroups, setOpenGroups] = useState({ Piernas: true });
-  const [ejercicioSeleccionado, setEjercicioSeleccionado] = useState(null);
+import { cx, FOCUS } from '../../shared/components/clases';
+import { Badge, Button, PageHeader, Panel, Row, SelectDot } from '../../shared/components/ui';
 
-  const toggleGroup = (grupo) => {
-    setOpenGroups(prev => ({
-      ...prev,
-      [grupo]: !prev[grupo]
-    }));
-  };
+const GRUPOS_MUSCULARES = ['Piernas', 'Espalda', 'Pecho', 'Hombros', 'Brazos', 'Core', 'Glúteos'];
 
-  const gruposMusculares = ['Piernas', 'Espalda', 'Pecho', 'Hombros', 'Brazos', 'Core', 'Glúteos'];
-  
-  const ejerciciosPorGrupo = gruposMusculares.reduce((acc, grupo) => {
-    acc[grupo] = ejercicios.filter(e => e.grupoMuscular === grupo);
-    return acc;
-  }, {});
+const cantidad = (n) => `${n} ${n === 1 ? 'ejercicio' : 'ejercicios'}`;
+const estaActivo = (ejercicio) => ejercicio.activo !== false;
 
+function GrupoMuscular({ grupo, ejercicios, abierto, onToggle, selectedIds, onToggleSeleccion }) {
+  const panelId = `grupo-${grupo}`;
   return (
-    <div className="p-6 max-w-6xl mx-auto relative">
-      {/* Cabecera superior */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <p className="text-sm text-gray-500">Gestión - {ejercicios.length} ejercicios</p>
-          <h1 className="text-2xl font-bold text-gray-900">Ejercicios</h1>
-        </div>
-        <button
-          type="button"
-          onClick={onAdd}
-          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-sm flex items-center gap-2"
-        >
-          + Agregar nuevo ejercicio
-        </button>
-      </div>
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={abierto}
+        aria-controls={panelId}
+        className={cx(
+          'flex h-12 w-full cursor-pointer items-center justify-between gap-3 bg-thead px-4.5 text-left transition hover:brightness-95',
+          abierto ? 'rounded-t-lg' : 'rounded-lg',
+          FOCUS,
+        )}
+      >
+        <span className="flex min-w-0 items-center gap-2.5">
+          <span className="truncate text-sm font-semibold text-ink">{grupo}</span>
+          <span className="whitespace-nowrap rounded-full bg-card px-2.5 py-0.5 text-xs font-medium text-ink-soft">
+            {cantidad(ejercicios.length)}
+          </span>
+        </span>
+        <ChevronDown className={cx('h-4 w-4 shrink-0 text-ink-soft transition-transform duration-200', abierto && 'rotate-180')} />
+      </button>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-        <p className="text-sm text-gray-500 mb-4">
-          Seleccioná un ejercicio para modificarlo, cambiar su estado o eliminarlo.
-        </p>
-
-        {/* Listado en Acordeones por Grupo Muscular */}
-        <div className="space-y-3">
-          {gruposMusculares.map((grupo) => {
-            const listaEjercicios = ejerciciosPorGrupo[grupo] || [];
-            const isOpen = openGroups[grupo];
-
-            return (
-              <div key={grupo} className="border border-gray-200 rounded-lg overflow-hidden transition-all">
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(grupo)}
-                  className="w-full flex justify-between items-center p-4 bg-gray-100 hover:bg-gray-200 text-left font-semibold text-gray-800 transition"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-gray-900">{grupo}</span>
-                    <span className="bg-white text-gray-600 text-xs px-2.5 py-1 rounded-full border border-gray-300 font-normal">
-                      {listaEjercicios.length} ejercicios
-                    </span>
-                  </div>
-                  <span className={`transform transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>
-                    ▼
-                  </span>
-                </button>
-
-                {isOpen && (
-                  <div className="bg-white border-t border-gray-200">
-                    {listaEjercicios.length === 0 ? (
-                      <p className="p-4 text-sm text-gray-400 italic text-center">No hay ejercicios registrados en este grupo.</p>
-                    ) : (
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="border-b border-gray-100 text-xs text-gray-400 uppercase bg-gray-50">
-                            <th className="py-2.5 px-4 font-medium">Nombre</th>
-                            <th className="py-2.5 px-4 font-medium">Descripción</th>
-                            <th className="py-2.5 px-4 font-medium text-right">Estado</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {listaEjercicios.map((ej, index) => {
-                            const ejercicioId = ej.id || ej.idEjercicio || index;
-                            
-                            const estaSeleccionado = ejercicioSeleccionado && 
-                              (
-                                (ej.id && ejercicioSeleccionado.id && ej.id === ejercicioSeleccionado.id) ||
-                                (ej.idEjercicio && ejercicioSeleccionado.idEjercicio && ej.idEjercicio === ejercicioSeleccionado.idEjercicio) ||
-                                (ej.nombre === ejercicioSeleccionado.nombre)
-                              );
-                            
-                            const estaActivo = ej.activo !== false;
-
-                            return (
-                              <tr 
-                                key={ejercicioId} 
-                                onClick={() => setEjercicioSeleccionado(ej)}
-                                className={`border-b border-gray-100 cursor-pointer transition ${
-                                  estaSeleccionado 
-                                    ? 'bg-red-50/90 border-l-4 border-l-red-600' 
-                                    : 'hover:bg-red-50/40'
-                                }`}
-                              >
-                                <td className="py-3 px-4 font-medium text-gray-800">
-                                  {ej.nombre}
-                                </td>
-                                <td className="py-3 px-4 text-gray-500 text-sm">{ej.descripcion || '-'}</td>
-                                <td className="py-3 px-4 text-right">
-                                  <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                                    estaActivo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                                  }`}>
-                                    {estaActivo ? 'Activo' : 'Inactivo'}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* MODAL DE ACCIONES AL SELECCIONAR UN EJERCICIO */}
-      {ejercicioSeleccionado && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-fadeIn">
-            <h3 className="text-lg font-bold text-gray-900 mb-1">
-              {ejercicioSeleccionado.nombre}
-            </h3>
-            <p className="text-sm text-gray-500 mb-6">
-              Selecciona qué acción deseas realizar sobre este ejercicio:
-            </p>
-
-            <div className="space-y-3">
-              {/* Opción 1: Modificar */}
-              <button
-                type="button"
-                onClick={() => {
-                  const id = ejercicioSeleccionado.id || ejercicioSeleccionado.idEjercicio;
-                  setEjercicioSeleccionado(null);
-                  onEdit(id);
-                }}
-                className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg font-medium text-gray-800 transition flex items-center justify-between border border-gray-200"
-              >
-                <span>✏️ Modificar datos</span>
-                <span className="text-xs text-gray-400">Editar nombre/grupo</span>
-              </button>
-
-              {/* Opción 2: Toggle Estado */}
-              <button
-                type="button"
-                onClick={() => {
-                  const ej = ejercicioSeleccionado;
-                  const estaActivo = ej.activo !== false;
-                  setEjercicioSeleccionado(null);
-                  onToggleEstado(ej, !estaActivo); 
-                }}
-                className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg font-medium text-gray-800 transition flex items-center justify-between border border-gray-200"
-              >
-                <span>🔄 {ejercicioSeleccionado.activo !== false ? 'Desactivar ejercicio' : 'Activar ejercicio'}</span>
-                <span className="text-xs text-gray-400">Cambiar estado</span>
-              </button>
-
-              {/* Opción 3: Eliminar Definitivamente */}
-              <button
-                type="button"
-                onClick={() => {
-                  const id = ejercicioSeleccionado.id || ejercicioSeleccionado.idEjercicio;
-                  setEjercicioSeleccionado(null);
-                  onDelete(id);
-                }}
-                className="w-full text-left px-4 py-3 bg-red-50 hover:bg-red-100 rounded-lg font-medium text-red-700 transition flex items-center justify-between border border-red-200"
-              >
-                <span>🗑️ Eliminar definitivamente</span>
-                <span className="text-xs text-red-400">Borrar de la base</span>
-              </button>
-            </div>
-
-            <div className="mt-6 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setEjercicioSeleccionado(null)}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm font-medium transition"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
+      {abierto && (
+        <div id={panelId} className="overflow-x-auto rounded-b-lg border border-t-0 border-line bg-card">
+          {ejercicios.length === 0 ? (
+            <p className="px-4.5 py-8 text-center text-sm text-ink-muted">No hay ejercicios registrados en este grupo.</p>
+          ) : (
+            <table className="w-full min-w-[560px] text-left text-sm">
+              <thead className="border-b border-line bg-row-hover">
+                <tr>
+                  <th scope="col" className="h-10 w-12 px-3"><span className="sr-only">Selección</span></th>
+                  <th scope="col" className="h-10 w-[28%] px-3 text-xs font-medium text-ink-soft">Nombre</th>
+                  <th scope="col" className="h-10 px-3 text-xs font-medium text-ink-soft">Descripción</th>
+                  <th scope="col" className="h-10 w-32 px-4.5 text-xs font-medium text-ink-soft">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line-soft">
+                {ejercicios.map((ej) => {
+                  const activo = estaActivo(ej);
+                  const seleccionado = selectedIds.includes(ej.id);
+                  return (
+                    <Row key={ej.id} selected={seleccionado} onActivate={() => onToggleSeleccion(ej.id)}>
+                      <td className="px-3"><SelectDot selected={seleccionado} /></td>
+                      <td className={cx('px-3 py-3 font-semibold', activo ? 'text-ink' : 'text-ink-muted')}>{ej.nombre}</td>
+                      <td className={cx('px-3 py-3', activo ? 'text-ink-soft' : 'text-ink-muted')}>{ej.descripcion || '—'}</td>
+                      <td className="px-4.5 py-3">
+                        <Badge tone={activo ? 'success' : 'neutral'}>{activo ? 'Activo' : 'Inactivo'}</Badge>
+                      </td>
+                    </Row>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
+    </div>
+  );
+}
+
+// Acciones sobre la selección. Con uno solo se puede modificar; con varios, solo baja/reactivación y eliminación.
+function BarraSeleccion({ seleccionados, onEdit, onCambiarEstado, onDelete, onLimpiar }) {
+  if (seleccionados.length === 0) {
+    return <p className="text-sm text-ink-soft">Seleccioná un ejercicio para modificarlo, cambiar su estado o eliminarlo.</p>;
+  }
+
+  const activos = seleccionados.filter(estaActivo);
+  const inactivos = seleccionados.filter(e => !estaActivo(e));
+  const mezclados = activos.length > 0 && inactivos.length > 0;
+  const unico = seleccionados.length === 1 ? seleccionados[0] : null;
+
+  return (
+    <>
+      <span className="mr-2 text-sm text-ink-soft">
+        {unico
+          ? <>Seleccionado: <span className="font-semibold text-ink">{unico.nombre}</span></>
+          : <><span className="font-semibold tabular-nums text-ink">{seleccionados.length}</span> seleccionados</>}
+      </span>
+      {unico && (
+        <Button variant="secondary" size="sm" onClick={() => onEdit(unico.id)}>
+          <Pencil className="h-3.5 w-3.5" /> Modificar
+        </Button>
+      )}
+      {activos.length > 0 && (
+        <Button variant="secondary" size="sm" onClick={() => onCambiarEstado(activos, false)}>
+          <Ban className="h-3.5 w-3.5" /> Dar de baja{mezclados && ` (${activos.length})`}
+        </Button>
+      )}
+      {inactivos.length > 0 && (
+        <Button variant="success" size="sm" onClick={() => onCambiarEstado(inactivos, true)}>
+          <RotateCcw className="h-3.5 w-3.5" /> Reactivar{mezclados && ` (${inactivos.length})`}
+        </Button>
+      )}
+      <Button variant="danger" size="sm" onClick={() => onDelete(seleccionados)}>
+        <Trash2 className="h-3.5 w-3.5" /> Eliminar
+      </Button>
+      <Button variant="ghost" size="sm" onClick={onLimpiar} className="sm:ml-auto">
+        <X className="h-3.5 w-3.5" /> Limpiar selección
+      </Button>
+    </>
+  );
+}
+
+export default function EjerciciosList({ ejercicios = [], selectedIds, setSelectedIds, onEdit, onCambiarEstado, onDelete, onAdd }) {
+  const [gruposAbiertos, setGruposAbiertos] = useState({});
+
+  const toggleGrupo = (grupo) => setGruposAbiertos(prev => ({ ...prev, [grupo]: !prev[grupo] }));
+  const toggleSeleccion = (id) => setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+
+  // Se filtra contra la lista actual: un id que ya no existe no cuenta como seleccionado
+  const seleccionados = ejercicios.filter(e => selectedIds.includes(e.id));
+
+  return (
+    <div className="mx-auto max-w-5xl animate-fade-in">
+      <PageHeader
+        eyebrow={`Gestión · ${cantidad(ejercicios.length)}`}
+        title="Ejercicios"
+        actions={
+          <Button variant="primary" onClick={onAdd}>
+            <Plus className="h-4 w-4" /> Agregar nuevo ejercicio
+          </Button>
+        }
+      />
+
+      <Panel className="p-4 sm:p-5">
+        <div className="mb-4 flex min-h-9 flex-wrap items-center gap-2">
+          <BarraSeleccion
+            seleccionados={seleccionados}
+            onEdit={onEdit}
+            onCambiarEstado={onCambiarEstado}
+            onDelete={onDelete}
+            onLimpiar={() => setSelectedIds([])}
+          />
+        </div>
+
+        <div className="space-y-2">
+          {GRUPOS_MUSCULARES.map((grupo) => (
+            <GrupoMuscular
+              key={grupo}
+              grupo={grupo}
+              ejercicios={ejercicios.filter(e => e.grupoMuscular === grupo)}
+              abierto={Boolean(gruposAbiertos[grupo])}
+              onToggle={() => toggleGrupo(grupo)}
+              selectedIds={selectedIds}
+              onToggleSeleccion={toggleSeleccion}
+            />
+          ))}
+        </div>
+      </Panel>
     </div>
   );
 }

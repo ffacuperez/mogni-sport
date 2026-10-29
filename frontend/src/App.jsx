@@ -105,7 +105,7 @@ function MainApp({ onLogout }) {
   const [cargado, setCargado] = useState(false);
 
   const [selectedMembresiaId, setSelectedMembresiaId] = useState(null);
-  const [selectedEjercicioId, setSelectedEjercicioId] = useState(null);
+  const [selectedEjercicioIds, setSelectedEjercicioIds] = useState([]);
   const [searchAlumno, setSearchAlumno] = useState('');
 
   // --- Cuotas (HU-45) ---
@@ -334,58 +334,62 @@ function MainApp({ onLogout }) {
           setEjercicios(prev => isEdit ? prev.map(e => e.id === guardado.id ? guardado : e) : [...prev, guardado]);
         }, isEdit ? 'Ejercicio modificado correctamente.' : 'Ejercicio creado correctamente.');
         if (ok) {
-          setSelectedEjercicioId(null);
+          setSelectedEjercicioIds([]);
           navigate('/ejercicios');
         }
       }
     );
   };
 
-const handleToggleEstadoEjercicio = (ejercicio, forzarDirecto = false) => {
-    const nuevoEstado = !ejercicio.activo;
+  // El backend opera de a un ejercicio: se manda una request por cada uno. Los que fallan quedan seleccionados
+  // para reintentar; el resto se aplica igual.
+  const procesarEjercicios = async (lista, accion, { exito, exitoPlural, verbo }) => {
+    const resultados = await Promise.allSettled(lista.map(accion));
+    const fallidos = lista.filter((_, i) => resultados[i].status === 'rejected');
+    const primerError = resultados.find(r => r.status === 'rejected')?.reason;
+    setSelectedEjercicioIds(fallidos.map(e => e.id));
 
-    // Si está activando y forzarDirecto es true, lo hace de una sin mostrar el modal de confirmación
-    if (nuevoEstado && forzarDirecto) {
-      ejecutar(async () => {
-        const actualizado = await toggleEstadoEjercicio(ejercicio.id || ejercicio.idEjercicio);
-        setEjercicios(prev => prev.map(e => (e.id === actualizado.id || e.idEjercicio === actualizado.id) ? actualizado : e));
-      }, 'El ejercicio fue activado correctamente.');
+    if (fallidos.length === 0) {
+      displayToast(lista.length === 1 ? `El ejercicio fue ${exito} correctamente.` : `${lista.length} ejercicios fueron ${exitoPlural} correctamente.`);
+    } else if (lista.length === 1) {
+      displayToast(primerError.message, true);
+    } else {
+      displayToast(`No se pudieron ${verbo} ${fallidos.length} de ${lista.length} ejercicios: ${primerError.message}`, true);
+    }
+  };
+
+  const handleCambiarEstadoEjercicios = (lista, activar) => {
+    const cambiar = () => procesarEjercicios(lista, async (ejercicio) => {
+      const actualizado = await toggleEstadoEjercicio(ejercicio.id);
+      setEjercicios(prev => prev.map(e => e.id === actualizado.id ? actualizado : e));
+    }, activar
+      ? { exito: 'reactivado', exitoPlural: 'reactivados', verbo: 'reactivar' }
+      : { exito: 'dado de baja', exitoPlural: 'dados de baja', verbo: 'dar de baja' });
+
+    // Reactivar no necesita confirmación; la baja sí
+    if (activar) {
+      cambiar();
       return;
     }
-
-    // Para cuando se desactiva (o si se requiere confirmación)
     showModal(
-      nuevoEstado ? 'Confirmar Activación' : 'Confirmar Baja',
-      `¿Estás seguro de que deseas ${nuevoEstado ? 'activar' : 'desactivar'} el ejercicio ${ejercicio.nombre}?`,
-      async () => {
-        await ejecutar(async () => {
-          const actualizado = await toggleEstadoEjercicio(ejercicio.id || ejercicio.idEjercicio);
-          setEjercicios(prev => prev.map(e => (e.id === actualizado.id || e.idEjercicio === actualizado.id) ? actualizado : e));
-        }, `El ejercicio fue ${nuevoEstado ? 'activado' : 'desactivado'} correctamente.`);
-      }
+      'Confirmar Baja',
+      lista.length === 1
+        ? `¿Estás seguro de que deseas dar de baja el ejercicio ${lista[0].nombre}?`
+        : `¿Estás seguro de que deseas dar de baja ${lista.length} ejercicios?`,
+      cambiar
     );
   };
 
-  const handleDeleteEjercicio = () => {
-    // Buscamos contemplando tanto 'id' como 'idEjercicio' para evitar fallos
-    const ejercicio = ejercicios.find(e => (e.id === selectedEjercicioId || e.idEjercicio === selectedEjercicioId));
-    if (!ejercicio) {
-      console.warn("No se encontró el ejercicio con ID:", selectedEjercicioId);
-      return;
-    }
-
-    const idReal = ejercicio.id || ejercicio.idEjercicio;
-
+  const handleDeleteEjercicios = (lista) => {
     showModal(
       'Confirmar Eliminación',
-      `¿Está seguro de que desea eliminar el ejercicio ${ejercicio.nombre}?`,
-      async () => {
-        const ok = await ejecutar(async () => {
-          await eliminarEjercicio(idReal);
-          setEjercicios(prev => prev.filter(e => (e.id || e.idEjercicio) !== idReal));
-        }, 'Ejercicio eliminado correctamente.');
-        if (ok) setSelectedEjercicioId(null);
-      },
+      `${lista.length === 1
+        ? `¿Está seguro de que desea eliminar el ejercicio ${lista[0].nombre}?`
+        : `¿Está seguro de que desea eliminar ${lista.length} ejercicios?`} Esta acción no se puede deshacer.`,
+      () => procesarEjercicios(lista, async (ejercicio) => {
+        await eliminarEjercicio(ejercicio.id);
+        setEjercicios(prev => prev.filter(e => e.id !== ejercicio.id));
+      }, { exito: 'eliminado', exitoPlural: 'eliminados', verbo: 'eliminar' }),
       { danger: true }
     );
   };
@@ -419,7 +423,7 @@ const handleToggleEstadoEjercicio = (ejercicio, forzarDirecto = false) => {
     ...(puedeVerAgenda ? [{ to: '/agenda', label: 'Agenda', icon: Calendar }] : []),
     { to: '/alumnos', label: 'Alumnos', icon: Users },
     { to: '/membresias', label: 'Membresías', icon: CreditCard, onClick: () => setSelectedMembresiaId(null) },
-    { to: '/ejercicios', label: 'Ejercicios', icon: Dumbbell, onClick: () => setSelectedEjercicioId(null) },
+    { to: '/ejercicios', label: 'Ejercicios', icon: Dumbbell, onClick: () => setSelectedEjercicioIds([]) },
     // Cobranzas (HU-45) es solo del propietario
     ...(esPropietario ? [{ to: '/cuotas', label: 'Cuotas', icon: Wallet, onClick: () => setSelectedCuotaId(null) }] : []),
     // Franjas horarias y cupo (HU-252): solo el propietario
@@ -598,17 +602,12 @@ const handleToggleEstadoEjercicio = (ejercicio, forzarDirecto = false) => {
         <Route path="ejercicios" element={
           <EjerciciosList
             ejercicios={ejercicios}
-            cargando={!cargado}
+            selectedIds={selectedEjercicioIds}
+            setSelectedIds={setSelectedEjercicioIds}
             onAdd={() => navigate('/ejercicios/nuevo')}
-            onEdit={(idEjercicio) => {
-              setSelectedEjercicioId(idEjercicio);
-              navigate(`/ejercicios/${idEjercicio}/editar`);
-            }}
-            onToggleEstado={handleToggleEstadoEjercicio}
-            onDelete={(idEjercicio) => {
-              setSelectedEjercicioId(idEjercicio);
-              handleDeleteEjercicio();
-            }}
+            onEdit={(id) => navigate(`/ejercicios/${id}/editar`)}
+            onCambiarEstado={handleCambiarEstadoEjercicios}
+            onDelete={handleDeleteEjercicios}
           />
         } />
 

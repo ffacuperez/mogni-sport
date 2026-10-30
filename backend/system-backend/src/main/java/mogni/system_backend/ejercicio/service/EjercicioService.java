@@ -12,14 +12,17 @@ import mogni.system_backend.ejercicio.entity.Ejercicio;
 import mogni.system_backend.ejercicio.repository.EjercicioRepository;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
+import mogni.system_backend.plantilla.repository.PlantillaPlanRepository;
 
 @Service
 public class EjercicioService {
 
     private final EjercicioRepository ejercicioRepository;
+    private final PlantillaPlanRepository plantillaRepository;
 
-    public EjercicioService(EjercicioRepository ejercicioRepository) {
+    public EjercicioService(EjercicioRepository ejercicioRepository, PlantillaPlanRepository plantillaRepository) {
         this.ejercicioRepository = ejercicioRepository;
+        this.plantillaRepository = plantillaRepository;
     }
 
     @Transactional
@@ -71,7 +74,11 @@ public class EjercicioService {
     @Transactional
     public void eliminarEjercicio(Long id) {
         Ejercicio ejercicio = buscarEjercicioOLanzarError(id);
-        // Si en el futuro agregas validaciones con rutinas, se colocan aquí.
+        // HU-265: borrarlo dejaría sesiones de plantillas sin su ejercicio; se puede dar de baja en su lugar
+        if (plantillaRepository.existeEjercicioEnAlgunaPlantilla(id)) {
+            throw new RegistroInvalidoException(
+                "No se puede eliminar el ejercicio porque se usa en plantillas de entrenamiento. Podés darlo de baja");
+        }
         ejercicioRepository.delete(ejercicio);
     }
 

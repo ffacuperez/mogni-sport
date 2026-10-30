@@ -68,6 +68,15 @@ class SecurityRulesTest {
     }
 
     @Test
+    void plantillasSoloParaPropietarioYEntrenador() throws Exception {
+        mockMvc.perform(get("/plantillas")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/plantillas").with(user("a@x.com").roles("ALUMNO"))).andExpect(status().isForbidden());
+        mockMvc.perform(get("/plantillas").with(user("n@x.com").roles("NUTRICIONISTA"))).andExpect(status().isForbidden());
+        mockMvc.perform(get("/plantillas").with(user("e@x.com").roles("ENTRENADOR"))).andExpect(status().isOk());
+        mockMvc.perform(get("/plantillas").with(user("p@x.com").roles("PROPIETARIO"))).andExpect(status().isOk());
+    }
+
+    @Test
     void personalDelGimnasioPuedeListar() throws Exception {
         mockMvc.perform(get("/alumnos").with(user("e@x.com").roles("ENTRENADOR"))).andExpect(status().isOk());
         mockMvc.perform(get("/membresias").with(user("e@x.com").roles("ENTRENADOR"))).andExpect(status().isOk());

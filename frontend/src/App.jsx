@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
-import { Calendar, Clock, CreditCard, Dumbbell, Home as IconHome, LogOut, Users, Wallet } from 'lucide-react';
+import { Calendar, ClipboardList, Clock, CreditCard, Dumbbell, Home as IconHome, LogOut, Users, Wallet } from 'lucide-react';
 
 import Home from './home/pages/Home';
 import Login from './auth/pages/Login';
@@ -18,6 +18,8 @@ import MembresiasList from './membresia/pages/MembresiasList';
 import MembresiaForm from './membresia/pages/MembresiaForm';
 import EjerciciosList from './ejercicio/pages/EjerciciosList';
 import EjercicioForm from './ejercicio/pages/EjercicioForm';
+import PlantillasList from './plantilla/pages/PlantillasList';
+import PlantillaForm from './plantilla/pages/PlantillaForm';
 import CuotasList from './cuota/pages/CuotasList';
 import RegistrarPagoModal from './cuota/pages/RegistrarPagoModal';
 import HistorialPagosModal from './cuota/pages/HistorialPagosModal';
@@ -91,6 +93,12 @@ function ConEjercicio({ ejercicios, cargado, onNoEncontrado, children }) {
   return ejercicio ? children(ejercicio) : <Cargando />;
 }
 
+// La plantilla la carga el propio formulario a partir del :id de la URL
+function PlantillaFormRuta(props) {
+  const { id } = useParams();
+  return <PlantillaForm key={id} plantillaId={Number(id)} {...props} />;
+}
+
 // --- MAIN APP COMPONENT ---
 function MainApp({ onLogout }) {
   const navigate = useNavigate();
@@ -98,6 +106,8 @@ function MainApp({ onLogout }) {
   const esPropietario = getRol() === 'PROPIETARIO';
   // Agenda de turnos (MOGNI-257): propietario y entrenador; el backend también lo exige
   const puedeVerAgenda = esPropietario || getRol() === 'ENTRENADOR';
+  // Plantillas de plan de entrenamiento (HU-265): propietario y entrenador; el backend también lo exige
+  const puedeVerPlanes = esPropietario || getRol() === 'ENTRENADOR';
   const { pathname } = useLocation();
   const [alumnos, setAlumnos] = useState([]);
   const [membresias, setMembresias] = useState([]);
@@ -424,6 +434,7 @@ function MainApp({ onLogout }) {
     { to: '/alumnos', label: 'Alumnos', icon: Users },
     { to: '/membresias', label: 'Membresías', icon: CreditCard, onClick: () => setSelectedMembresiaId(null) },
     { to: '/ejercicios', label: 'Ejercicios', icon: Dumbbell, onClick: () => setSelectedEjercicioIds([]) },
+    ...(puedeVerPlanes ? [{ to: '/planes', label: 'Planes', icon: ClipboardList }] : []),
     // Cobranzas (HU-45) es solo del propietario
     ...(esPropietario ? [{ to: '/cuotas', label: 'Cuotas', icon: Wallet, onClick: () => setSelectedCuotaId(null) }] : []),
     // Franjas horarias y cupo (HU-252): solo el propietario
@@ -636,6 +647,17 @@ function MainApp({ onLogout }) {
             )}
           </ConEjercicio>
         } />
+
+          {/* Plantillas de plan de entrenamiento (HU-265) */}
+          <Route path="planes" element={puedeVerPlanes
+            ? <PlantillasList onAdd={() => navigate('/planes/nueva')} onEdit={(id) => navigate(`/planes/${id}/editar`)} onToast={displayToast} />
+            : <Navigate to="/alumnos" replace />} />
+          <Route path="planes/nueva" element={puedeVerPlanes
+            ? <PlantillaForm onVolver={() => navigate('/planes')} onGuardada={() => navigate('/planes')} onToast={displayToast} />
+            : <Navigate to="/alumnos" replace />} />
+          <Route path="planes/:id/editar" element={puedeVerPlanes
+            ? <PlantillaFormRuta onVolver={() => navigate('/planes')} onGuardada={() => navigate('/planes')} onToast={displayToast} />
+            : <Navigate to="/alumnos" replace />} />
 
           <Route path="cuotas" element={esPropietario ? (
             <CuotasList

@@ -78,6 +78,10 @@ public class SecurityConfig {
                 // Agenda de turnos (MOGNI-257): muestra alumnos y cuotas, solo para propietario y entrenador
                 .requestMatchers(HttpMethod.POST, "/agenda/**").hasRole("PROPIETARIO")
                 .requestMatchers("/agenda/**").hasAnyRole("PROPIETARIO", "ENTRENADOR")
+                // Plantillas de plan de entrenamiento (HU-265): las arma el entrenador; el propietario también
+                .requestMatchers("/plantillas/**").hasAnyRole("PROPIETARIO", "ENTRENADOR")
+                // Catálogo de ejercicios: solo el personal del gimnasio, igual que su pantalla
+                .requestMatchers("/ejercicios/**").hasAnyRole("PROPIETARIO", "ENTRENADOR", "NUTRICIONISTA")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

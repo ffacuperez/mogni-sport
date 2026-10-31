@@ -70,6 +70,27 @@ class PlantillaRequestValidationTest {
     }
 
     @Test
+    void sesionNulaEnLaListaFalla() {
+        PlantillaRequest request = requestValido();
+        request.getSesiones().add(null);
+        assertTrue(tieneError(request, "Cada sesión tiene que tener al menos un ejercicio"));
+    }
+
+    @Test
+    void ejercicioNuloEnLaListaFalla() {
+        PlantillaRequest request = requestValido();
+        sesion.getEjercicios().add(null);
+        assertTrue(tieneError(request, "Cada ejercicio de la sesión tiene que ser uno del catálogo"));
+    }
+
+    @Test
+    void nombreSoloConEspaciosDurosFalla() {
+        PlantillaRequest request = requestValido();
+        request.setNombre("  ");
+        assertTrue(tieneError(request, "El nombre de la plantilla es obligatorio"));
+    }
+
+    @Test
     void sinNombreDescriptivoDeSesionNiPesoNiRirSigueSiendoValido() {
         PlantillaRequest request = requestValido();
         sesion.setNombre(null);

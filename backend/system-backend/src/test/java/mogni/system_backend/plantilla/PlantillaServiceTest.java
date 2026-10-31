@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -28,6 +29,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import mogni.system_backend.ejercicio.entity.Ejercicio;
 import mogni.system_backend.ejercicio.repository.EjercicioRepository;
@@ -284,6 +286,45 @@ class PlantillaServiceTest {
         when(plantillaRepository.existsByNombreIgnoreCaseAndActivaTrue("Fuerza base (copia)")).thenReturn(true);
 
         assertEquals("Fuerza base (copia 2)", plantillaService.duplicarPlantilla(5L).getNombre());
+    }
+
+    @Test
+    void la_copia_de_un_nombre_largo_respeta_el_maximo() {
+        String largo = "N".repeat(100);
+        when(plantillaRepository.findByIdAndActivaTrue(5L)).thenReturn(Optional.of(plantillaExistente(5L, largo, 0)));
+
+        String copia = plantillaService.duplicarPlantilla(5L).getNombre();
+
+        assertEquals(100, copia.length());
+        assertEquals("N".repeat(92) + " (copia)", copia);
+    }
+
+    @Test
+    void la_copia_de_un_nombre_que_es_solo_el_sufijo_no_empieza_con_espacio() {
+        when(plantillaRepository.findByIdAndActivaTrue(5L)).thenReturn(Optional.of(plantillaExistente(5L, "(copia 7)", 0)));
+
+        assertEquals("(copia)", plantillaService.duplicarPlantilla(5L).getNombre());
+    }
+
+    @Test
+    void si_otra_alta_simultanea_tomo_el_nombre_responde_como_nombre_repetido() {
+        doThrow(new DataIntegrityViolationException("nombre_unico")).when(plantillaRepository).flush();
+        when(plantillaRepository.findByIdAndActivaTrue(5L)).thenReturn(Optional.of(plantillaExistente(5L, "Fuerza base", 0)));
+
+        RegistroInvalidoException e = assertThrows(RegistroInvalidoException.class, () -> plantillaService.duplicarPlantilla(5L));
+
+        assertEquals("Ya existe una plantilla con ese nombre", e.getMessage());
+    }
+
+    @Test
+    void el_nombre_unico_sigue_al_nombre_y_se_libera_con_la_baja() {
+        PlantillaPlan p = new PlantillaPlan();
+
+        p.setNombre("Fuerza BASE");
+        assertEquals("fuerza base", p.getNombreUnico());
+
+        p.setActiva(false);
+        assertNull(p.getNombreUnico());
     }
 
     // --- Consulta ---

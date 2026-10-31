@@ -37,7 +37,8 @@ const aFormulario = (plantilla) => ({
   })),
 });
 
-const SOLO_ENTEROS = /^\d*$/;
+// Los campos enteros no filtran lo que se escribe: si no, "8.5" quedaría como 85 sin ningún aviso. Se valida al confirmar.
+const esEntero = (texto) => /^\d+$/.test(texto.trim());
 const PESO = /^\d{0,3}([.,]\d{0,2})?$/;
 
 /** Primer error del formulario, o null. Mismos límites que el backend. */
@@ -53,14 +54,14 @@ function validar(form) {
       const donde = `${nSesion}, ejercicio ${j + 1}`;
       if (!e.ejercicioId) return `${donde}: elegí un ejercicio del catálogo.`;
       const series = Number(e.series);
-      if (!e.series || series < 1 || series > LIMITES.seriesMax) return `${donde}: las series tienen que estar entre 1 y ${LIMITES.seriesMax}.`;
+      if (!esEntero(e.series) || series < 1 || series > LIMITES.seriesMax) return `${donde}: las series tienen que ser un número entero entre 1 y ${LIMITES.seriesMax}.`;
       const reps = Number(e.repeticiones);
-      if (!e.repeticiones || reps < 1 || reps > LIMITES.repeticionesMax) return `${donde}: las repeticiones objetivo tienen que estar entre 1 y ${LIMITES.repeticionesMax}.`;
+      if (!esEntero(e.repeticiones) || reps < 1 || reps > LIMITES.repeticionesMax) return `${donde}: las repeticiones objetivo tienen que ser un número entero entre 1 y ${LIMITES.repeticionesMax}.`;
       if (e.peso.trim()) {
         const peso = Number(e.peso.replace(',', '.'));
         if (!(peso > 0) || peso > LIMITES.pesoMax) return `${donde}: el peso sugerido tiene que ser mayor a 0 y hasta ${LIMITES.pesoMax} kg.`;
       }
-      if (e.rir && Number(e.rir) > LIMITES.rirMax) return `${donde}: el RIR objetivo tiene que estar entre 0 y ${LIMITES.rirMax}.`;
+      if (e.rir.trim() && (!esEntero(e.rir) || Number(e.rir) > LIMITES.rirMax)) return `${donde}: el RIR objetivo tiene que ser un número entero entre 0 y ${LIMITES.rirMax}.`;
     }
   }
   return null;
@@ -141,12 +142,12 @@ function TarjetaSesion({ sesion, numero, puedeQuitar, catalogo, idsPermitidosIna
               <div className="mt-3 grid grid-cols-1 gap-3 pr-0 sm:grid-cols-2 sm:pr-10 lg:grid-cols-4">
                 <Field label="Series" htmlFor={`${idE}-series`}>
                   <input id={`${idE}-series`} type="text" inputMode="numeric" value={e.series} placeholder="Ej. 4"
-                    onChange={(ev) => SOLO_ENTEROS.test(ev.target.value) && cambiarEjercicio(e.clave, 'series', ev.target.value)}
+                    onChange={(ev) => cambiarEjercicio(e.clave, 'series', ev.target.value)}
                     className={cx(inputClass, 'bg-card tabular-nums')} />
                 </Field>
                 <Field label="Repeticiones objetivo" htmlFor={`${idE}-reps`}>
                   <input id={`${idE}-reps`} type="text" inputMode="numeric" value={e.repeticiones} placeholder="Ej. 10"
-                    onChange={(ev) => SOLO_ENTEROS.test(ev.target.value) && cambiarEjercicio(e.clave, 'repeticiones', ev.target.value)}
+                    onChange={(ev) => cambiarEjercicio(e.clave, 'repeticiones', ev.target.value)}
                     className={cx(inputClass, 'bg-card tabular-nums')} />
                 </Field>
                 <Field label="Peso sugerido (opcional)" htmlFor={`${idE}-peso`}>
@@ -160,7 +161,7 @@ function TarjetaSesion({ sesion, numero, puedeQuitar, catalogo, idsPermitidosIna
                 <Field label="RIR objetivo (opcional)" htmlFor={`${idE}-rir`}>
                   <input id={`${idE}-rir`} type="text" inputMode="numeric" value={e.rir} maxLength={2} placeholder="Sin especificar"
                     title="Repeticiones en reserva: cuántas repeticiones le deberían quedar al terminar la serie (0 a 10)"
-                    onChange={(ev) => SOLO_ENTEROS.test(ev.target.value) && cambiarEjercicio(e.clave, 'rir', ev.target.value)}
+                    onChange={(ev) => cambiarEjercicio(e.clave, 'rir', ev.target.value)}
                     className={cx(inputClass, 'bg-card tabular-nums')} />
                 </Field>
               </div>
@@ -200,9 +201,17 @@ export default function PlantillaForm({ plantillaId, onVolver, onGuardada, onToa
       .catch((err) => setError(err.message));
   }, [plantillaId, esEdicion]);
 
+  const botonVolver = (
+    <button type="button" onClick={onVolver}
+      className={cx('mb-3 flex cursor-pointer items-center gap-1.5 rounded-md text-xs font-medium text-ink-soft transition-colors hover:text-ink', FOCUS)}>
+      <ArrowLeft className="h-3.5 w-3.5" /> Volver a plantillas
+    </button>
+  );
+
   if (error) {
     return (
       <div className="mx-auto max-w-3xl">
+        {botonVolver}
         <div role="alert" className="flex items-center gap-3 rounded-lg border border-line bg-error-bg p-4 text-error">
           <CircleAlert className="h-5 w-5 shrink-0" />
           <span className="text-sm">{error}</span>
@@ -243,10 +252,7 @@ export default function PlantillaForm({ plantillaId, onVolver, onGuardada, onToa
 
   return (
     <div className="mx-auto max-w-3xl animate-fade-in">
-      <button type="button" onClick={onVolver}
-        className={cx('mb-3 flex cursor-pointer items-center gap-1.5 rounded-md text-xs font-medium text-ink-soft transition-colors hover:text-ink', FOCUS)}>
-        <ArrowLeft className="h-3.5 w-3.5" /> Volver a plantillas
-      </button>
+      {botonVolver}
 
       <PageHeader
         title={esEdicion ? 'Modificación de plantilla' : 'Alta de nueva plantilla'}

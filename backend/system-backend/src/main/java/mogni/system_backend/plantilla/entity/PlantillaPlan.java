@@ -3,6 +3,7 @@ package mogni.system_backend.plantilla.entity;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -35,9 +36,15 @@ public class PlantillaPlan {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Único entre las plantillas activas (se valida en el servicio, así una dada de baja libera su nombre). */
     @Column(nullable = false, length = 150)
     private String nombre;
+
+    /**
+     * El nombre en minúsculas mientras está activa y null al darla de baja, que así libera su nombre.
+     * El índice único es lo que frena dos altas simultáneas que pasan juntas la validación del servicio.
+     */
+    @Column(unique = true, length = 150)
+    private String nombreUnico;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -63,6 +70,20 @@ public class PlantillaPlan {
     @OneToMany(mappedBy = "plantilla", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("numero ASC")
     private List<SesionPlantilla> sesiones = new ArrayList<>();
+
+    public void setNombre(String nombre) {
+        this.nombre = nombre;
+        actualizarNombreUnico();
+    }
+
+    public void setActiva(boolean activa) {
+        this.activa = activa;
+        actualizarNombreUnico();
+    }
+
+    private void actualizarNombreUnico() {
+        nombreUnico = activa && nombre != null ? nombre.toLowerCase(Locale.ROOT) : null;
+    }
 
     public boolean tieneAsignacionesActivas() {
         return asignacionesActivas > 0;

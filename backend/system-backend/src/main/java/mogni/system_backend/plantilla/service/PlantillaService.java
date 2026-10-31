@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +34,9 @@ import mogni.system_backend.plantilla.repository.PlantillaPlanRepository;
  */
 @Service
 public class PlantillaService {
+
+    /** El mismo límite que valida PlantillaRequest. */
+    private static final int NOMBRE_MAX = 100;
 
     private final PlantillaPlanRepository plantillaRepository;
     private final EjercicioRepository ejercicioRepository;
@@ -63,7 +67,7 @@ public class PlantillaService {
         }
         PlantillaPlan plantilla = new PlantillaPlan();
         aplicarDatos(plantilla, request, nombre, Set.of());
-        return mapearAResponse(plantillaRepository.save(plantilla));
+        return mapearAResponse(guardarConNombreUnico(plantilla));
     }
 
     /** Reemplaza nombre, nivel, objetivo y todas las sesiones por las recibidas. */
@@ -80,7 +84,7 @@ public class PlantillaService {
                 .map(ejercicioSesion -> ejercicioSesion.getEjercicio().getId())
                 .collect(Collectors.toSet());
         aplicarDatos(plantilla, request, nombre, ejerciciosQueYaTenia);
-        return mapearAResponse(plantillaRepository.save(plantilla));
+        return mapearAResponse(guardarConNombreUnico(plantilla));
     }
 
     /** Baja lógica: la plantilla deja de listarse. No se permite si hay alumnos que la tienen asignada. */
@@ -100,10 +104,21 @@ public class PlantillaService {
     public PlantillaResponse duplicarPlantilla(Long id) {
         PlantillaPlan original = buscarPlantillaOLanzarError(id);
         PlantillaPlan copia = original.duplicar(nombreParaCopia(original.getNombre()), ZonaHoraria.ahora());
-        return mapearAResponse(plantillaRepository.save(copia));
+        return mapearAResponse(guardarConNombreUnico(copia));
     }
 
     // --- Auxiliares ---
+
+    /** Guarda ya mismo: si otra operación simultánea tomó el nombre, responde como un nombre repetido y no con un 500. */
+    private PlantillaPlan guardarConNombreUnico(PlantillaPlan plantilla) {
+        try {
+            PlantillaPlan guardada = plantillaRepository.save(plantilla);
+            plantillaRepository.flush();
+            return guardada;
+        } catch (DataIntegrityViolationException e) {
+            throw new RegistroInvalidoException("Ya existe una plantilla con ese nombre");
+        }
+    }
 
     private void aplicarDatos(PlantillaPlan plantilla, PlantillaRequest request, String nombre,
                               Set<Long> ejerciciosPermitidosInactivos) {
@@ -159,11 +174,18 @@ public class PlantillaService {
     /** "Fuerza base" -> "Fuerza base (copia)", y si ya existe, "(copia 2)", "(copia 3)"... */
     private String nombreParaCopia(String nombre) {
         String base = nombre.replaceFirst("\\s*\\(copia(?: \\d+)?\\)$", "");
-        String candidato = base + " (copia)";
+        String candidato = conSufijo(base, "(copia)");
         for (int i = 2; plantillaRepository.existsByNombreIgnoreCaseAndActivaTrue(candidato); i++) {
-            candidato = base + " (copia " + i + ")";
+            candidato = conSufijo(base, "(copia " + i + ")");
         }
         return candidato;
+    }
+
+    /** Recorta la base si hace falta: la copia tiene que respetar el largo máximo para poder editarse después. */
+    private static String conSufijo(String base, String sufijo) {
+        int lugar = NOMBRE_MAX - sufijo.length() - 1;
+        String recortada = base.length() > lugar ? base.substring(0, lugar) : base;
+        return (recortada.stripTrailing() + " " + sufijo).strip();
     }
 
     private PlantillaPlan buscarPlantillaOLanzarError(Long id) {

@@ -117,6 +117,8 @@ export default function PlantillasList({ onAdd, onEdit, onToast }) {
       setPlantillas(prev => prev.filter(p => p.id !== plantilla.id));
       onToast('La plantilla fue eliminada correctamente.');
     } catch (err) {
+      // 404: ya la habían eliminado desde otra pestaña o sesión; no tiene que quedar en la lista
+      if (err.status === 404) setPlantillas(prev => prev.filter(p => p.id !== plantilla.id));
       onToast(err.message, true);
     }
   };

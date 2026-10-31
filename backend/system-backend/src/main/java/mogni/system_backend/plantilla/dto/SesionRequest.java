@@ -4,6 +4,7 @@ import java.util.List;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -20,5 +21,5 @@ public class SesionRequest {
     private String nombre;
 
     @NotEmpty(message = "Cada sesión tiene que tener al menos un ejercicio")
-    private List<@Valid EjercicioSesionRequest> ejercicios;
+    private List<@Valid @NotNull(message = "Cada ejercicio de la sesión tiene que ser uno del catálogo") EjercicioSesionRequest> ejercicios;
 }

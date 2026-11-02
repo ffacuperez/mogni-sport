@@ -22,11 +22,13 @@ import mogni.system_backend.plan.entity.PlanAsignado;
 import mogni.system_backend.plan.entity.SesionPlan;
 import mogni.system_backend.plan.repository.PlanAsignadoRepository;
 import mogni.system_backend.progreso.dto.EjercicioIndicadoResponse;
+import mogni.system_backend.progreso.dto.EjercicioRealizadoResponse;
 import mogni.system_backend.progreso.dto.EstadoSesion;
 import mogni.system_backend.progreso.dto.MisPlanesResponse;
 import mogni.system_backend.progreso.dto.PlanDetalleResponse;
 import mogni.system_backend.progreso.dto.PlanResumenResponse;
 import mogni.system_backend.progreso.dto.SemanaPlanResponse;
+import mogni.system_backend.progreso.dto.SesionDetalleResponse;
 import mogni.system_backend.progreso.dto.SesionRegistradaResponse;
 import mogni.system_backend.progreso.dto.SesionSemanaResponse;
 import mogni.system_backend.progreso.entity.RegistroSesion;
@@ -88,6 +90,24 @@ public class MiProgresoService {
                         registro.getFecha(),
                         registro.getEjercicios().size()))
                 .toList();
+    }
+
+    /** 404 también si la sesión es de otro alumno: no se revela que existe. */
+    @Transactional(readOnly = true)
+    public SesionDetalleResponse obtenerSesion(String email, Long registroId) {
+        Alumno alumno = buscarAlumnoConAcceso(email);
+        RegistroSesion registro = registroRepository.findByIdAndPlanAlumnoId(registroId, alumno.getId())
+                .orElseThrow(() -> new RecursoNoEncontradoException("No encontramos esa sesión"));
+        PlanAsignado plan = registro.getPlan();
+        return new SesionDetalleResponse(
+                registro.getId(),
+                registro.getSemana(),
+                registro.getNumeroSesion(),
+                registro.getFecha(),
+                plan.getNombre(),
+                plan.getMetodo(),
+                plan.getMesociclo(),
+                registro.getEjercicios().stream().map(EjercicioRealizadoResponse::desde).toList());
     }
 
     private PlanAsignado buscarPlanDelAlumno(String email, Long planId) {

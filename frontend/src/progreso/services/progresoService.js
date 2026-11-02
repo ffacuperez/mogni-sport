@@ -84,6 +84,24 @@ export async function consultarSesiones(planId) {
   return request(`${BASE_PATH}/planes/${planId}/sesiones`);
 }
 
+/** Una sesión registrada, con lo indicado y lo realizado en cada ejercicio. */
+export async function consultarSesion(id) {
+  const s = await request(`${BASE_PATH}/sesiones/${id}`);
+  return {
+    semana: s.semana,
+    numeroSesion: s.numeroSesion,
+    fecha: s.fecha,
+    plan: { nombre: s.nombrePlan, metodo: s.metodo ?? null, mesociclo: s.mesociclo ?? null },
+    ejercicios: s.ejercicios.map((e) => ({
+      ...ejercicioFromApi(e),
+      kgUsados: e.kgUsados ?? null,
+      rirReal: e.rirReal ?? null,
+      notas: e.notas ?? null,
+      diferenciaRir: e.diferenciaRir ?? null,
+    })),
+  };
+}
+
 /** Agrupa las sesiones por semana, respetando el orden en que vienen. */
 export function agruparPorSemana(sesiones) {
   const grupos = [];
@@ -126,3 +144,12 @@ export const textoSeriesRepeticiones = (e) => `${e.series}x${textoRepeticiones(e
 
 /** 1.25 -> "75 seg" */
 export const textoDescansoSegundos = (minutos) => `${Math.round(Number(minutos) * 60)} seg`;
+
+/** "Mié 28/10/2026" */
+export const textoFechaCompleta = (fechaISO) => `${partesFecha(fechaISO).dia} ${formatearFecha(fechaISO)}`;
+
+/** 12.5 -> "12,5 kg" */
+export const textoKg = (kg) => `${Number(kg).toLocaleString('es-AR', { maximumFractionDigits: 2 })} kg`;
+
+/** -1 -> "RIR −1 vs. indicado" */
+export const textoDiferenciaRir = (diferencia) => `RIR ${diferencia > 0 ? '+' : '−'}${Math.abs(diferencia)} vs. indicado`;

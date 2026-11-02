@@ -548,6 +548,108 @@ class MiProgresoIntegrationTest {
         assertEquals(404, sesionesDe(alumno(), ajeno.getId()).status());
     }
 
+    // --- Detalle de sesión ---
+
+    private Respuesta sesionDe(Alumno alumno, Long registroId) throws Exception {
+        return ejecutar(get("/mi-progreso/sesiones/" + registroId).with(user(alumno.getEmail()).roles("ALUMNO")));
+    }
+
+    @Test
+    void el_detalle_trae_la_sesion_el_plan_y_lo_indicado_y_realizado() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate fecha = ZonaHoraria.hoy().minusDays(1);
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy().minusDays(8), 5);
+        RegistroSesion registro = registrarConEjercicios(plan, 2, 1, fecha, "40.5", 2, "Me costó la última serie.");
+
+        Respuesta respuesta = sesionDe(alumno, registro.getId());
+
+        assertEquals(200, respuesta.status());
+        JsonNode cuerpo = respuesta.cuerpo();
+        assertEquals(2, cuerpo.path("semana").asInt());
+        assertEquals(1, cuerpo.path("numeroSesion").asInt());
+        assertEquals(fecha.toString(), cuerpo.path("fecha").asString());
+        assertEquals("ULTRA_MASS", cuerpo.path("metodo").asString());
+        assertEquals("Hipertrofia", cuerpo.path("mesociclo").asString());
+        JsonNode ejercicio = cuerpo.path("ejercicios").get(0);
+        assertTrue(ejercicio.path("nombre").asString().startsWith("Sentadilla"));
+        assertEquals(4, ejercicio.path("series").asInt());
+        assertEquals(15, ejercicio.path("repeticiones").asInt());
+        assertEquals(18, ejercicio.path("repeticionesMax").asInt());
+        assertEquals(3, ejercicio.path("rirObjetivo").asInt());
+        assertEquals("Tempo 2-1-3", ejercicio.path("indicaciones").asString());
+        assertEquals(0, new BigDecimal("40.5").compareTo(ejercicio.path("kgUsados").decimalValue()));
+        assertEquals(2, ejercicio.path("rirReal").asInt());
+        assertEquals("Me costó la última serie.", ejercicio.path("notas").asString());
+    }
+
+    @Test
+    void los_ejercicios_van_en_el_orden_de_la_sesion() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        RegistroSesion registro = registrarConEjercicios(plan, 1, 1, ZonaHoraria.hoy(), "40", 2, null);
+
+        JsonNode ejercicios = sesionDe(alumno, registro.getId()).cuerpo().path("ejercicios");
+
+        assertEquals(2, ejercicios.size());
+        assertTrue(ejercicios.get(0).path("nombre").asString().startsWith("Sentadilla"));
+        assertTrue(ejercicios.get(1).path("nombre").asString().startsWith("Prensa"));
+    }
+
+    @Test
+    void la_diferencia_de_rir_es_el_real_menos_el_objetivo() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy().minusDays(8), 5);
+        // La sesión 1 empieza con un RIR objetivo 3 y la sesión 2 tiene RIR objetivo 2
+        RegistroSesion menor = registrarConEjercicios(plan, 1, 1, ZonaHoraria.hoy(), "40", 2, null);
+        RegistroSesion mayor = registrarConEjercicios(plan, 1, 2, ZonaHoraria.hoy(), "40", 3, null);
+
+        assertEquals(-1, sesionDe(alumno, menor.getId()).cuerpo().path("ejercicios").get(0).path("diferenciaRir").asInt());
+        assertEquals(1, sesionDe(alumno, mayor.getId()).cuerpo().path("ejercicios").get(0).path("diferenciaRir").asInt());
+    }
+
+    @Test
+    void sin_diferencia_de_rir_si_coincide_o_si_falta_un_dato() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy().minusDays(8), 5);
+        RegistroSesion coincide = registrarConEjercicios(plan, 1, 1, ZonaHoraria.hoy(), "40", 3, null);
+        RegistroSesion sinReal = registrarConEjercicios(plan, 2, 1, ZonaHoraria.hoy(), "40", null, null);
+
+        JsonNode ejercicios = sesionDe(alumno, coincide.getId()).cuerpo().path("ejercicios");
+        assertTrue(ejercicios.get(0).path("diferenciaRir").isNull());
+        // El segundo ejercicio de la sesión 1 no tiene RIR objetivo
+        assertTrue(ejercicios.get(1).path("diferenciaRir").isNull());
+        assertTrue(sesionDe(alumno, sinReal.getId()).cuerpo().path("ejercicios").get(0).path("diferenciaRir").isNull());
+    }
+
+    @Test
+    void lo_indicado_no_cambia_si_el_profe_modifica_el_plan() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        RegistroSesion registro = registrarConEjercicios(plan, 1, 1, ZonaHoraria.hoy(), "40", 3, null);
+
+        plan.reemplazarSesiones(List.of(sesion(ejercicio("Otro", 2, 5, null, null, 1, null))));
+        planRepository.save(plan);
+
+        JsonNode ejercicios = sesionDe(alumno, registro.getId()).cuerpo().path("ejercicios");
+        assertEquals(2, ejercicios.size());
+        assertTrue(ejercicios.get(0).path("nombre").asString().startsWith("Sentadilla"));
+        assertEquals(4, ejercicios.get(0).path("series").asInt());
+        assertEquals("Tempo 2-1-3", ejercicios.get(0).path("indicaciones").asString());
+    }
+
+    @Test
+    void la_sesion_de_otro_alumno_responde_404() throws Exception {
+        PlanAsignado ajeno = planDeSemanas(alumno(), ZonaHoraria.hoy(), 5);
+        RegistroSesion registro = registrarConEjercicios(ajeno, 1, 1, ZonaHoraria.hoy(), "40", 2, null);
+
+        assertEquals(404, sesionDe(alumno(), registro.getId()).status());
+    }
+
+    @Test
+    void una_sesion_que_no_existe_responde_404() throws Exception {
+        assertEquals(404, sesionDe(alumno(), 999_999L).status());
+    }
+
     // --- Seguridad ---
 
     @Test

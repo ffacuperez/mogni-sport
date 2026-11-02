@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import mogni.system_backend.progreso.dto.MisPlanesResponse;
 import mogni.system_backend.progreso.dto.PlanDetalleResponse;
+import mogni.system_backend.progreso.dto.SesionDetalleResponse;
 import mogni.system_backend.progreso.dto.SesionRegistradaResponse;
 import mogni.system_backend.progreso.service.MiProgresoService;
 
@@ -48,5 +49,11 @@ public class MiProgresoController {
     @GetMapping("/planes/{id}/sesiones")
     public ResponseEntity<List<SesionRegistradaResponse>> listarSesiones(@PathVariable Long id, Authentication authentication) {
         return ResponseEntity.ok(progresoService.listarSesionesRegistradas(authentication.getName(), id));
+    }
+
+    /** 404 si la sesión registrada no existe o es de otro alumno. */
+    @GetMapping("/sesiones/{id}")
+    public ResponseEntity<SesionDetalleResponse> obtenerSesion(@PathVariable Long id, Authentication authentication) {
+        return ResponseEntity.ok(progresoService.obtenerSesion(authentication.getName(), id));
     }
 }

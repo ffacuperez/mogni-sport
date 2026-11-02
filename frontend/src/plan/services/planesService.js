@@ -45,6 +45,11 @@ export async function asignarDesdeCero(alumnoId, form) {
   }));
 }
 
+/** Reemplaza los datos y sesiones del plan; la plantilla de la que salió no cambia. El backend responde 409 si está finalizado. */
+export async function actualizarPlan(id, form) {
+  return fromApi(await request(`${BASE_PATH}/${id}`, { method: 'PUT', body: formularioAApi(form) }));
+}
+
 export async function finalizarPlan(id) {
   return fromApi(await request(`${BASE_PATH}/${id}/finalizar`, { method: 'PUT' }));
 }

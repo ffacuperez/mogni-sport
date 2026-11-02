@@ -111,14 +111,24 @@ public class PlanAsignadoService {
         if (!plan.estaActivo()) {
             throw new ConflictoException("El plan ya está finalizado");
         }
+        return mapearAResponse(finalizar(plan));
+    }
+
+    /** Al dar de baja a un alumno, su plan activo (si tiene) se finaliza. Corre en la transacción de la baja. */
+    @Transactional
+    public void finalizarPlanActivoDe(Long alumnoId) {
+        planRepository.findFirstByAlumnoIdAndEstado(alumnoId, EstadoPlanAsignado.ACTIVO).ifPresent(this::finalizar);
+    }
+
+    // --- Auxiliares ---
+
+    private PlanAsignado finalizar(PlanAsignado plan) {
         plan.finalizar(ZonaHoraria.hoy());
         if (plan.getPlantillaOrigen() != null) {
             plantillaRepository.restarAsignacion(plan.getPlantillaOrigen().getId());
         }
-        return mapearAResponse(planRepository.save(plan));
+        return planRepository.save(plan);
     }
-
-    // --- Auxiliares ---
 
     /**
      * El alumno, bloqueado hasta el fin de la transacción: dos asignaciones al mismo alumno a la vez se hacen una

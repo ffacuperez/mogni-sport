@@ -22,6 +22,7 @@ import PlantillasList from './plantilla/pages/PlantillasList';
 import PlantillaForm from './plantilla/pages/PlantillaForm';
 import AsignarPlan from './plan/pages/AsignarPlan';
 import PlanAsignadoDetalle from './plan/pages/PlanAsignadoDetalle';
+import PlanAsignadoForm from './plan/pages/PlanAsignadoForm';
 import CuotasList from './cuota/pages/CuotasList';
 import RegistrarPagoModal from './cuota/pages/RegistrarPagoModal';
 import HistorialPagosModal from './cuota/pages/HistorialPagosModal';
@@ -110,6 +111,11 @@ function AsignarPlanRuta(props) {
 function PlanAsignadoDetalleRuta(props) {
   const { id } = useParams();
   return <PlanAsignadoDetalle key={id} planId={Number(id)} {...props} />;
+}
+
+function PlanAsignadoFormRuta(props) {
+  const { id } = useParams();
+  return <PlanAsignadoForm key={id} planId={Number(id)} {...props} />;
 }
 
 // --- MAIN APP COMPONENT ---
@@ -236,7 +242,7 @@ function MainApp({ onLogout }) {
     if (alumno.estado === 'Activo') {
       showModal(
         'Confirmar baja',
-        `¿Estás seguro de que deseas dar de baja al alumno ${nombre}? Se cancelarán su inscripción y sus turnos reservados que todavía no empezaron. Si ya pagó el mes siguiente, no se devuelve.`,
+        `¿Estás seguro de que deseas dar de baja al alumno ${nombre}? Se cancelarán su inscripción y sus turnos reservados que todavía no empezaron, y se finalizará su plan de entrenamiento activo. Si ya pagó el mes siguiente, no se devuelve.`,
         async () => {
           // Se queda en el detalle, que ya muestra el estado actualizado
           await ejecutar(async () => reemplazarAlumno(await darDeBajaAlumno(alumno.id)),
@@ -549,6 +555,9 @@ function MainApp({ onLogout }) {
                   onEdit={() => navigate(`/alumnos/${alumno.id}/editar`)}
                   onEditMembresia={() => navigate(`/alumnos/${alumno.id}/membresia`)}
                   onToggleStatus={() => handleToggleEstadoAlumno(alumno)}
+                  puedeVerPlanes={puedeVerPlanes}
+                  onVerPlan={(planId) => navigate(`/planes/asignados/${planId}`)}
+                  onAsignarPlan={() => navigate(`/planes/asignar?alumno=${alumno.id}`)}
                 />
               )}
             </ConAlumno>
@@ -678,8 +687,11 @@ function MainApp({ onLogout }) {
                 onVerPlan={(id) => navigate(`/planes/asignados/${id}`)} onToast={displayToast} />
             : <Navigate to="/alumnos" replace />} />
           <Route path="planes/asignados/:id" element={puedeVerPlanes
-            ? <PlanAsignadoDetalleRuta onVolver={() => navigate(-1)} onAsignarNuevo={(alumnoId) => navigate(`/planes/asignar?alumno=${alumnoId}`)}
-                onToast={displayToast} />
+            ? <PlanAsignadoDetalleRuta onVolver={() => navigate(-1)} onModificar={(id) => navigate(`/planes/asignados/${id}/editar`)}
+                onAsignarNuevo={(alumnoId) => navigate(`/planes/asignar?alumno=${alumnoId}`)} onToast={displayToast} />
+            : <Navigate to="/alumnos" replace />} />
+          <Route path="planes/asignados/:id/editar" element={puedeVerPlanes
+            ? <PlanAsignadoFormRuta onVolver={() => navigate(-1)} onGuardado={() => navigate(-1)} onToast={displayToast} />
             : <Navigate to="/alumnos" replace />} />
 
           <Route path="cuotas" element={esPropietario ? (

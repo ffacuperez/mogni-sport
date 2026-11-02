@@ -38,6 +38,7 @@ import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.alumno.service.AlumnoService;
 import mogni.system_backend.alumno.service.BajaAlumnoService;
+import mogni.system_backend.plan.service.PlanAsignadoService;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
 import mogni.system_backend.auth.repository.CuentaRepository;
@@ -80,6 +81,9 @@ class AlumnoServiceTest {
     @Mock
     private PlanAsignadoRepository planAsignadoRepository;
 
+    @Mock
+    private PlanAsignadoService planAsignadoService;
+
     private AlumnoService alumnoService;
 
     private Membresia membresia;
@@ -90,7 +94,7 @@ class AlumnoServiceTest {
         membresia = new Membresia(7L, "Pro", 40000.0, 5, null);
         // La baja real (no un mock), así se prueba que cancela la inscripción y pide cancelar los turnos
         alumnoService = new AlumnoService(alumnoRepository, cuentaRepository, membresiaRepository, pagoRepository,
-                new BajaAlumnoService(cancelacionPorSistemaService), passwordEncoder, planAsignadoRepository);
+                new BajaAlumnoService(cancelacionPorSistemaService, planAsignadoService), passwordEncoder, planAsignadoRepository);
     }
 
     private RegistrarAlumnoRequest registro() {
@@ -799,6 +803,7 @@ class AlumnoServiceTest {
         assertEquals(EstadoInscripcion.CANCELADA, inscripcion.getEstado());
         assertEquals(hoy, inscripcion.getFechaFin());
         verify(cancelacionPorSistemaService).cancelarReservasFuturas(eq(10L), any());
+        verify(planAsignadoService).finalizarPlanActivoDe(10L);
         // Todavía le quedan 20 días pagos: reactivarlo no requiere pago
         assertFalse(baja.getReactivacionRequierePago());
     }

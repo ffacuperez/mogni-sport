@@ -358,6 +358,26 @@ class PlanAsignadoServiceTest {
     }
 
     @Test
+    void finalizar_el_plan_activo_de_un_alumno_lo_finaliza_y_libera_la_plantilla() {
+        PlanAsignado activo = planActivoDe(juan, "Hipertrofia - Buenardo");
+        activo.setPlantillaOrigen(plantilla(5L));
+        when(planRepository.findFirstByAlumnoIdAndEstado(7L, EstadoPlanAsignado.ACTIVO)).thenReturn(Optional.of(activo));
+
+        planService.finalizarPlanActivoDe(7L);
+
+        assertEquals(EstadoPlanAsignado.FINALIZADO, activo.getEstado());
+        verify(plantillaRepository).restarAsignacion(5L);
+    }
+
+    @Test
+    void finalizar_el_plan_activo_de_un_alumno_sin_plan_no_hace_nada() {
+        planService.finalizarPlanActivoDe(7L);
+
+        verify(planRepository, never()).save(any());
+        verify(plantillaRepository, never()).restarAsignacion(anyLong());
+    }
+
+    @Test
     void finalizar_un_plan_ya_finalizado_falla() {
         PlanAsignado plan = planActivoDe(juan, "Plan de Juan");
         plan.finalizar(LocalDate.of(2026, 10, 20));

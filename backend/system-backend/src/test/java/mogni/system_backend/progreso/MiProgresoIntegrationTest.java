@@ -464,6 +464,20 @@ class MiProgresoIntegrationTest {
     }
 
     @Test
+    void con_plan_activo_el_detalle_de_uno_anterior_devuelve_el_anterior() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate hoy = ZonaHoraria.hoy();
+        PlanAsignado anterior = planFinalizado(alumno, hoy.minusWeeks(6), 5, hoy.minusWeeks(1));
+        planDeSemanas(alumno, hoy, 3);
+
+        JsonNode cuerpo = planDe(alumno, anterior.getId()).cuerpo();
+
+        assertEquals(anterior.getId(), cuerpo.path("id").asLong());
+        assertEquals("FINALIZADO", cuerpo.path("estado").asString());
+        assertEquals(5, cuerpo.path("cantidadSemanas").asInt());
+    }
+
+    @Test
     void el_plan_de_otro_alumno_responde_404() throws Exception {
         PlanAsignado ajeno = planFinalizado(alumno(), ZonaHoraria.hoy().minusWeeks(6), 5, ZonaHoraria.hoy());
 

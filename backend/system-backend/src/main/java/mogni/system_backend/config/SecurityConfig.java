@@ -76,6 +76,8 @@ public class SecurityConfig {
                 // Turnos disponibles (HU-259): solo alumnos; el servicio exige además cuenta activa
                 .requestMatchers("/turnos/**").hasRole("ALUMNO")
                 // Agenda de turnos (MOGNI-257): muestra alumnos y cuotas, solo para propietario y entrenador
+                // Registrar asistencia (HU-262): la marca el entrenador (el propietario también lo es)
+                .requestMatchers(HttpMethod.PUT, "/agenda/reservas/*/asistencia").hasAnyRole("PROPIETARIO", "ENTRENADOR")
                 .requestMatchers(HttpMethod.POST, "/agenda/**").hasRole("PROPIETARIO")
                 .requestMatchers("/agenda/**").hasAnyRole("PROPIETARIO", "ENTRENADOR")
                 // Plantillas de plan de entrenamiento (HU-265): las arma el entrenador; el propietario también

@@ -2,6 +2,7 @@ package mogni.system_backend.turno.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import mogni.system_backend.turno.entity.Asistencia;
 
 /** MOGNI-257: alumno con reserva activa en un turno de la agenda. */
 @Getter
@@ -15,4 +16,6 @@ public class AlumnoAgendaResponse {
     private String membresiaNombre;
     /** Null si no tiene cuota de una inscripción activa. */
     private CuotaAgendaResponse cuota;
+    /** HU-262: PRESENTE, AUSENTE o null (sin marcar). En un día ya terminado nunca es null. */
+    private Asistencia asistencia;
 }

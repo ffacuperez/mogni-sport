@@ -8,11 +8,12 @@ import { clientsClaim } from 'workbox-core';
 self.skipWaiting();
 clientsClaim();
 
-// Solo archivos del front: las llamadas al backend (Railway) siempre van a la red
+// Solo archivos del front: las llamadas al backend siempre van a la red
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
-// Cualquier URL de la app (p. ej. /mi-cuenta/perfil) se responde con index.html y la resuelve React Router
-registerRoute(new NavigationRoute(createHandlerBoundToURL('index.html')));
+// Cualquier URL de la app (p. ej. /mi-cuenta/perfil) se responde con index.html y la resuelve React Router,
+// menos /api/..., que en el servidor propio es el backend en el mismo dominio
+registerRoute(new NavigationRoute(createHandlerBoundToURL('index.html'), { denylist: [/^\/api\//] }));
 
 // El backend manda { titulo, mensaje, url, tag } (ver PushService)
 self.addEventListener('push', (event) => {

@@ -1,0 +1,8 @@
+# Solo hacen falta pom.xml y src/ (ver Dockerfile). Sobre todo, que el .env con secretos no entre a la imagen.
+.env
+target/
+bin/
+.mvn/
+.idea/
+*.iml
+.vscode/

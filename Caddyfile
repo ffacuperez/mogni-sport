@@ -1,0 +1,37 @@
+# Caddy: sirve el front (los archivos del build, en /srv) y le pasa /api/... al backend, todo en el mismo dominio.
+# SITE_ADDRESS sale del .env: en el servidor es el dominio (Caddy saca solo el certificado HTTPS), en la compu
+# http://localhost.
+{$SITE_ADDRESS:http://localhost} {
+	encode zstd gzip
+
+	# /api/alumnos -> backend:8080/alumnos (handle_path le saca el /api)
+	handle_path /api/* {
+		reverse_proxy backend:8080 {
+			# Caddy ya manda el protocolo y el host originales; el puerto no. Sin él, el back cree que el front es
+			# de otro origen cuando no se usa el puerto estándar (ej. localhost:8088) y el CORS rechaza el pedido.
+			header_up X-Forwarded-Port {http.request.port}
+		}
+	}
+
+	handle {
+		root * /srv
+
+		# Los archivos de /assets tienen un hash en el nombre: cambian de nombre en cada build, se pueden cachear para
+		# siempre. El resto (index.html, sw.js, el manifest) se revalida siempre, así la app instalada se actualiza.
+		@hasheados path /assets/*
+		header @hasheados Cache-Control "public, max-age=31536000, immutable"
+		@resto not path /assets/*
+		header @resto Cache-Control "no-cache"
+
+		# Las rutas de React Router (/mi-cuenta/perfil, /alumnos...) no son archivos: se responden con index.html
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		-Server
+	}
+}

@@ -1,7 +1,10 @@
-import { ArrowLeft, Pencil, Power, RefreshCw } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ArrowLeft, ArrowRight, Pencil, Power, RefreshCw, UserPlus } from 'lucide-react';
 
 import { formatearFecha } from '../../shared/services/texto';
 import { Badge, Button, PageHeader, Panel } from '../../shared/components/ui';
+import { obtenerPlanActivo } from '../../plan/services/planesService';
+import { textoNivel, textoObjetivo } from '../../plantilla/services/plantillasService';
 
 const TONO_ESTADO_INSCRIPCION = {
   Activa: 'success',
@@ -32,7 +35,57 @@ function Seccion({ titulo, badge, accion, children }) {
   );
 }
 
-export default function AlumnoDetalle({ alumno, onBack, onEdit, onEditMembresia, onToggleStatus }) {
+/**
+ * HU-266: el plan activo del alumno. Se consulta acá y no se toma del alumno porque el listado queda en memoria y
+ * puede ser anterior a la última asignación. La baja finaliza el plan, así que se vuelve a consultar al cambiar el estado.
+ * Un alumno dado de baja antes de esa regla puede tener todavía un plan activo: se puede ver y finalizar.
+ */
+function SeccionPlan({ alumnoId, isActivo, onVerPlan, onAsignarPlan }) {
+  // undefined: cargando; null: no tiene plan activo
+  const [plan, setPlan] = useState(undefined);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let vigente = true;
+    obtenerPlanActivo(alumnoId)
+      .then((activo) => { if (vigente) setPlan(activo); })
+      .catch((err) => { if (vigente) setError(err.message); });
+    return () => { vigente = false; };
+  }, [alumnoId, isActivo]);
+
+  let accion = null;
+  if (plan) {
+    accion = (
+      <Button variant="secondary" size="sm" onClick={() => onVerPlan(plan.id)}>
+        Ver plan <ArrowRight className="h-3.5 w-3.5" />
+      </Button>
+    );
+  } else if (plan === null && isActivo) {
+    accion = (
+      <Button variant="secondary" size="sm" onClick={onAsignarPlan}>
+        <UserPlus className="h-3.5 w-3.5" /> Asignar plan
+      </Button>
+    );
+  }
+
+  return (
+    <Seccion titulo="Plan de entrenamiento" accion={accion}>
+      {error && <p role="alert" className="text-sm text-error">No se pudo consultar el plan: {error}</p>}
+      {!error && plan === undefined && <p className="text-sm text-ink-soft">Cargando plan...</p>}
+      {plan === null && <p className="text-sm text-ink-soft">Sin plan activo.</p>}
+      {plan && (
+        <dl className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <Dato label="Plan" ancho>{plan.nombre}</Dato>
+          <Dato label="Nivel">{textoNivel(plan.nivel)}</Dato>
+          <Dato label="Objetivo">{textoObjetivo(plan.objetivo)}</Dato>
+          <Dato label="Fecha de asignación" mono>{formatearFecha(plan.fechaAsignacion)}</Dato>
+        </dl>
+      )}
+    </Seccion>
+  );
+}
+
+export default function AlumnoDetalle({ alumno, onBack, onEdit, onEditMembresia, onToggleStatus, puedeVerPlanes, onVerPlan, onAsignarPlan }) {
   const isActivo = alumno.estado === 'Activo';
   const inscripcion = alumno.inscripcion;
   const iniciales = `${alumno.nombre?.[0] ?? ''}${alumno.apellido?.[0] ?? ''}`;
@@ -113,6 +166,10 @@ export default function AlumnoDetalle({ alumno, onBack, onEdit, onEditMembresia,
             <p className="text-sm text-ink-soft">Sin membresía: el alumno nunca tuvo una inscripción.</p>
           )}
         </Seccion>
+
+        {puedeVerPlanes && (
+          <SeccionPlan alumnoId={alumno.id} isActivo={isActivo} onVerPlan={onVerPlan} onAsignarPlan={onAsignarPlan} />
+        )}
       </div>
     </div>
   );

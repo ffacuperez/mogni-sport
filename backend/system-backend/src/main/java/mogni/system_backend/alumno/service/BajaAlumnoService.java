@@ -5,20 +5,25 @@ import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 
 import mogni.system_backend.alumno.entity.Alumno;
+import mogni.system_backend.plan.service.PlanAsignadoService;
 import mogni.system_backend.turno.service.CancelacionPorSistemaService;
 
 /**
  * Baja del alumno (MOGNI-246), la misma para la baja manual del propietario y la automática por mora: la cuenta queda
- * inactiva (no puede iniciar sesión), se cancela la inscripción activa y sus turnos que todavía no empezaron. Está
- * aparte de AlumnoService para que la use también la puesta al día sin dependencias circulares.
+ * inactiva (no puede iniciar sesión), se cancela la inscripción activa y sus turnos que todavía no empezaron, y se
+ * finaliza su plan de entrenamiento activo (HU-266). Está aparte de AlumnoService para que la use también la puesta al
+ * día sin dependencias circulares.
  */
 @Service
 public class BajaAlumnoService {
 
     private final CancelacionPorSistemaService cancelacionPorSistemaService;
+    private final PlanAsignadoService planAsignadoService;
 
-    public BajaAlumnoService(CancelacionPorSistemaService cancelacionPorSistemaService) {
+    public BajaAlumnoService(CancelacionPorSistemaService cancelacionPorSistemaService,
+                             PlanAsignadoService planAsignadoService) {
         this.cancelacionPorSistemaService = cancelacionPorSistemaService;
+        this.planAsignadoService = planAsignadoService;
     }
 
     /** No hace nada si el alumno ya estaba inactivo. Se usa dentro de la transacción de quien la llama. */
@@ -32,5 +37,6 @@ public class BajaAlumnoService {
         // Un cambio de membresía ya pagado para el mes siguiente también se cancela, sin devolución (MP5)
         alumno.buscarInscripcionProgramada().ifPresent(inscripcion -> inscripcion.cancelar(ahora.toLocalDate()));
         cancelacionPorSistemaService.cancelarReservasFuturas(alumno.getId(), ahora);
+        planAsignadoService.finalizarPlanActivoDe(alumno.getId());
     }
 }

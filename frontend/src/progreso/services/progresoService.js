@@ -79,6 +79,25 @@ export async function consultarPlan(id) {
   return planFromApi(await request(`${BASE_PATH}/planes/${id}`));
 }
 
+/** Las sesiones registradas del plan, ya ordenadas por el backend. */
+export async function consultarSesiones(planId) {
+  return request(`${BASE_PATH}/planes/${planId}/sesiones`);
+}
+
+/** Agrupa las sesiones por semana, respetando el orden en que vienen. */
+export function agruparPorSemana(sesiones) {
+  const grupos = [];
+  sesiones.forEach((sesion) => {
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo?.semana === sesion.semana) ultimo.sesiones.push(sesion);
+    else grupos.push({ semana: sesion.semana, sesiones: [sesion] });
+  });
+  return grupos;
+}
+
+/** "Hipertrofia": el mesociclo o, en los planes que no lo tienen cargado, el título. */
+export const nombreCortoPlan = (plan) => plan.mesociclo ?? tituloPlan(plan);
+
 /** "Ultra Mass · Hipertrofia". Los planes sin método ni mesociclo cargados muestran su nombre. */
 export function tituloPlan(plan) {
   return [METODOS[plan.metodo], plan.mesociclo].filter(Boolean).join(' · ') || plan.nombre;

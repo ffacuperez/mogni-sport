@@ -27,6 +27,7 @@ import mogni.system_backend.progreso.dto.MisPlanesResponse;
 import mogni.system_backend.progreso.dto.PlanDetalleResponse;
 import mogni.system_backend.progreso.dto.PlanResumenResponse;
 import mogni.system_backend.progreso.dto.SemanaPlanResponse;
+import mogni.system_backend.progreso.dto.SesionRegistradaResponse;
 import mogni.system_backend.progreso.dto.SesionSemanaResponse;
 import mogni.system_backend.progreso.entity.RegistroSesion;
 import mogni.system_backend.progreso.repository.RegistroSesionRepository;
@@ -74,6 +75,19 @@ public class MiProgresoService {
     @Transactional(readOnly = true)
     public PlanDetalleResponse obtenerPlan(String email, Long planId) {
         return mapearDetalle(buscarPlanDelAlumno(email, planId), ZonaHoraria.hoy());
+    }
+
+    @Transactional(readOnly = true)
+    public List<SesionRegistradaResponse> listarSesionesRegistradas(String email, Long planId) {
+        PlanAsignado plan = buscarPlanDelAlumno(email, planId);
+        return registroRepository.findByPlanIdOrderBySemanaDescFechaDescIdDesc(plan.getId()).stream()
+                .map(registro -> new SesionRegistradaResponse(
+                        registro.getId(),
+                        registro.getSemana(),
+                        registro.getNumeroSesion(),
+                        registro.getFecha(),
+                        registro.getEjercicios().size()))
+                .toList();
     }
 
     private PlanAsignado buscarPlanDelAlumno(String email, Long planId) {

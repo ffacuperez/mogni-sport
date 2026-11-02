@@ -1,5 +1,7 @@
 package mogni.system_backend.progreso.controller;
 
+import java.util.List;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -9,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import mogni.system_backend.progreso.dto.MisPlanesResponse;
 import mogni.system_backend.progreso.dto.PlanDetalleResponse;
+import mogni.system_backend.progreso.dto.SesionRegistradaResponse;
 import mogni.system_backend.progreso.service.MiProgresoService;
 
 /** HU-270: consulta del progreso del alumno logueado. Solo alumnos (ver SecurityConfig). */
@@ -39,5 +42,11 @@ public class MiProgresoController {
     @GetMapping("/planes/{id}")
     public ResponseEntity<PlanDetalleResponse> obtenerPlan(@PathVariable Long id, Authentication authentication) {
         return ResponseEntity.ok(progresoService.obtenerPlan(authentication.getName(), id));
+    }
+
+    /** Las sesiones registradas del plan. 404 si el plan no existe o es de otro alumno. */
+    @GetMapping("/planes/{id}/sesiones")
+    public ResponseEntity<List<SesionRegistradaResponse>> listarSesiones(@PathVariable Long id, Authentication authentication) {
+        return ResponseEntity.ok(progresoService.listarSesionesRegistradas(authentication.getName(), id));
     }
 }

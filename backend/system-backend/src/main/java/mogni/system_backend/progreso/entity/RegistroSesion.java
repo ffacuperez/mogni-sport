@@ -1,7 +1,10 @@
 package mogni.system_backend.progreso.entity;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -10,6 +13,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
@@ -47,10 +52,23 @@ public class RegistroSesion {
     @Column(nullable = false)
     private LocalDate fecha;
 
+    @OneToMany(mappedBy = "registro", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("orden ASC")
+    private List<RegistroEjercicio> ejercicios = new ArrayList<>();
+
     public RegistroSesion(PlanAsignado plan, int semana, int numeroSesion, LocalDate fecha) {
         this.plan = plan;
         this.semana = semana;
         this.numeroSesion = numeroSesion;
         this.fecha = fecha;
+    }
+
+    /** Agrega los ejercicios en el orden recibido. */
+    public void agregarEjercicios(List<RegistroEjercicio> nuevos) {
+        for (RegistroEjercicio ejercicio : nuevos) {
+            ejercicio.setOrden(ejercicios.size() + 1);
+            ejercicio.setRegistro(this);
+            ejercicios.add(ejercicio);
+        }
     }
 }

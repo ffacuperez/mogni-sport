@@ -42,6 +42,7 @@ import mogni.system_backend.plan.entity.SesionPlan;
 import mogni.system_backend.plan.repository.PlanAsignadoRepository;
 import mogni.system_backend.plantilla.entity.NivelPlantilla;
 import mogni.system_backend.plantilla.entity.ObjetivoPlantilla;
+import mogni.system_backend.progreso.entity.RegistroEjercicio;
 import mogni.system_backend.progreso.entity.RegistroSesion;
 import mogni.system_backend.progreso.repository.RegistroSesionRepository;
 import tools.jackson.databind.JsonNode;
@@ -472,6 +473,79 @@ class MiProgresoIntegrationTest {
     @Test
     void un_plan_que_no_existe_responde_404() throws Exception {
         assertEquals(404, planDe(alumno(), 999_999L).status());
+    }
+
+    // --- Sesiones registradas ---
+
+    /** Registra la sesión con todos sus ejercicios, con los kg, el RIR real y la nota indicados. */
+    private RegistroSesion registrarConEjercicios(PlanAsignado plan, int semana, int numeroSesion, LocalDate fecha,
+            String kg, Integer rirReal, String notas) {
+        RegistroSesion registro = new RegistroSesion(plan, semana, numeroSesion, fecha);
+        registro.agregarEjercicios(plan.getSesiones().get(numeroSesion - 1).getEjercicios().stream()
+                .map(indicado -> new RegistroEjercicio(indicado, kg == null ? null : new BigDecimal(kg), rirReal, notas))
+                .toList());
+        return registroRepository.save(registro);
+    }
+
+    private Respuesta sesionesDe(Alumno alumno, Long planId) throws Exception {
+        return ejecutar(get("/mi-progreso/planes/" + planId + "/sesiones").with(user(alumno.getEmail()).roles("ALUMNO")));
+    }
+
+    @Test
+    void un_plan_sin_registros_no_tiene_sesiones() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+
+        Respuesta respuesta = sesionesDe(alumno, plan.getId());
+
+        assertEquals(200, respuesta.status());
+        assertEquals(0, respuesta.cuerpo().size());
+    }
+
+    @Test
+    void las_sesiones_van_de_la_mas_reciente_a_la_mas_antigua_y_solo_las_registradas() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate inicio = ZonaHoraria.hoy().minusDays(10);
+        PlanAsignado plan = planDeSemanas(alumno, inicio, 5);
+        RegistroSesion primera = registrarConEjercicios(plan, 1, 1, inicio, "40", 2, null);
+        RegistroSesion tercera = registrarConEjercicios(plan, 2, 2, inicio.plusDays(9), "40", 2, null);
+        RegistroSesion segunda = registrarConEjercicios(plan, 2, 1, inicio.plusDays(8), "40", 2, null);
+
+        JsonNode sesiones = sesionesDe(alumno, plan.getId()).cuerpo();
+
+        assertEquals(3, sesiones.size());
+        assertEquals(tercera.getId(), sesiones.get(0).path("id").asLong());
+        assertEquals(segunda.getId(), sesiones.get(1).path("id").asLong());
+        assertEquals(primera.getId(), sesiones.get(2).path("id").asLong());
+        assertEquals(2, sesiones.get(0).path("semana").asInt());
+        assertEquals(2, sesiones.get(0).path("numeroSesion").asInt());
+        assertEquals(inicio.plusDays(9).toString(), sesiones.get(0).path("fecha").asString());
+    }
+
+    @Test
+    void cada_sesion_informa_cuantos_ejercicios_se_registraron() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        registrarConEjercicios(plan, 1, 1, ZonaHoraria.hoy(), "40", 2, null);
+
+        assertEquals(2, sesionesDe(alumno, plan.getId()).cuerpo().get(0).path("ejerciciosRegistrados").asInt());
+    }
+
+    @Test
+    void las_sesiones_de_un_plan_finalizado_se_pueden_consultar() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate hoy = ZonaHoraria.hoy();
+        PlanAsignado plan = planFinalizado(alumno, hoy.minusWeeks(6), 5, hoy.minusWeeks(1));
+        registrarConEjercicios(plan, 1, 1, hoy.minusWeeks(6), "40", 2, null);
+
+        assertEquals(1, sesionesDe(alumno, plan.getId()).cuerpo().size());
+    }
+
+    @Test
+    void las_sesiones_del_plan_de_otro_alumno_responden_404() throws Exception {
+        PlanAsignado ajeno = planDeSemanas(alumno(), ZonaHoraria.hoy(), 5);
+
+        assertEquals(404, sesionesDe(alumno(), ajeno.getId()).status());
     }
 
     // --- Seguridad ---

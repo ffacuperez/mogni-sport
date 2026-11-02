@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { CircleAlert } from 'lucide-react';
 
 import { Cargando } from '../../shared/components/ui';
-import AccesoBloqueado from '../../turno/components/AccesoBloqueado';
 import DetallePlan from '../components/DetallePlan';
+import ErrorConsulta from '../components/ErrorConsulta';
 import { consultarPlanActivo } from '../services/progresoService';
 
 /** Tab "Plan actual". undefined: cargando; null: el alumno no tiene plan activo. */
@@ -19,17 +18,7 @@ export default function PlanActual() {
     return () => { vigente = false; };
   }, []);
 
-  // 403: alumno inactivo. El mensaje con el motivo lo manda el backend
-  if (error?.status === 403) return <AccesoBloqueado titulo="No podés acceder a tu progreso" mensaje={error.message} />;
-
-  if (error) {
-    return (
-      <div role="alert" className="flex items-center gap-3 rounded-lg border border-line bg-error-bg p-4 text-error">
-        <CircleAlert className="h-5 w-5 shrink-0" />
-        <span className="text-sm">{error.message}</span>
-      </div>
-    );
-  }
+  if (error) return <ErrorConsulta error={error} />;
 
   if (plan === undefined) return <Cargando texto="Cargando tu plan" />;
 

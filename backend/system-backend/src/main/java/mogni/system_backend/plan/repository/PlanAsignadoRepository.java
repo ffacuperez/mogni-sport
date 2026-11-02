@@ -18,6 +18,9 @@ public interface PlanAsignadoRepository extends JpaRepository<PlanAsignado, Long
     /** Todos los planes en ese estado; el listado de alumnos los usa para no consultar alumno por alumno. */
     List<PlanAsignado> findByEstado(EstadoPlanAsignado estado);
 
+    /** HU-270: los planes del alumno en ese estado, del que terminó más recientemente al más antiguo. */
+    List<PlanAsignado> findByAlumnoIdAndEstadoOrderByFechaFinalizacionDescIdDesc(Long alumnoId, EstadoPlanAsignado estado);
+
     /** Si el ejercicio se usa en el plan de algún alumno, activo o finalizado (sus sesiones siguen guardadas). */
     @Query("select count(e) > 0 from EjercicioSesionPlan e where e.ejercicio.id = :ejercicioId")
     boolean existeEjercicioEnAlgunPlan(@Param("ejercicioId") Long ejercicioId);

@@ -1,4 +1,5 @@
 import { request } from '../../shared/services/httpClient';
+import { formatearFecha } from '../../shared/services/texto';
 import { textoRepeticiones } from '../../plantilla/services/plantillasService';
 import { partesFecha } from '../../turno/services/turnosService';
 
@@ -48,6 +49,25 @@ const planFromApi = (p) => ({
   semanas: p.semanas.map(semanaFromApi),
 });
 
+const resumenFromApi = (p) => ({
+  id: p.id,
+  nombre: p.nombre,
+  metodo: p.metodo ?? null,
+  mesociclo: p.mesociclo ?? null,
+  estado: p.estado,
+  fechaInicio: p.fechaInicio,
+  fechaFin: p.fechaFin,
+  cantidadSemanas: p.cantidadSemanas,
+  sesionesRegistradas: p.sesionesRegistradas,
+  sesionesTotales: p.sesionesTotales,
+});
+
+/** El plan activo (o null) y los finalizados, del más reciente al más antiguo. */
+export async function consultarPlanes() {
+  const data = await request(`${BASE_PATH}/planes`);
+  return { activo: data.activo ? resumenFromApi(data.activo) : null, anteriores: data.anteriores.map(resumenFromApi) };
+}
+
 /** El plan activo del alumno, o null si no tiene (el backend responde 204). */
 export async function consultarPlanActivo() {
   const data = await request(`${BASE_PATH}/plan-activo`);
@@ -64,6 +84,11 @@ export function textoDiaMes(fechaISO) {
   const [, m, d] = fechaISO.split('-');
   return `${d}/${m}`;
 }
+
+/** "14/09 – 18/10/2026" */
+export const textoRangoPlan = (plan) => `${textoDiaMes(plan.fechaInicio)} – ${formatearFecha(plan.fechaFin)}`;
+
+export const textoSemanas = (cantidad) => (cantidad === 1 ? '1 semana' : `${cantidad} semanas`);
 
 /** "Lun 26/10 · 5 ejercicios" si está registrada; si no, "5 ejercicios". */
 export function textoDetalleSesion(sesion) {

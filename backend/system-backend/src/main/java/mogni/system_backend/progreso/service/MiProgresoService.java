@@ -23,7 +23,9 @@ import mogni.system_backend.plan.entity.SesionPlan;
 import mogni.system_backend.plan.repository.PlanAsignadoRepository;
 import mogni.system_backend.progreso.dto.EjercicioIndicadoResponse;
 import mogni.system_backend.progreso.dto.EstadoSesion;
+import mogni.system_backend.progreso.dto.MisPlanesResponse;
 import mogni.system_backend.progreso.dto.PlanDetalleResponse;
+import mogni.system_backend.progreso.dto.PlanResumenResponse;
 import mogni.system_backend.progreso.dto.SemanaPlanResponse;
 import mogni.system_backend.progreso.dto.SesionSemanaResponse;
 import mogni.system_backend.progreso.entity.RegistroSesion;
@@ -55,6 +57,19 @@ public class MiProgresoService {
                 .map(plan -> mapearDetalle(plan, ZonaHoraria.hoy()));
     }
 
+    @Transactional(readOnly = true)
+    public MisPlanesResponse listarPlanes(String email) {
+        Long alumnoId = buscarAlumnoConAcceso(email).getId();
+        PlanResumenResponse activo = planRepository.findFirstByAlumnoIdAndEstado(alumnoId, EstadoPlanAsignado.ACTIVO)
+                .map(this::mapearResumen)
+                .orElse(null);
+        List<PlanResumenResponse> anteriores = planRepository
+                .findByAlumnoIdAndEstadoOrderByFechaFinalizacionDescIdDesc(alumnoId, EstadoPlanAsignado.FINALIZADO).stream()
+                .map(this::mapearResumen)
+                .toList();
+        return new MisPlanesResponse(activo, anteriores);
+    }
+
     private Alumno buscarAlumnoConAcceso(String email) {
         Alumno alumno = alumnoRepository.findByCuentaEmailIgnoreCase(email)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No hay un alumno asociado a esta cuenta"));
@@ -66,18 +81,13 @@ public class MiProgresoService {
 
     private PlanDetalleResponse mapearDetalle(PlanAsignado plan, LocalDate hoy) {
         int cantidadSemanas = cantidadSemanas(plan);
-        Map<ClaveSesion, RegistroSesion> registros = registroRepository.findByPlanId(plan.getId()).stream()
+        List<RegistroSesion> registros = registroRepository.findByPlanId(plan.getId());
+        Map<ClaveSesion, RegistroSesion> registrosPorSesion = registros.stream()
                 .collect(Collectors.toMap(r -> new ClaveSesion(r.getSemana(), r.getNumeroSesion()), Function.identity()));
 
         List<SemanaPlanResponse> semanas = IntStream.rangeClosed(1, cantidadSemanas)
-                .mapToObj(numero -> mapearSemana(plan, numero, registros))
+                .mapToObj(numero -> mapearSemana(plan, numero, registrosPorSesion))
                 .toList();
-        // Se cuentan desde las semanas y no desde los registros: si el profe le sacó sesiones al plan, las que ya
-        // no existen no suman, y "registradas" nunca supera al total
-        int registradas = (int) semanas.stream()
-                .flatMap(semana -> semana.getSesiones().stream())
-                .filter(sesion -> sesion.getEstado() == EstadoSesion.REGISTRADA)
-                .count();
 
         return new PlanDetalleResponse(
                 plan.getId(),
@@ -90,9 +100,32 @@ public class MiProgresoService {
                 fechaFin(plan, cantidadSemanas),
                 cantidadSemanas,
                 semanaActual(plan, cantidadSemanas, hoy),
-                registradas,
+                contarRegistradas(plan, cantidadSemanas, registros),
                 plan.getSesiones().size() * cantidadSemanas,
                 semanas);
+    }
+
+    private PlanResumenResponse mapearResumen(PlanAsignado plan) {
+        int cantidadSemanas = cantidadSemanas(plan);
+        return new PlanResumenResponse(
+                plan.getId(),
+                plan.getNombre(),
+                plan.getMetodo(),
+                plan.getMesociclo(),
+                plan.getEstado(),
+                plan.getFechaAsignacion(),
+                fechaFin(plan, cantidadSemanas),
+                cantidadSemanas,
+                contarRegistradas(plan, cantidadSemanas, registroRepository.findByPlanId(plan.getId())),
+                plan.getSesiones().size() * cantidadSemanas);
+    }
+
+    /** Si el profe le sacó sesiones al plan, las que ya no existen no suman: "registradas" nunca supera al total. */
+    private static int contarRegistradas(PlanAsignado plan, int cantidadSemanas, List<RegistroSesion> registros) {
+        return (int) registros.stream()
+                .filter(r -> r.getSemana() >= 1 && r.getSemana() <= cantidadSemanas)
+                .filter(r -> r.getNumeroSesion() >= 1 && r.getNumeroSesion() <= plan.getSesiones().size())
+                .count();
     }
 
     private SemanaPlanResponse mapearSemana(PlanAsignado plan, int numero, Map<ClaveSesion, RegistroSesion> registros) {

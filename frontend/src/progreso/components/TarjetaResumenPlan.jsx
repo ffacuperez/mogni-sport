@@ -1,8 +1,9 @@
 import { Calendar, Target } from 'lucide-react';
 
-import { Badge, Panel } from '../../shared/components/ui';
+import { Panel } from '../../shared/components/ui';
 import { formatearFecha } from '../../shared/services/texto';
 import { tituloPlan } from '../services/progresoService';
+import BadgeEstadoPlan from './BadgeEstadoPlan';
 import BarraSemanas from './BarraSemanas';
 
 function Dato({ icono: Icono, children }) {
@@ -23,7 +24,7 @@ export default function TarjetaResumenPlan({ plan }) {
           <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Método Mogni Sport</p>
           <h2 className="text-lg font-bold text-ink">{tituloPlan(plan)}</h2>
         </div>
-        <Badge tone="success" className="shrink-0">Activo</Badge>
+        <BadgeEstadoPlan estado={plan.estado} />
       </div>
 
       {plan.objetivoMesociclo && <Dato icono={Target}>Objetivo: {plan.objetivoMesociclo}</Dato>}

@@ -344,6 +344,89 @@ class MiProgresoIntegrationTest {
         assertEquals(204, planActivoDe(alumno()).status());
     }
 
+    // --- Planes ---
+
+    private PlanAsignado planFinalizado(Alumno alumno, LocalDate inicio, int semanas, LocalDate fin) {
+        PlanAsignado plan = planDeSemanas(alumno, inicio, semanas);
+        plan.finalizar(fin);
+        return planRepository.save(plan);
+    }
+
+    private Respuesta planesDe(Alumno alumno) throws Exception {
+        return ejecutar(get("/mi-progreso/planes").with(user(alumno.getEmail()).roles("ALUMNO")));
+    }
+
+    @Test
+    void sin_planes_no_hay_activo_ni_anteriores() throws Exception {
+        Respuesta respuesta = planesDe(alumno());
+
+        assertEquals(200, respuesta.status());
+        assertTrue(respuesta.cuerpo().path("activo").isNull());
+        assertEquals(0, respuesta.cuerpo().path("anteriores").size());
+    }
+
+    @Test
+    void el_plan_activo_informa_su_fin_previsto_y_lo_registrado() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate inicio = ZonaHoraria.hoy().minusDays(8);
+        PlanAsignado plan = planDeSemanas(alumno, inicio, 5);
+        registrar(plan, 1, 1, inicio);
+        registrar(plan, 1, 2, inicio.plusDays(1));
+
+        JsonNode activo = planesDe(alumno).cuerpo().path("activo");
+
+        assertEquals(plan.getId(), activo.path("id").asLong());
+        assertEquals("ULTRA_MASS", activo.path("metodo").asString());
+        assertEquals("Hipertrofia", activo.path("mesociclo").asString());
+        assertEquals("ACTIVO", activo.path("estado").asString());
+        assertEquals(inicio.toString(), activo.path("fechaInicio").asString());
+        assertEquals(inicio.plusDays(34).toString(), activo.path("fechaFin").asString());
+        assertEquals(5, activo.path("cantidadSemanas").asInt());
+        assertEquals(2, activo.path("sesionesRegistradas").asInt());
+        assertEquals(10, activo.path("sesionesTotales").asInt());
+    }
+
+    @Test
+    void los_anteriores_van_del_mas_reciente_al_mas_antiguo_con_su_fecha_real_de_fin() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate hoy = ZonaHoraria.hoy();
+        PlanAsignado antiguo = planFinalizado(alumno, hoy.minusWeeks(20), 3, hoy.minusWeeks(17));
+        PlanAsignado reciente = planFinalizado(alumno, hoy.minusWeeks(6), 5, hoy.minusWeeks(3));
+        PlanAsignado intermedio = planFinalizado(alumno, hoy.minusWeeks(12), 4, hoy.minusWeeks(8));
+        planDeSemanas(alumno, hoy, 5);
+
+        JsonNode anteriores = planesDe(alumno).cuerpo().path("anteriores");
+
+        assertEquals(3, anteriores.size());
+        assertEquals(reciente.getId(), anteriores.get(0).path("id").asLong());
+        assertEquals(intermedio.getId(), anteriores.get(1).path("id").asLong());
+        assertEquals(antiguo.getId(), anteriores.get(2).path("id").asLong());
+        assertEquals("FINALIZADO", anteriores.get(0).path("estado").asString());
+        assertEquals(hoy.minusWeeks(3).toString(), anteriores.get(0).path("fechaFin").asString());
+    }
+
+    @Test
+    void sin_plan_activo_igual_lista_los_anteriores() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate hoy = ZonaHoraria.hoy();
+        planFinalizado(alumno, hoy.minusWeeks(6), 5, hoy.minusWeeks(1));
+
+        JsonNode cuerpo = planesDe(alumno).cuerpo();
+
+        assertTrue(cuerpo.path("activo").isNull());
+        assertEquals(1, cuerpo.path("anteriores").size());
+    }
+
+    @Test
+    void el_listado_no_incluye_planes_de_otro_alumno() throws Exception {
+        planDeSemanas(alumno(), ZonaHoraria.hoy(), 5);
+
+        JsonNode cuerpo = planesDe(alumno()).cuerpo();
+
+        assertTrue(cuerpo.path("activo").isNull());
+        assertEquals(0, cuerpo.path("anteriores").size());
+    }
+
     // --- Seguridad ---
 
     @Test

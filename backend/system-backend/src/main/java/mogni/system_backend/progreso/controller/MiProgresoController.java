@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import mogni.system_backend.progreso.dto.MisPlanesResponse;
 import mogni.system_backend.progreso.dto.PlanDetalleResponse;
 import mogni.system_backend.progreso.service.MiProgresoService;
 
@@ -26,5 +27,10 @@ public class MiProgresoController {
         return progresoService.obtenerPlanActivo(authentication.getName())
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    @GetMapping("/planes")
+    public ResponseEntity<MisPlanesResponse> listarPlanes(Authentication authentication) {
+        return ResponseEntity.ok(progresoService.listarPlanes(authentication.getName()));
     }
 }

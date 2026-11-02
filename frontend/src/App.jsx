@@ -30,6 +30,7 @@ import HorariosGimnasio from './turno/pages/HorariosGimnasio';
 import TurnosAlumno from './turno/pages/TurnosAlumno';
 import MiProgreso from './progreso/pages/MiProgreso';
 import PlanActual from './progreso/pages/PlanActual';
+import TabPlanes from './progreso/pages/TabPlanes';
 import TabProximamente from './progreso/pages/TabProximamente';
 import Agenda from './turno/pages/Agenda';
 import ConfirmModal from './shared/components/ConfirmModal';
@@ -858,7 +859,7 @@ export default function App() {
         <Route path="turnos" element={<TurnosAlumno />} />
         <Route path="progreso" element={<MiProgreso />}>
           <Route index element={<PlanActual />} />
-          <Route path="planes" element={<TabProximamente />} />
+          <Route path="planes" element={<TabPlanes />} />
           <Route path="sesiones" element={<TabProximamente />} />
         </Route>
         <Route path="rutinas" element={<Navigate to="/mi-cuenta/progreso" replace />} />

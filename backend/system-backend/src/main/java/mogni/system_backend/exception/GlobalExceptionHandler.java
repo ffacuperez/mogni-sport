@@ -13,6 +13,7 @@ import org.springframework.security.authentication.DisabledException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -33,6 +34,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleCuerpoInvalido(HttpMessageNotReadableException ex) {
         log.warn("Cuerpo de la solicitud inválido: {}", ex.getMostSpecificCause().getMessage());
         return ResponseEntity.badRequest().body(Map.of("error", "Los datos enviados no son válidos"));
+    }
+
+    /** Parámetro de la URL con un valor que no existe (por ejemplo ?estadoPlan=OTRO). */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, String>> handleParametroInvalido(MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity.badRequest().body(Map.of("error", "El valor de \"" + ex.getName() + "\" no es válido"));
     }
 
     @ExceptionHandler(RegistroInvalidoException.class)

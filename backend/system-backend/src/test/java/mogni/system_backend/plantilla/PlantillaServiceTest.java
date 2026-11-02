@@ -113,7 +113,7 @@ class PlantillaServiceTest {
         p.setAsignacionesActivas(asignaciones);
         p.setFechaActualizacion(LocalDateTime.of(2026, 10, 1, 10, 0));
         SesionPlantilla s = new SesionPlantilla("Full body A");
-        s.agregarEjercicios(List.of(new EjercicioSesion(catalogo.get(1L), 4, 10, new BigDecimal("40"), 2)));
+        s.agregarEjercicios(List.of(new EjercicioSesion(catalogo.get(1L), 4, 8, 10, new BigDecimal("1.5"), new BigDecimal("40"), 2)));
         p.reemplazarSesiones(new ArrayList<>(List.of(s)));
         return p;
     }
@@ -146,6 +146,42 @@ class PlantillaServiceTest {
         assertEquals(2, primerEjercicio.getRirObjetivo());
         assertNull(creada.getSesiones().get(0).getEjercicios().get(1).getPesoSugerido());
         assertNull(creada.getSesiones().get(0).getEjercicios().get(1).getRirObjetivo());
+    }
+
+    @Test
+    void alta_con_rango_de_repeticiones_y_descanso_pasa() {
+        EjercicioSesionRequest conRango = ejercicio(1L, 4, 8, null);
+        conRango.setRepeticionesMax(10);
+        conRango.setDescansoMinutos(new BigDecimal("1.5"));
+
+        var creado = plantillaService.crearPlantilla(request("Rango", sesion(null, conRango)))
+                .getSesiones().get(0).getEjercicios().get(0);
+
+        assertEquals(8, creado.getRepeticiones());
+        assertEquals(10, creado.getRepeticionesMax());
+        assertEquals(new BigDecimal("1.5"), creado.getDescansoMinutos());
+    }
+
+    @Test
+    void alta_con_un_solo_valor_de_repeticiones_pasa_como_objetivo_fijo() {
+        var creado = plantillaService.crearPlantilla(request("Fijo", sesion(null, ejercicio(1L, 4, 8, null))))
+                .getSesiones().get(0).getEjercicios().get(0);
+
+        assertEquals(8, creado.getRepeticiones());
+        assertNull(creado.getRepeticionesMax());
+        assertNull(creado.getDescansoMinutos());
+    }
+
+    @Test
+    void un_rango_con_minimo_igual_al_maximo_se_guarda_como_objetivo_fijo() {
+        EjercicioSesionRequest mismoValor = ejercicio(1L, 4, 8, null);
+        mismoValor.setRepeticionesMax(8);
+
+        var creado = plantillaService.crearPlantilla(request("Igual", sesion(null, mismoValor)))
+                .getSesiones().get(0).getEjercicios().get(0);
+
+        assertEquals(8, creado.getRepeticiones());
+        assertNull(creado.getRepeticionesMax());
     }
 
     @Test
@@ -202,7 +238,7 @@ class PlantillaServiceTest {
     @Test
     void modificacion_puede_conservar_un_ejercicio_que_se_dio_de_baja_despues_de_agregarlo() {
         PlantillaPlan existente = plantillaExistente(5L, "Fuerza base", 0);
-        existente.getSesiones().get(0).agregarEjercicios(List.of(new EjercicioSesion(catalogo.get(9L), 3, 8, null, null)));
+        existente.getSesiones().get(0).agregarEjercicios(List.of(new EjercicioSesion(catalogo.get(9L), 3, 8, null, null, null, null)));
         when(plantillaRepository.findByIdAndActivaTrue(5L)).thenReturn(Optional.of(existente));
 
         PlantillaResponse modificada = plantillaService.actualizarPlantilla(5L, request("Fuerza base",
@@ -276,6 +312,9 @@ class PlantillaServiceTest {
         nueva.getSesiones().get(0).getEjercicios().get(0).setSeries(8);
         nueva.getSesiones().get(0).setNombre("Cambiada");
         assertEquals(4, original.getSesiones().get(0).getEjercicios().get(0).getSeries());
+        var ejercicioCopiado = nueva.getSesiones().get(0).getEjercicios().get(0);
+        assertEquals(10, ejercicioCopiado.getRepeticionesMax());
+        assertEquals(new BigDecimal("1.5"), ejercicioCopiado.getDescansoMinutos());
         assertEquals("Full body A", original.getSesiones().get(0).getNombre());
         assertEquals(2, original.getAsignacionesActivas());
     }

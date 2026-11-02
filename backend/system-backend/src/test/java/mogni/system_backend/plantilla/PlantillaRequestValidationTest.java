@@ -163,6 +163,37 @@ class PlantillaRequestValidationTest {
     }
 
     @Test
+    void rangoDeRepeticionesConMinimoMayorAlMaximoFalla() {
+        PlantillaRequest request = requestValido();
+        ejercicio.setRepeticiones(10);
+        ejercicio.setRepeticionesMax(8);
+        assertTrue(tieneError(request, "En el rango de repeticiones, el mínimo no puede ser mayor al máximo"));
+    }
+
+    @Test
+    void rangoDeRepeticionesValidoOSinMaximoPasa() {
+        PlantillaRequest request = requestValido();
+        ejercicio.setRepeticiones(8);
+        ejercicio.setRepeticionesMax(10);
+        assertTrue(validator.validate(request).isEmpty());
+        ejercicio.setRepeticionesMax(null);
+        assertTrue(validator.validate(request).isEmpty());
+    }
+
+    @Test
+    void descansoSugeridoEnMinutosMayorA0YHasta10() {
+        PlantillaRequest request = requestValido();
+        ejercicio.setDescansoMinutos(new BigDecimal("1.5"));
+        assertTrue(validator.validate(request).isEmpty());
+        ejercicio.setDescansoMinutos(BigDecimal.ZERO);
+        assertTrue(tieneError(request, "El descanso sugerido tiene que ser mayor a 0"));
+        ejercicio.setDescansoMinutos(new BigDecimal("10.5"));
+        assertTrue(tieneError(request, "El descanso sugerido no puede superar los 10 minutos"));
+        ejercicio.setDescansoMinutos(new BigDecimal("1.255"));
+        assertTrue(tieneError(request, "El descanso sugerido admite hasta 2 decimales"));
+    }
+
+    @Test
     void ejercicioSinIdDelCatalogoFalla() {
         PlantillaRequest request = requestValido();
         ejercicio.setEjercicioId(null);

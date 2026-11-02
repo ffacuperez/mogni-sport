@@ -1,12 +1,18 @@
 import { Fragment, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
+import { History } from 'lucide-react';
 
 import { Cargando } from '../../shared/components/ui';
 import ErrorConsulta from '../components/ErrorConsulta';
+import EstadoVacio from '../components/EstadoVacio';
 import FiltroPlan from '../components/FiltroPlan';
 import ItemSesion from '../components/ItemSesion';
 import TituloSeccion from '../components/TituloSeccion';
 import { agruparPorSemana, consultarPlanes, consultarSesiones, nombreCortoPlan } from '../services/progresoService';
+
+function SinSesiones() {
+  return <EstadoVacio icono={History} titulo="Todavía no registraste ninguna sesión" texto="Cuando registres tu primera sesión, la vas a ver acá." />;
+}
 
 /**
  * Tab "Sesiones": las sesiones registradas del plan elegido, agrupadas por semana. El plan queda en la URL (?plan=),
@@ -42,13 +48,17 @@ export default function TabSesiones() {
 
   if (!planes) return <Cargando texto="Cargando tus sesiones" />;
 
+  // Sin ningún plan no hay nada que filtrar: solo el estado vacío
+  if (!plan) return <SinSesiones />;
+
   // Al cambiar de plan, lo anterior deja de valer hasta que llega la respuesta nueva
   const sesiones = resultado?.planId === planId ? resultado.sesiones : null;
 
   return (
     <div className="flex flex-col gap-3">
-      {plan && <FiltroPlan planes={planes} valor={planId} onCambiar={(id) => setParams({ plan: id }, { replace: true })} />}
-      {plan && !sesiones && <Cargando texto="Cargando tus sesiones" />}
+      <FiltroPlan planes={planes} valor={planId} onCambiar={(id) => setParams({ plan: id }, { replace: true })} />
+      {!sesiones && <Cargando texto="Cargando tus sesiones" />}
+      {sesiones?.length === 0 && <SinSesiones />}
       {sesiones && agruparPorSemana(sesiones).map(({ semana, sesiones: deLaSemana }) => (
         <Fragment key={semana}>
           <div className="pt-1">

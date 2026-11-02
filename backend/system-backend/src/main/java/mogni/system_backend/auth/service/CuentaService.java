@@ -22,14 +22,19 @@ public class CuentaService {
     }
 
     /**
-     * HU-248: cambia la contraseña de la cuenta logueada y marca que ya no debe cambiarla.
-     * El largo mínimo lo valida el DTO; acá se valida la actual y que la nueva sea distinta.
+     * HU-248 (primer inicio) y MOGNI-263 (desde el perfil): cambia la contraseña de la cuenta logueada y marca que ya
+     * no debe cambiarla. El largo mínimo lo valida el DTO; acá se valida la confirmación, la actual y que la nueva sea
+     * distinta.
      */
     @Transactional
     public Cuenta cambiarPassword(String email, CambiarPasswordRequest request) {
         Cuenta cuenta = cuentaRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Cuenta no encontrada"));
 
+        if (request.getPasswordConfirmacion() != null
+                && !request.getPasswordConfirmacion().equals(request.getPasswordNueva())) {
+            throw new RegistroInvalidoException("La confirmación no coincide con la contraseña nueva");
+        }
         if (!passwordEncoder.matches(request.getPasswordActual(), cuenta.getPassword())) {
             throw new RegistroInvalidoException("La contraseña actual es incorrecta");
         }

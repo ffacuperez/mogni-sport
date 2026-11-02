@@ -38,6 +38,18 @@ class SecurityRulesTest {
     }
 
     @Test
+    void recuperarPasswordNoRequiereSesion() throws Exception {
+        // Responde lo mismo exista o no el email (no revela qué cuentas existen)
+        mockMvc.perform(post("/auth/recuperar-password").contentType("application/json")
+                        .content("{\"email\":\"nadie-registrado@x.com\"}"))
+                .andExpect(status().isOk());
+        // Un link inventado es un 400 (no un 401): la pantalla de restablecer se usa sin sesión
+        mockMvc.perform(post("/auth/restablecer-password").contentType("application/json")
+                        .content("{\"token\":\"inventado\",\"passwordNueva\":\"nuevaSegura1\",\"passwordConfirmacion\":\"nuevaSegura1\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void cambiarPasswordRequiereEstarLogueado() throws Exception {
         mockMvc.perform(post("/auth/cambiar-password").contentType("application/json").content("{}"))
                 .andExpect(status().isUnauthorized());

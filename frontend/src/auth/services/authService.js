@@ -1,5 +1,5 @@
 import { request } from '../../shared/services/httpClient';
-import { clearToken, getDebeCambiarPasswordFromToken, getRolFromToken, getToken, saveToken } from '../../shared/services/tokenStorage';
+import { clearToken, getDebeCambiarPasswordFromToken, getEmailFromToken, getRolFromToken, getToken, saveToken } from '../../shared/services/tokenStorage';
 
 export const ROL_ALUMNO = 'ALUMNO';
 export const ROLES_GESTION = ['PROPIETARIO', 'ENTRENADOR', 'NUTRICIONISTA'];
@@ -32,12 +32,42 @@ export function debeCambiarPassword() {
   return getDebeCambiarPasswordFromToken();
 }
 
-/** HU-248: el backend devuelve un token nuevo sin la marca de cambio pendiente. */
-export async function cambiarPassword(passwordActual, passwordNueva) {
+export function getEmail() {
+  return getEmailFromToken();
+}
+
+/** Reglas de la contraseña nueva (las mismas que valida el backend). */
+export const LARGO_MINIMO_PASSWORD = 8;
+
+/**
+ * HU-248 (primer inicio) y MOGNI-263 (desde el perfil). El backend devuelve un token nuevo sin la marca de cambio
+ * pendiente: se guarda y la sesión sigue abierta.
+ */
+export async function cambiarPassword(passwordActual, passwordNueva, passwordConfirmacion) {
   const data = await request('/auth/cambiar-password', {
     method: 'POST',
-    body: { passwordActual, passwordNueva },
+    body: { passwordActual, passwordNueva, passwordConfirmacion },
   });
   saveToken(data.token);
   return data;
+}
+
+// --- Recuperar contraseña (sin sesión) ---
+
+/** Pide el mail con el link para restablecer la contraseña. El backend responde igual exista o no el email. */
+export async function solicitarRecuperacion(email) {
+  return request('/auth/recuperar-password', { method: 'POST', body: { email }, auth: false });
+}
+
+/** Comprueba si el link del mail todavía sirve (falla con el motivo si venció o ya se usó). */
+export async function validarLinkRecuperacion(token) {
+  return request(`/auth/recuperar-password/validar?token=${encodeURIComponent(token)}`, { auth: false });
+}
+
+export async function restablecerPassword(token, passwordNueva, passwordConfirmacion) {
+  return request('/auth/restablecer-password', {
+    method: 'POST',
+    body: { token, passwordNueva, passwordConfirmacion },
+    auth: false,
+  });
 }

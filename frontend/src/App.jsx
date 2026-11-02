@@ -28,6 +28,8 @@ import RegistrarPagoModal from './cuota/pages/RegistrarPagoModal';
 import HistorialPagosModal from './cuota/pages/HistorialPagosModal';
 import HorariosGimnasio from './turno/pages/HorariosGimnasio';
 import TurnosAlumno from './turno/pages/TurnosAlumno';
+import MiProgreso from './progreso/pages/MiProgreso';
+import TabProximamente from './progreso/pages/TabProximamente';
 import Agenda from './turno/pages/Agenda';
 import ConfirmModal from './shared/components/ConfirmModal';
 import Toast from './shared/components/Toast';
@@ -853,7 +855,12 @@ export default function App() {
         <Route index element={<Navigate to="perfil" replace />} />
         <Route path="inicio" element={<SeccionProximamente titulo="Inicio" />} />
         <Route path="turnos" element={<TurnosAlumno />} />
-        <Route path="rutinas" element={<SeccionProximamente titulo="Rutinas" />} />
+        <Route path="progreso" element={<MiProgreso />}>
+          <Route index element={<TabProximamente />} />
+          <Route path="planes" element={<TabProximamente />} />
+          <Route path="sesiones" element={<TabProximamente />} />
+        </Route>
+        <Route path="rutinas" element={<Navigate to="/mi-cuenta/progreso" replace />} />
         <Route path="perfil" element={<AlumnoPerfil />} />
         <Route path="notificaciones" element={<Notificaciones />} />
         <Route path="*" element={<Navigate to="perfil" replace />} />

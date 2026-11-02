@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router';
-import { Bell, CalendarDays, Dumbbell, House, User } from 'lucide-react';
+import { Bell, CalendarDays, House, User } from 'lucide-react';
 
 import { Logo } from '../../shared/components/ui';
 import BotonInstalarApp from '../../shared/components/BotonInstalarApp';
 import { cx, FOCUS } from '../../shared/components/clases';
 import { contarSinLeer, listarNotificaciones } from '../../notificacion/services/notificacionesService';
+import IconoProgreso from '../../progreso/components/IconoProgreso';
 
 const SECCIONES = [
   { to: 'inicio', label: 'Inicio', icono: House },
   { to: 'turnos', label: 'Turnos', icono: CalendarDays },
-  { to: 'rutinas', label: 'Rutinas', icono: Dumbbell },
+  { to: 'progreso', label: 'Progreso', icono: IconoProgreso },
   { to: 'perfil', label: 'Perfil', icono: User },
 ];
 

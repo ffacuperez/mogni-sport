@@ -12,6 +12,7 @@ import AlumnoMembresiaForm from './alumno/pages/AlumnoMembresiaForm';
 import ReactivarAlumnoModal from './alumno/pages/ReactivarAlumnoModal';
 import AlumnoLayout from './alumno/pages/AlumnoLayout';
 import AlumnoPerfil from './alumno/pages/AlumnoPerfil';
+import MiEntrenamiento from './alumno/pages/MiEntrenamiento';
 import SeccionProximamente from './alumno/pages/SeccionProximamente';
 import Notificaciones from './notificacion/pages/Notificaciones';
 import MembresiasList from './membresia/pages/MembresiasList';
@@ -818,7 +819,7 @@ export default function App() {
         <Route index element={<Navigate to="perfil" replace />} />
         <Route path="inicio" element={<SeccionProximamente titulo="Inicio" />} />
         <Route path="turnos" element={<TurnosAlumno />} />
-        <Route path="rutinas" element={<SeccionProximamente titulo="Rutinas" />} />
+        <Route path="rutinas" element={<MiEntrenamiento />} />
         <Route path="perfil" element={<AlumnoPerfil />} />
         <Route path="notificaciones" element={<Notificaciones />} />
         <Route path="*" element={<Navigate to="perfil" replace />} />

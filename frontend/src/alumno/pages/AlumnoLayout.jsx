@@ -62,7 +62,7 @@ export default function AlumnoLayout({ onLogout }) {
             <Link
               to="notificaciones"
               aria-label={sinLeer > 0 ? `Notificaciones, ${sinLeer} sin leer` : 'Notificaciones'}
-              className={`relative rounded-lg p-2 text-on-dark transition-colors hover:bg-sidebar-hover ${FOCUS}`}
+              className={`relative rounded-lg p-2.5 text-on-dark transition-colors hover:bg-sidebar-hover ${FOCUS}`}
             >
               <Bell className="h-6 w-6" />
               {sinLeer > 0 && (

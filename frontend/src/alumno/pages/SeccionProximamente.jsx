@@ -1,6 +1,6 @@
 import { Construction } from 'lucide-react';
 
-/** Secciones de la app del alumno que todavía no están desarrolladas (Inicio, Turnos, Rutinas). */
+/** Secciones de la app del alumno que todavía no están desarrolladas (Inicio). */
 export default function SeccionProximamente({ titulo }) {
   return (
     <div className="animate-fade-in">

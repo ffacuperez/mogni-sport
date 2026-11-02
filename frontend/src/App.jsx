@@ -28,6 +28,12 @@ import RegistrarPagoModal from './cuota/pages/RegistrarPagoModal';
 import HistorialPagosModal from './cuota/pages/HistorialPagosModal';
 import HorariosGimnasio from './turno/pages/HorariosGimnasio';
 import TurnosAlumno from './turno/pages/TurnosAlumno';
+import DetallePlanAnterior from './progreso/pages/DetallePlanAnterior';
+import DetalleSesion from './progreso/pages/DetalleSesion';
+import MiProgreso from './progreso/pages/MiProgreso';
+import PlanActual from './progreso/pages/PlanActual';
+import TabPlanes from './progreso/pages/TabPlanes';
+import TabSesiones from './progreso/pages/TabSesiones';
 import Agenda from './turno/pages/Agenda';
 import ConfirmModal from './shared/components/ConfirmModal';
 import Toast from './shared/components/Toast';
@@ -853,7 +859,14 @@ export default function App() {
         <Route index element={<Navigate to="perfil" replace />} />
         <Route path="inicio" element={<SeccionProximamente titulo="Inicio" />} />
         <Route path="turnos" element={<TurnosAlumno />} />
-        <Route path="rutinas" element={<SeccionProximamente titulo="Rutinas" />} />
+        <Route path="progreso" element={<MiProgreso />}>
+          <Route index element={<PlanActual />} />
+          <Route path="planes" element={<TabPlanes />} />
+          <Route path="sesiones" element={<TabSesiones />} />
+        </Route>
+        <Route path="progreso/planes/:id" element={<DetallePlanAnterior />} />
+        <Route path="progreso/sesiones/:id" element={<DetalleSesion />} />
+        <Route path="rutinas" element={<Navigate to="/mi-cuenta/progreso" replace />} />
         <Route path="perfil" element={<AlumnoPerfil />} />
         <Route path="notificaciones" element={<Notificaciones />} />
         <Route path="*" element={<Navigate to="perfil" replace />} />

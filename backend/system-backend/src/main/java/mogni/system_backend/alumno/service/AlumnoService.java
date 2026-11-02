@@ -6,8 +6,10 @@ import java.time.Period;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -16,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.alumno.dto.ActualizarAlumnoRequest;
 import mogni.system_backend.alumno.dto.AlumnoResponse;
+import mogni.system_backend.alumno.dto.FiltroEstadoPlan;
+import mogni.system_backend.alumno.dto.PlanActivoResumen;
 import mogni.system_backend.alumno.dto.CambiarMembresiaRequest;
 import mogni.system_backend.alumno.dto.CambioMembresiaResponse;
 import mogni.system_backend.alumno.dto.ReactivarAlumnoRequest;
@@ -38,6 +42,9 @@ import mogni.system_backend.pago.entity.Pago;
 import mogni.system_backend.pago.repository.PagoRepository;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.auth.repository.CuentaRepository;
+import mogni.system_backend.plan.entity.EstadoPlanAsignado;
+import mogni.system_backend.plan.entity.PlanAsignado;
+import mogni.system_backend.plan.repository.PlanAsignadoRepository;
 
 @Service
 public class AlumnoService {
@@ -52,19 +59,22 @@ public class AlumnoService {
     private final PagoRepository pagoRepository;
     private final BajaAlumnoService bajaAlumnoService;
     private final PasswordEncoder passwordEncoder;
+    private final PlanAsignadoRepository planAsignadoRepository;
 
     public AlumnoService(AlumnoRepository alumnoRepository,
                           CuentaRepository cuentaRepository,
                           MembresiaRepository membresiaRepository,
                           PagoRepository pagoRepository,
                           BajaAlumnoService bajaAlumnoService,
-                          PasswordEncoder passwordEncoder) {
+                          PasswordEncoder passwordEncoder,
+                          PlanAsignadoRepository planAsignadoRepository) {
         this.alumnoRepository = alumnoRepository;
         this.cuentaRepository = cuentaRepository;
         this.membresiaRepository = membresiaRepository;
         this.pagoRepository = pagoRepository;
         this.bajaAlumnoService = bajaAlumnoService;
         this.passwordEncoder = passwordEncoder;
+        this.planAsignadoRepository = planAsignadoRepository;
     }
 
     /**
@@ -122,11 +132,18 @@ public class AlumnoService {
         return mapearAResponse(alumnoGuardado);
     }
 
+    /** Con estadoPlan filtra por plan de entrenamiento activo; null = todos. */
     @Transactional(readOnly = true)
-    public List<AlumnoResponse> listarAlumnos(boolean activos) {
+    public List<AlumnoResponse> listarAlumnos(boolean activos, FiltroEstadoPlan estadoPlan) {
+        // Una sola consulta para los planes activos de todos (como mucho uno por alumno)
+        Map<Long, PlanActivoResumen> planesActivos = planAsignadoRepository.findByEstado(EstadoPlanAsignado.ACTIVO)
+                .stream()
+                .collect(Collectors.toMap(p -> p.getAlumno().getId(), this::resumir, (a, b) -> a));
         return alumnoRepository.findByCuentaActiva(activos)
                 .stream()
-                .map(this::mapearAResponse)
+                .filter(a -> estadoPlan == null
+                        || (estadoPlan == FiltroEstadoPlan.ACTIVO) == planesActivos.containsKey(a.getId()))
+                .map(a -> mapearAResponse(a, planesActivos.get(a.getId())))
                 .toList();
     }
 
@@ -469,6 +486,18 @@ public class AlumnoService {
     }
 
     private AlumnoResponse mapearAResponse(Alumno alumno) {
+        PlanActivoResumen planActivo = alumno.getId() == null ? null
+                : planAsignadoRepository.findFirstByAlumnoIdAndEstado(alumno.getId(), EstadoPlanAsignado.ACTIVO)
+                        .map(this::resumir)
+                        .orElse(null);
+        return mapearAResponse(alumno, planActivo);
+    }
+
+    private PlanActivoResumen resumir(PlanAsignado plan) {
+        return new PlanActivoResumen(plan.getId(), plan.getNombre());
+    }
+
+    private AlumnoResponse mapearAResponse(Alumno alumno, PlanActivoResumen planActivo) {
         Optional<Inscripcion> activa = alumno.buscarInscripcionActiva();
         Optional<Inscripcion> programada = alumno.buscarInscripcionProgramada();
         Membresia membresia = activa.map(Inscripcion::getMembresia).orElse(null);
@@ -500,7 +529,8 @@ public class AlumnoService {
             vencimientoUltimaCuota,
             reactivacionRequierePago,
             programada.map(i -> i.getMembresia().getNombre()).orElse(null),
-            programada.map(Inscripcion::getFechaInicio).orElse(null)
+            programada.map(Inscripcion::getFechaInicio).orElse(null),
+            planActivo
         );
     }
 

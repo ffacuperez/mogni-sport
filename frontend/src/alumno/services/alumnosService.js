@@ -38,6 +38,8 @@ const fromApi = (a) => ({
   membresiaId: a.membresiaId ?? '',
   membresia: a.membresiaNombre ?? 'Sin membresía',
   estado: a.activo ? 'Activo' : 'Inactivo',
+  // Plan de entrenamiento ACTIVO ({ id, nombre }) o null si no tiene
+  planActivo: a.planActivo ?? null,
   fechaBaja: a.fechaBaja ?? '',
   inscripcion: inscripcionFromApi(a.inscripcionActual),
   // Solo para inactivos: si al reactivarlo hay que cobrar la primera cuota o todavía tiene días pagos

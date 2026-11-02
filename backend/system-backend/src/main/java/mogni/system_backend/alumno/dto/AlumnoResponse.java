@@ -41,4 +41,6 @@ public class AlumnoResponse {
     private String membresiaProgramada;
     /** Desde qué día rige la membresía programada; null si no tiene. */
     private LocalDate programadaDesde;
+    /** Plan de entrenamiento ACTIVO (a lo sumo uno); null si no tiene. Se calcula al vuelo, no se guarda en Alumno. */
+    private PlanActivoResumen planActivo;
 }

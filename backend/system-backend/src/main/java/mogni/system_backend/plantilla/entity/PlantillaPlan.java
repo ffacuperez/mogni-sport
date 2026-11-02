@@ -58,8 +58,8 @@ public class PlantillaPlan {
     private boolean activa = true;
 
     /**
-     * Alumnos que tienen esta plantilla asignada actualmente. Lo va a mantener la HU "Asignar plan de
-     * entrenamiento a alumno"; mientras tanto queda en 0 y no bloquea nada.
+     * Alumnos que tienen un plan ACTIVO copiado de esta plantilla (HU-266): suma al asignar y resta al
+     * finalizar el plan. Mientras sea mayor a 0, la plantilla no se puede eliminar.
      */
     @Column(nullable = false)
     private int asignacionesActivas = 0;

@@ -1,0 +1,16 @@
+# Postgres para probar el backend en la compu (perfil "localhost"). Levantar con: docker compose up -d
+services:
+  db:
+    image: postgres:16
+    container_name: mogni-db
+    environment:
+      POSTGRES_DB: mogni
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mogni
+    ports:
+      - "5432:5432"
+    volumes:
+      - mogni-db-data:/var/lib/postgresql/data
+
+volumes:
+  mogni-db-data:

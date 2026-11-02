@@ -41,7 +41,8 @@ import mogni.system_backend.turno.repository.TurnoRepository;
 /**
  * MOGNI-257: agenda de turnos para el personal (propietario y entrenador). Muestra, por fecha y turno, los
  * alumnos con reserva activa y los lugares ocupados y libres. Solo lee: lo único que se puede guardar son los
- * turnos de hoy y mañana, que se generan igual que cuando los consulta un alumno (HU-259).
+ * turnos de hoy y mañana, que se generan igual que cuando los consulta un alumno (HU-259). Desde la HU-262 cada
+ * turno que ya comenzó informa también presentes, ausentes y sin marcar (la marca la guarda AsistenciaService).
  */
 @Service
 public class AgendaService {
@@ -108,7 +109,7 @@ public class AgendaService {
                             .sorted(Comparator.comparing(AlumnoAgendaResponse::getApellido, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
                                     .thenComparing(AlumnoAgendaResponse::getNombre, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
                             .toList();
-                    return mapearTurno(turno, reservas.size(), alumnos, estadoDia, ahora);
+                    return mapearTurno(turno, reservas, alumnos, estadoDia, ahora);
                 })
                 .toList();
 
@@ -134,9 +135,9 @@ public class AgendaService {
         // Una sola consulta de reservas para toda la semana
         List<Long> ids = turnosPorFecha.values().stream().flatMap(List::stream)
                 .map(Turno::getId).filter(Objects::nonNull).toList();
-        Map<Long, Long> ocupadosPorTurno = ids.isEmpty() ? Map.of()
+        Map<Long, List<Reserva>> reservasPorTurno = ids.isEmpty() ? Map.of()
                 : reservaRepository.findByTurnoIdInAndEstado(ids, EstadoReserva.RESERVADA).stream()
-                        .collect(Collectors.groupingBy(reserva -> reserva.getTurno().getId(), Collectors.counting()));
+                        .collect(Collectors.groupingBy(reserva -> reserva.getTurno().getId()));
 
         List<DiaAgendaResponse> dias = fechas.stream()
                 .map(dia -> {
@@ -144,7 +145,7 @@ public class AgendaService {
                     EstadoDiaAgenda estadoDia = estadoDia(dia, hoy, turnos);
                     List<TurnoAgendaResponse> turnosResponse = turnos.stream()
                             .map(turno -> mapearTurno(turno,
-                                    turno.getId() == null ? 0 : ocupadosPorTurno.getOrDefault(turno.getId(), 0L).intValue(),
+                                    turno.getId() == null ? List.of() : reservasPorTurno.getOrDefault(turno.getId(), List.of()),
                                     List.of(), estadoDia, ahora))
                             .toList();
                     return new DiaAgendaResponse(dia, estadoDia, fechaHabilitacion(dia, estadoDia), turnosResponse);
@@ -204,10 +205,17 @@ public class AgendaService {
         return (cupoMaximo * PORCENTAJE_CASI_LLENO + 99) / 100;
     }
 
-    private static TurnoAgendaResponse mapearTurno(Turno turno, int ocupados, List<AlumnoAgendaResponse> alumnos,
+    /** reservas: las RESERVADA del turno (ocupan lugar y son las que tienen asistencia). */
+    private static TurnoAgendaResponse mapearTurno(Turno turno, List<Reserva> reservas, List<AlumnoAgendaResponse> alumnos,
                                                    EstadoDiaAgenda estadoDia, LocalDateTime ahora) {
+        int ocupados = reservas.size();
         int libres = Math.max(0, turno.getCupoMaximo() - ocupados);
         boolean cancelado = turno.getEstado() == EstadoTurno.CANCELADO;
+        // HU-262: la asistencia solo existe desde que el turno comienza
+        boolean comenzo = !cancelado && turno.getId() != null && AsistenciaService.comenzo(turno, ahora);
+        AsistenciaService.Conteo asistencia = comenzo
+                ? AsistenciaService.Conteo.de(reservas, ahora.toLocalDate())
+                : new AsistenciaService.Conteo(0, 0, 0);
         LocalTime horaActual = ahora.toLocalTime();
         boolean esHoy = turno.getFecha().equals(ahora.toLocalDate());
         boolean enCurso = !cancelado && esHoy
@@ -243,6 +251,11 @@ public class AgendaService {
                 puedeReactivarse,
                 cancelado && turno.fueCanceladoPorFranja(),
                 enCurso,
+                comenzo,
+                AsistenciaService.sePuedeRegistrar(turno, ahora),
+                asistencia.presentes(),
+                asistencia.ausentes(),
+                asistencia.sinMarcar(),
                 alumnos);
     }
 
@@ -278,6 +291,7 @@ public class AgendaService {
                 alumno.getNombre(),
                 alumno.getApellido(),
                 membresia,
-                cuota != null ? new CuotaAgendaResponse(SituacionPago.de(cuota, hoy), cuota.getFechaVencimiento()) : null);
+                cuota != null ? new CuotaAgendaResponse(SituacionPago.de(cuota, hoy), cuota.getFechaVencimiento()) : null,
+                AsistenciaService.asistenciaEfectiva(reserva, hoy));
     }
 }

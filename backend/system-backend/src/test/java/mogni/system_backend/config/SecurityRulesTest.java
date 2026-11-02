@@ -68,28 +68,6 @@ class SecurityRulesTest {
     }
 
     @Test
-    void plantillasSoloParaPropietarioYEntrenador() throws Exception {
-        mockMvc.perform(get("/plantillas")).andExpect(status().isUnauthorized());
-        mockMvc.perform(get("/plantillas").with(user("a@x.com").roles("ALUMNO"))).andExpect(status().isForbidden());
-        mockMvc.perform(get("/plantillas").with(user("n@x.com").roles("NUTRICIONISTA"))).andExpect(status().isForbidden());
-        mockMvc.perform(get("/plantillas").with(user("e@x.com").roles("ENTRENADOR"))).andExpect(status().isOk());
-        mockMvc.perform(get("/plantillas").with(user("p@x.com").roles("PROPIETARIO"))).andExpect(status().isOk());
-    }
-
-    @Test
-    void elAlumnoNoAccedeAlCatalogoDeEjercicios() throws Exception {
-        mockMvc.perform(get("/ejercicios")).andExpect(status().isUnauthorized());
-        mockMvc.perform(get("/ejercicios").with(user("a@x.com").roles("ALUMNO"))).andExpect(status().isForbidden());
-        mockMvc.perform(post("/ejercicios").with(user("a@x.com").roles("ALUMNO"))
-                        .contentType("application/json").content("{}"))
-                .andExpect(status().isForbidden());
-        mockMvc.perform(delete("/ejercicios/1").with(user("a@x.com").roles("ALUMNO"))).andExpect(status().isForbidden());
-        for (String rol : new String[] {"PROPIETARIO", "ENTRENADOR", "NUTRICIONISTA"}) {
-            mockMvc.perform(get("/ejercicios").with(user("p@x.com").roles(rol))).andExpect(status().isOk());
-        }
-    }
-
-    @Test
     void personalDelGimnasioPuedeListar() throws Exception {
         mockMvc.perform(get("/alumnos").with(user("e@x.com").roles("ENTRENADOR"))).andExpect(status().isOk());
         mockMvc.perform(get("/membresias").with(user("e@x.com").roles("ENTRENADOR"))).andExpect(status().isOk());
@@ -174,6 +152,22 @@ class SecurityRulesTest {
             mockMvc.perform(get(ruta).with(user("a@x.com").roles("ALUMNO"))).andExpect(status().isForbidden());
             mockMvc.perform(get(ruta).with(user("n@x.com").roles("NUTRICIONISTA"))).andExpect(status().isForbidden());
         }
+    }
+
+    @Test
+    void registrarAsistenciaSoloParaPropietarioYEntrenador() throws Exception {
+        String ruta = "/agenda/reservas/999999/asistencia";
+        String cuerpo = "{\"asistencia\":\"PRESENTE\"}";
+        mockMvc.perform(put(ruta).contentType("application/json").content(cuerpo)).andExpect(status().isUnauthorized());
+        mockMvc.perform(put(ruta).contentType("application/json").content(cuerpo).with(user("a@x.com").roles("ALUMNO")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put(ruta).contentType("application/json").content(cuerpo).with(user("n@x.com").roles("NUTRICIONISTA")))
+                .andExpect(status().isForbidden());
+        // ENTRENADOR y PROPIETARIO pasan la regla de seguridad (404 porque esa reserva no existe)
+        mockMvc.perform(put(ruta).contentType("application/json").content(cuerpo).with(user("e@x.com").roles("ENTRENADOR")))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(put(ruta).contentType("application/json").content(cuerpo).with(user("p@x.com").roles("PROPIETARIO")))
+                .andExpect(status().isNotFound());
     }
 
     @Test

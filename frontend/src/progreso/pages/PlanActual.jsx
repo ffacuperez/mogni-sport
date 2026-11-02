@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { ClipboardList } from 'lucide-react';
 
 import { Cargando } from '../../shared/components/ui';
 import DetallePlan from '../components/DetallePlan';
 import ErrorConsulta from '../components/ErrorConsulta';
+import EstadoVacio from '../components/EstadoVacio';
 import { consultarPlanActivo } from '../services/progresoService';
 
 /** Tab "Plan actual". undefined: cargando; null: el alumno no tiene plan activo. */
@@ -22,8 +24,9 @@ export default function PlanActual() {
 
   if (plan === undefined) return <Cargando texto="Cargando tu plan" />;
 
-  // Provisorio: el estado vacío con el diseño del frame 06 llega en la Etapa 3
-  if (plan === null) return <p className="mt-12 text-center text-sm font-semibold text-ink">Todavía no tenés un plan asignado</p>;
+  if (plan === null) {
+    return <EstadoVacio icono={ClipboardList} titulo="Todavía no tenés un plan asignado" texto="Tu profe te va a asignar uno pronto." />;
+  }
 
   return <DetallePlan plan={plan} />;
 }

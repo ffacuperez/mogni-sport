@@ -70,6 +70,18 @@ public class MiProgresoService {
         return new MisPlanesResponse(activo, anteriores);
     }
 
+    /** 404 también si el plan es de otro alumno: no se revela que existe. */
+    @Transactional(readOnly = true)
+    public PlanDetalleResponse obtenerPlan(String email, Long planId) {
+        return mapearDetalle(buscarPlanDelAlumno(email, planId), ZonaHoraria.hoy());
+    }
+
+    private PlanAsignado buscarPlanDelAlumno(String email, Long planId) {
+        Alumno alumno = buscarAlumnoConAcceso(email);
+        return planRepository.findByIdAndAlumnoId(planId, alumno.getId())
+                .orElseThrow(() -> new RecursoNoEncontradoException("No encontramos ese plan"));
+    }
+
     private Alumno buscarAlumnoConAcceso(String email) {
         Alumno alumno = alumnoRepository.findByCuentaEmailIgnoreCase(email)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No hay un alumno asociado a esta cuenta"));

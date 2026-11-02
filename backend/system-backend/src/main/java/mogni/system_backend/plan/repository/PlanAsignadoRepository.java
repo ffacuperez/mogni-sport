@@ -18,6 +18,9 @@ public interface PlanAsignadoRepository extends JpaRepository<PlanAsignado, Long
     /** Todos los planes en ese estado; el listado de alumnos los usa para no consultar alumno por alumno. */
     List<PlanAsignado> findByEstado(EstadoPlanAsignado estado);
 
+    /** HU-270: un plan, solo si es de ese alumno. */
+    Optional<PlanAsignado> findByIdAndAlumnoId(Long id, Long alumnoId);
+
     /** HU-270: los planes del alumno en ese estado, del que terminó más recientemente al más antiguo. */
     List<PlanAsignado> findByAlumnoIdAndEstadoOrderByFechaFinalizacionDescIdDesc(Long alumnoId, EstadoPlanAsignado estado);
 

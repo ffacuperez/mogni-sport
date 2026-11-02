@@ -9,6 +9,7 @@ import EjercicioIndicado from './EjercicioIndicado';
 const ESTADOS = {
   REGISTRADA: { tono: 'success', texto: 'Registrada', icono: Check },
   PENDIENTE: { tono: 'neutral', texto: 'Pendiente', icono: Clock },
+  NO_REGISTRADA: { tono: 'neutral', texto: 'No registrada' },
 };
 
 /** Tarjeta de una sesión: al tocarla se expande y muestra sus ejercicios; al tocarla de nuevo se contrae. */
@@ -31,7 +32,7 @@ export default function AcordeonSesion({ sesion }) {
           <span className="text-xs text-ink-soft">{textoDetalleSesion(sesion)}</span>
         </span>
         <Badge tone={tono} className="shrink-0 gap-1">
-          <Icono className="h-3 w-3" />
+          {Icono && <Icono className="h-3 w-3" />}
           {texto}
         </Badge>
         <ChevronDown className={cx('h-5 w-5 shrink-0 text-ink-muted transition-transform duration-200', abierta && 'rotate-180')} />

@@ -74,6 +74,11 @@ export async function consultarPlanActivo() {
   return data ? planFromApi(data) : null;
 }
 
+/** Un plan del alumno, con sus semanas y sesiones. */
+export async function consultarPlan(id) {
+  return planFromApi(await request(`${BASE_PATH}/planes/${id}`));
+}
+
 /** "Ultra Mass · Hipertrofia". Los planes sin método ni mesociclo cargados muestran su nombre. */
 export function tituloPlan(plan) {
   return [METODOS[plan.metodo], plan.mesociclo].filter(Boolean).join(' · ') || plan.nombre;

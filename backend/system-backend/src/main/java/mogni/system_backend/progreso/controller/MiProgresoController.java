@@ -3,6 +3,7 @@ package mogni.system_backend.progreso.controller;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -32,5 +33,11 @@ public class MiProgresoController {
     @GetMapping("/planes")
     public ResponseEntity<MisPlanesResponse> listarPlanes(Authentication authentication) {
         return ResponseEntity.ok(progresoService.listarPlanes(authentication.getName()));
+    }
+
+    /** 404 si el plan no existe o es de otro alumno. */
+    @GetMapping("/planes/{id}")
+    public ResponseEntity<PlanDetalleResponse> obtenerPlan(@PathVariable Long id, Authentication authentication) {
+        return ResponseEntity.ok(progresoService.obtenerPlan(authentication.getName(), id));
     }
 }

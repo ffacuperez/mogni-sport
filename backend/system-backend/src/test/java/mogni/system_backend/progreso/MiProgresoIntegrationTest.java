@@ -427,6 +427,53 @@ class MiProgresoIntegrationTest {
         assertEquals(0, cuerpo.path("anteriores").size());
     }
 
+    // --- Detalle de un plan ---
+
+    private Respuesta planDe(Alumno alumno, Long planId) throws Exception {
+        return ejecutar(get("/mi-progreso/planes/" + planId).with(user(alumno.getEmail()).roles("ALUMNO")));
+    }
+
+    @Test
+    void un_plan_finalizado_arranca_en_su_ultima_semana_con_su_fecha_real_de_fin() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate hoy = ZonaHoraria.hoy();
+        PlanAsignado plan = planFinalizado(alumno, hoy.minusWeeks(6), 5, hoy.minusWeeks(1));
+
+        Respuesta respuesta = planDe(alumno, plan.getId());
+
+        assertEquals(200, respuesta.status());
+        JsonNode cuerpo = respuesta.cuerpo();
+        assertEquals("FINALIZADO", cuerpo.path("estado").asString());
+        assertEquals(5, cuerpo.path("semanaActual").asInt());
+        assertEquals(hoy.minusWeeks(1).toString(), cuerpo.path("fechaFin").asString());
+    }
+
+    @Test
+    void en_un_plan_finalizado_lo_que_no_se_hizo_figura_como_no_registrada() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate hoy = ZonaHoraria.hoy();
+        PlanAsignado plan = planFinalizado(alumno, hoy.minusWeeks(6), 5, hoy.minusWeeks(1));
+        registrar(plan, 5, 1, hoy.minusWeeks(2));
+
+        JsonNode sesiones = planDe(alumno, plan.getId()).cuerpo().path("semanas").get(4).path("sesiones");
+
+        assertEquals("REGISTRADA", sesiones.get(0).path("estado").asString());
+        assertEquals("NO_REGISTRADA", sesiones.get(1).path("estado").asString());
+        assertTrue(sesiones.get(1).path("fechaRegistro").isNull());
+    }
+
+    @Test
+    void el_plan_de_otro_alumno_responde_404() throws Exception {
+        PlanAsignado ajeno = planFinalizado(alumno(), ZonaHoraria.hoy().minusWeeks(6), 5, ZonaHoraria.hoy());
+
+        assertEquals(404, planDe(alumno(), ajeno.getId()).status());
+    }
+
+    @Test
+    void un_plan_que_no_existe_responde_404() throws Exception {
+        assertEquals(404, planDe(alumno(), 999_999L).status());
+    }
+
     // --- Seguridad ---
 
     @Test

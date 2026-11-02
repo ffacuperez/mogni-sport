@@ -28,6 +28,7 @@ import RegistrarPagoModal from './cuota/pages/RegistrarPagoModal';
 import HistorialPagosModal from './cuota/pages/HistorialPagosModal';
 import HorariosGimnasio from './turno/pages/HorariosGimnasio';
 import TurnosAlumno from './turno/pages/TurnosAlumno';
+import DetallePlanAnterior from './progreso/pages/DetallePlanAnterior';
 import MiProgreso from './progreso/pages/MiProgreso';
 import PlanActual from './progreso/pages/PlanActual';
 import TabPlanes from './progreso/pages/TabPlanes';
@@ -862,6 +863,7 @@ export default function App() {
           <Route path="planes" element={<TabPlanes />} />
           <Route path="sesiones" element={<TabProximamente />} />
         </Route>
+        <Route path="progreso/planes/:id" element={<DetallePlanAnterior />} />
         <Route path="rutinas" element={<Navigate to="/mi-cuenta/progreso" replace />} />
         <Route path="perfil" element={<AlumnoPerfil />} />
         <Route path="notificaciones" element={<Notificaciones />} />

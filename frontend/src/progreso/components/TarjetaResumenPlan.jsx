@@ -2,7 +2,7 @@ import { Calendar, Target } from 'lucide-react';
 
 import { Panel } from '../../shared/components/ui';
 import { formatearFecha } from '../../shared/services/texto';
-import { tituloPlan } from '../services/progresoService';
+import { textoRangoPlan, tituloPlan } from '../services/progresoService';
 import BadgeEstadoPlan from './BadgeEstadoPlan';
 import BarraSemanas from './BarraSemanas';
 
@@ -15,8 +15,9 @@ function Dato({ icono: Icono, children }) {
   );
 }
 
-/** Resumen del plan: método y mesociclo, objetivo, fecha de inicio y avance por semanas. */
+/** Resumen del plan: método y mesociclo, objetivo, fechas y avance por semanas (completo si ya finalizó). */
 export default function TarjetaResumenPlan({ plan }) {
+  const activo = plan.estado === 'ACTIVO';
   return (
     <Panel aria-label="Resumen del plan" className="flex flex-col gap-2.5 p-4">
       <div className="flex items-start justify-between gap-2">
@@ -28,10 +29,12 @@ export default function TarjetaResumenPlan({ plan }) {
       </div>
 
       {plan.objetivoMesociclo && <Dato icono={Target}>Objetivo: {plan.objetivoMesociclo}</Dato>}
-      <Dato icono={Calendar}>Inicio: {formatearFecha(plan.fechaInicio)}</Dato>
+      <Dato icono={Calendar}>{activo ? `Inicio: ${formatearFecha(plan.fechaInicio)}` : textoRangoPlan(plan)}</Dato>
 
       <div className="flex items-center justify-between gap-2 border-t border-line pt-2.5">
-        <p className="whitespace-nowrap text-sm font-bold text-ink">Semana {plan.semanaActual} de {plan.cantidadSemanas}</p>
+        <p className="whitespace-nowrap text-sm font-bold text-ink">
+          {activo ? `Semana ${plan.semanaActual} de ${plan.cantidadSemanas}` : `${plan.cantidadSemanas} de ${plan.cantidadSemanas} semanas`}
+        </p>
         <p className="text-right text-xs text-ink-muted">{plan.sesionesRegistradas} de {plan.sesionesTotales} sesiones registradas</p>
       </div>
       <BarraSemanas total={plan.cantidadSemanas} completas={plan.semanaActual} />

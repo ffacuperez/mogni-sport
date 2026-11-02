@@ -34,7 +34,7 @@ export default function PlanActual() {
   if (plan === undefined) return <Cargando texto="Cargando tu plan" />;
 
   // Provisorio: el estado vacío con el diseño del frame 06 llega en la Etapa 3
-  if (plan === null) return <p className="mt-12 text-center text-sm font-semibold text-prog-ink">Todavía no tenés un plan asignado</p>;
+  if (plan === null) return <p className="mt-12 text-center text-sm font-semibold text-ink">Todavía no tenés un plan asignado</p>;
 
   return <DetallePlan plan={plan} />;
 }

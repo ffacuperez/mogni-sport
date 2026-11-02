@@ -5,7 +5,7 @@ export default function BarraSemanas({ total, completas }) {
   return (
     <div aria-hidden="true" className="flex gap-1">
       {Array.from({ length: total }, (_, i) => (
-        <span key={i} className={cx('h-1.5 flex-1 rounded-[3px]', i < completas ? 'bg-primary' : 'bg-prog-line')} />
+        <span key={i} className={cx('h-1.5 flex-1 rounded-full', i < completas ? 'bg-primary' : 'bg-line')} />
       ))}
     </div>
   );

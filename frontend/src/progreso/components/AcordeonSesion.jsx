@@ -1,44 +1,45 @@
 import { useId, useState } from 'react';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown, Clock } from 'lucide-react';
 
 import { cx, FOCUS } from '../../shared/components/clases';
-import iconoPendiente from '../assets/icono-pendiente.svg';
+import { Badge, Panel } from '../../shared/components/ui';
 import { textoDetalleSesion } from '../services/progresoService';
-import Chip from './Chip';
-import { TARJETA } from './clases';
 import EjercicioIndicado from './EjercicioIndicado';
 
 const ESTADOS = {
-  REGISTRADA: { tono: 'ok', texto: 'Registrada', icono: <Check className="h-3 w-3" strokeWidth={2.6} /> },
-  PENDIENTE: { tono: 'neutro', texto: 'Pendiente', icono: <img src={iconoPendiente} alt="" className="h-3 w-3" /> },
+  REGISTRADA: { tono: 'success', texto: 'Registrada', icono: Check },
+  PENDIENTE: { tono: 'neutral', texto: 'Pendiente', icono: Clock },
 };
 
 /** Tarjeta de una sesión: al tocarla se expande y muestra sus ejercicios; al tocarla de nuevo se contrae. */
 export default function AcordeonSesion({ sesion }) {
   const [abierta, setAbierta] = useState(false);
   const panelId = useId();
-  const estado = ESTADOS[sesion.estado];
+  const { tono, texto, icono: Icono } = ESTADOS[sesion.estado];
 
   return (
-    <article className={TARJETA}>
+    <Panel as="article">
       <button
         type="button"
         onClick={() => setAbierta((actual) => !actual)}
         aria-expanded={abierta}
         aria-controls={panelId}
-        className={cx('flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-xl py-3 pl-4 pr-3 text-left', FOCUS)}
+        className={cx('flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-lg py-3 pl-4 pr-3 text-left', FOCUS)}
       >
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="text-[15px] font-bold text-prog-ink">Sesión {sesion.numero}</span>
-          <span className="text-[12px] font-medium text-prog-soft">{textoDetalleSesion(sesion)}</span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="text-sm font-bold text-ink">Sesión {sesion.numero}</span>
+          <span className="text-xs text-ink-soft">{textoDetalleSesion(sesion)}</span>
         </span>
-        <Chip tono={estado.tono} icono={estado.icono}>{estado.texto}</Chip>
+        <Badge tone={tono} className="shrink-0 gap-1">
+          <Icono className="h-3 w-3" />
+          {texto}
+        </Badge>
         <ChevronDown className={cx('h-5 w-5 shrink-0 text-ink-muted transition-transform duration-200', abierta && 'rotate-180')} />
       </button>
 
       <div id={panelId} hidden={!abierta}>
         {sesion.ejercicios.map((ejercicio, i) => <EjercicioIndicado key={i} ejercicio={ejercicio} />)}
       </div>
-    </article>
+    </Panel>
   );
 }

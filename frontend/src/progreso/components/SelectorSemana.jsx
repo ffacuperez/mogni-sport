@@ -11,12 +11,12 @@ function Flecha({ label, icono: Icono, disabled, onClick }) {
       disabled={disabled}
       onClick={onClick}
       className={cx(
-        'flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-prog-line bg-card text-prog-ink',
-        'disabled:cursor-not-allowed disabled:text-ink-muted disabled:opacity-60',
+        'flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-card text-ink shadow-card transition-colors hover:bg-row-hover',
+        'disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-card',
         FOCUS,
       )}
     >
-      <Icono className="h-[22px] w-[22px]" />
+      <Icono className="h-5 w-5" />
     </button>
   );
 }
@@ -26,9 +26,9 @@ export default function SelectorSemana({ semana, cantidadSemanas, onCambiar }) {
   return (
     <div className="flex items-center justify-between">
       <Flecha label="Semana anterior" icono={ChevronLeft} disabled={semana.numero <= 1} onClick={() => onCambiar(semana.numero - 1)} />
-      <div className="flex flex-col items-center gap-px" aria-live="polite">
-        <p className="text-[16px] font-bold text-prog-ink">Semana {semana.numero}</p>
-        <p className="text-[12px] font-medium text-prog-soft">{textoDiaMes(semana.desde)} – {textoDiaMes(semana.hasta)}</p>
+      <div className="flex flex-col items-center" aria-live="polite">
+        <p className="text-base font-bold text-ink">Semana {semana.numero}</p>
+        <p className="text-xs text-ink-soft">{textoDiaMes(semana.desde)} – {textoDiaMes(semana.hasta)}</p>
       </div>
       <Flecha label="Semana siguiente" icono={ChevronRight} disabled={semana.numero >= cantidadSemanas} onClick={() => onCambiar(semana.numero + 1)} />
     </div>

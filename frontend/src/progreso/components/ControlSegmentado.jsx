@@ -11,15 +11,15 @@ const TABS = [
 /** Selector de tabs de Mi progreso. Cada tab es una ruta, así volver desde un detalle deja el tab donde estaba. */
 export default function ControlSegmentado() {
   return (
-    <nav aria-label="Mi progreso" className="flex gap-1 rounded-[10px] bg-prog-tabs p-1">
+    <nav aria-label="Mi progreso" className="mb-4 grid grid-cols-3 gap-1 rounded-xl bg-thead/70 p-1">
       {TABS.map(({ to, texto, end }) => (
         <NavLink
           key={to}
           to={to}
           end={end}
           className={({ isActive }) => cx(
-            'flex min-h-11 flex-1 items-center justify-center rounded-lg text-[14px] transition-colors',
-            isActive ? 'bg-card font-bold text-primary shadow-prog-tab' : 'font-medium text-prog-soft hover:text-prog-ink',
+            'flex min-h-11 items-center justify-center rounded-lg text-sm transition-colors',
+            isActive ? 'bg-card font-semibold text-primary shadow-card' : 'font-medium text-ink-muted hover:text-ink',
             FOCUS,
           )}
         >

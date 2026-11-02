@@ -46,18 +46,6 @@
 
   --color-whatsapp: #25d366;
 
-  /* Mi progreso (HU-270): valores exactos del diseño en Figma, solo para esta sección */
-  --color-prog-ink: #1f1f1f;
-  --color-prog-soft: #6b6b6b;
-  --color-prog-line: #e6e6e6;
-  --color-prog-tabs: #e4e4e4;
-  --color-prog-tag-text: #3a3a3a;
-  --color-prog-ok: #2e7d32;
-  --color-prog-ok-bg: #e6f4ea;
-  --color-prog-neutro-bg: #ededed;
-  --shadow-prog-card: 0 2px 10px rgba(0, 0, 0, 0.07);
-  --shadow-prog-tab: 0 1px 4px rgba(0, 0, 0, 0.06);
-
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
   --shadow-modal: 0 4px 16px rgba(0, 0, 0, 0.15);
 

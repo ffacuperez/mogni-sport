@@ -10,9 +10,11 @@ import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import mogni.system_backend.turno.entity.Asistencia;
 import mogni.system_backend.turno.entity.EstadoReserva;
 import mogni.system_backend.turno.entity.Reserva;
 
@@ -45,4 +47,17 @@ public interface ReservaRepository extends JpaRepository<Reserva, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from Reserva r where r.id = :id")
     Optional<Reserva> findByIdConBloqueo(@Param("id") Long id);
+
+    /**
+     * HU-262: las reservas con ese estado y sin asistencia registrada de turnos anteriores a la fecha pasan a la
+     * asistencia indicada (AUSENTE al terminar el día). Devuelve cuántas cambió. El subselect evita el join
+     * implícito, que no se permite en un update.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update Reserva r set r.asistencia = :asistencia "
+            + "where r.estado = :estado and r.asistencia is null "
+            + "and r.turno.id in (select t.id from Turno t where t.fecha < :fecha)")
+    int registrarAsistenciaSinMarcarAntesDe(@Param("fecha") LocalDate fecha,
+                                            @Param("estado") EstadoReserva estado,
+                                            @Param("asistencia") Asistencia asistencia);
 }

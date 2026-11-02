@@ -177,6 +177,22 @@ class SecurityRulesTest {
     }
 
     @Test
+    void registrarAsistenciaSoloParaPropietarioYEntrenador() throws Exception {
+        String ruta = "/agenda/reservas/999999/asistencia";
+        String cuerpo = "{\"asistencia\":\"PRESENTE\"}";
+        mockMvc.perform(put(ruta).contentType("application/json").content(cuerpo)).andExpect(status().isUnauthorized());
+        mockMvc.perform(put(ruta).contentType("application/json").content(cuerpo).with(user("a@x.com").roles("ALUMNO")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put(ruta).contentType("application/json").content(cuerpo).with(user("n@x.com").roles("NUTRICIONISTA")))
+                .andExpect(status().isForbidden());
+        // ENTRENADOR y PROPIETARIO pasan la regla de seguridad (404 porque esa reserva no existe)
+        mockMvc.perform(put(ruta).contentType("application/json").content(cuerpo).with(user("e@x.com").roles("ENTRENADOR")))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(put(ruta).contentType("application/json").content(cuerpo).with(user("p@x.com").roles("PROPIETARIO")))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void preflightDesdeViteEsPermitidoSinAutenticar() throws Exception {
         mockMvc.perform(options("/alumnos")
                         .header("Origin", "http://localhost:5173")

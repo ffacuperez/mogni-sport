@@ -47,6 +47,7 @@ import mogni.system_backend.turno.dto.DiaAgendaResponse;
 import mogni.system_backend.turno.dto.EstadoDiaAgenda;
 import mogni.system_backend.turno.dto.EstadoTurnoAgenda;
 import mogni.system_backend.turno.dto.TurnoAgendaResponse;
+import mogni.system_backend.turno.entity.Asistencia;
 import mogni.system_backend.turno.entity.EstadoReserva;
 import mogni.system_backend.turno.entity.EstadoTurno;
 import mogni.system_backend.turno.entity.FranjaHoraria;
@@ -603,5 +604,105 @@ class AgendaServiceTest {
 
         assertEquals(LUNES, semana.getDesde());
         assertEquals(DOMINGO, semana.getHasta());
+    }
+
+    // --- HU-262: asistencia en la agenda ---
+
+    private Reserva reservarConAsistencia(Turno turno, Asistencia asistencia) {
+        Reserva reserva = reservar(alumno("Alumno", "N" + proximoId, "Plan"), turno, EstadoReserva.RESERVADA);
+        reserva.setAsistencia(asistencia);
+        return reserva;
+    }
+
+    // HU-262 prueba 7: la agenda muestra la cantidad correcta de presentes y ausentes del turno
+    @Test
+    void un_turno_que_ya_comenzo_muestra_presentes_ausentes_y_sin_marcar() {
+        // A las 10:30 el turno de 10 está en curso
+        Turno diez = turno(JUEVES, "10:00", 8);
+        reservarConAsistencia(diez, Asistencia.PRESENTE);
+        reservarConAsistencia(diez, Asistencia.PRESENTE);
+        reservarConAsistencia(diez, Asistencia.AUSENTE);
+        reservarConAsistencia(diez, null);
+        // Una cancelada no ocupa lugar ni cuenta para la asistencia
+        reservar(alumno("Iván", "Maldonado", "Plan"), diez, EstadoReserva.CANCELADA);
+
+        TurnoAgendaResponse respuesta = buscar(agendaService.consultarDia(JUEVES, AHORA).getTurnos(), "10:00");
+
+        assertTrue(respuesta.isComenzo());
+        assertTrue(respuesta.isAsistenciaEditable());
+        assertEquals(2, respuesta.getPresentes());
+        assertEquals(1, respuesta.getAusentes());
+        assertEquals(1, respuesta.getSinMarcar());
+        assertEquals(4, respuesta.getOcupados());
+        assertEquals(1, respuesta.getAlumnos().stream().filter(a -> a.getAsistencia() == null).count());
+    }
+
+    @Test
+    void un_turno_de_hoy_que_ya_termino_se_puede_seguir_corrigiendo() {
+        Turno nueve = turno(JUEVES, "09:00", 8);
+        reservarConAsistencia(nueve, Asistencia.AUSENTE);
+
+        TurnoAgendaResponse respuesta = buscar(agendaService.consultarDia(JUEVES, AHORA).getTurnos(), "09:00");
+
+        assertEquals(EstadoTurnoAgenda.PASADO, respuesta.getEstado());
+        assertTrue(respuesta.isAsistenciaEditable());
+        assertEquals(1, respuesta.getAusentes());
+    }
+
+    @Test
+    void un_turno_que_todavia_no_comenzo_no_tiene_asistencia() {
+        Turno once = turno(JUEVES, "11:00", 8);
+        reservarConAsistencia(once, null);
+
+        TurnoAgendaResponse respuesta = buscar(agendaService.consultarDia(JUEVES, AHORA).getTurnos(), "11:00");
+
+        assertFalse(respuesta.isComenzo());
+        assertFalse(respuesta.isAsistenciaEditable());
+        assertEquals(0, respuesta.getPresentes());
+        assertEquals(0, respuesta.getAusentes());
+        assertEquals(0, respuesta.getSinMarcar());
+        assertNull(respuesta.getAlumnos().get(0).getAsistencia());
+    }
+
+    // HU-262 prueba 6: en un día terminado las reservas sin marcar se muestran como «Ausente» y ya no se editan
+    @Test
+    void en_un_dia_terminado_las_sin_marcar_cuentan_como_ausentes() {
+        LocalDate miercoles = JUEVES.minusDays(1);
+        Turno ayer = turno(miercoles, "18:00", 8);
+        reservarConAsistencia(ayer, Asistencia.PRESENTE);
+        reservarConAsistencia(ayer, null);
+
+        TurnoAgendaResponse respuesta = buscar(agendaService.consultarDia(miercoles, AHORA).getTurnos(), "18:00");
+
+        assertTrue(respuesta.isComenzo());
+        assertFalse(respuesta.isAsistenciaEditable());
+        assertEquals(1, respuesta.getPresentes());
+        assertEquals(1, respuesta.getAusentes());
+        assertEquals(0, respuesta.getSinMarcar());
+        assertTrue(respuesta.getAlumnos().stream().noneMatch(a -> a.getAsistencia() == null));
+    }
+
+    @Test
+    void un_turno_cancelado_no_tiene_asistencia() {
+        Turno nueve = turno(JUEVES, "09:00", 8, EstadoTurno.CANCELADO);
+
+        TurnoAgendaResponse respuesta = buscar(agendaService.consultarDia(JUEVES, AHORA).getTurnos(), "09:00");
+
+        assertFalse(respuesta.isComenzo());
+        assertFalse(respuesta.isAsistenciaEditable());
+    }
+
+    @Test
+    void la_vista_semana_tambien_informa_presentes_y_ausentes() {
+        Turno diez = turno(JUEVES, "10:00", 8);
+        reservarConAsistencia(diez, Asistencia.PRESENTE);
+        reservarConAsistencia(diez, Asistencia.AUSENTE);
+
+        AgendaSemanaResponse semana = agendaService.consultarSemana(JUEVES, AHORA);
+
+        TurnoAgendaResponse respuesta = buscar(buscarDia(semana, JUEVES).getTurnos(), "10:00");
+        assertEquals(1, respuesta.getPresentes());
+        assertEquals(1, respuesta.getAusentes());
+        assertEquals(2, respuesta.getOcupados());
     }
 }

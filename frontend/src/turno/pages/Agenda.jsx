@@ -10,10 +10,12 @@ import FichaAlumnoPanel from '../components/FichaAlumnoPanel';
 import {
   cancelarDiaAgenda,
   cancelarTurnoAgenda,
+  conAsistencia,
   lunesDe,
   obtenerAgendaDia,
   obtenerAgendaSemana,
   reactivarTurno,
+  registrarAsistencia,
   resumenCancelarDia,
   resumenCancelarTurno,
   sumarDias,
@@ -34,6 +36,7 @@ function turnoInicial(agenda) {
 /**
  * MOGNI-257: agenda de turnos del personal. Vista Día (alumnos de cada turno) y vista Semana (ocupación).
  * Se filtra por fecha con las flechas, el botón "Hoy" o el calendario. "Hoy" sale del backend.
+ * HU-262: en la vista Día se registra la asistencia de los turnos que ya comenzaron (propietario y entrenador).
  */
 export default function Agenda({ esPropietario, alumnos, alumnosCargados }) {
   const [vista, setVista] = useState('dia');
@@ -53,6 +56,9 @@ export default function Agenda({ esPropietario, alumnos, alumnosCargados }) {
   const [mensajeExito, setMensajeExito] = useState(null);
   // MOGNI-260: alumno del turno cuya ficha rápida está abierta (no cambia el turno seleccionado)
   const [alumnoFicha, setAlumnoFicha] = useState(null);
+  // HU-262: reservas cuya asistencia se está guardando y último error ({ turnoId, mensaje })
+  const [guardandoAsistencia, setGuardandoAsistencia] = useState(() => new Set());
+  const [errorAsistencia, setErrorAsistencia] = useState(null);
   const inputFecha = useRef(null);
 
   const pedido = `${vista}|${fecha}|${version}`;
@@ -75,11 +81,36 @@ export default function Agenda({ esPropietario, alumnos, alumnosCargados }) {
     return () => { vigente = false; };
   }, [vista, fecha, pedido]);
 
+  /**
+   * HU-262: guarda la marca y actualiza solo ese turno con lo que devuelve el backend (sin recargar la agenda).
+   * Si el backend la rechaza (por ejemplo, porque ya terminó el día), se recarga para mostrar el estado real.
+   */
+  const marcarAsistencia = async (alumno, asistencia) => {
+    if (alumno.asistencia === asistencia || guardandoAsistencia.has(alumno.reservaId)) return;
+    const turnoId = vistaLista?.turnos.find(t => t.alumnos.some(a => a.reservaId === alumno.reservaId))?.turnoId;
+    setErrorAsistencia(null);
+    setGuardandoAsistencia(actual => new Set(actual).add(alumno.reservaId));
+    try {
+      const registro = await registrarAsistencia(alumno.reservaId, asistencia);
+      setDatos(actual => (actual?.vista === 'dia' ? { ...actual, respuesta: conAsistencia(actual.respuesta, registro) } : actual));
+    } catch (err) {
+      setErrorAsistencia({ turnoId, mensaje: `No se guardó la asistencia de ${alumno.nombre} ${alumno.apellido}. ${err.message}` });
+      if (err.status === 409) setVersion(actual => actual + 1);
+    } finally {
+      setGuardandoAsistencia(actual => {
+        const siguiente = new Set(actual);
+        siguiente.delete(alumno.reservaId);
+        return siguiente;
+      });
+    }
+  };
+
   const fechaActual = fecha ?? hoy;
   // En otro día se vuelve a elegir el turno inicial; si la fecha no cambia, queda todo como está
   const cambiarFecha = (nueva) => {
     if (!nueva || nueva === fechaActual) return;
     setSeleccion(null);
+    setErrorAsistencia(null);
     setFecha(nueva);
   };
   const mover = (sentido) => {
@@ -293,6 +324,9 @@ export default function Agenda({ esPropietario, alumnos, alumnosCargados }) {
               onSeleccionarAlumno={setAlumnoFicha}
               onCancelarTurno={esPropietario ? pedirCancelacionTurno : undefined}
               onReactivarTurno={esPropietario ? pedirReactivacion : undefined}
+              onMarcarAsistencia={marcarAsistencia}
+              guardandoAsistencia={guardandoAsistencia}
+              errorAsistencia={errorAsistencia}
             />
           ) : (
             <Panel className="p-4 sm:p-5">

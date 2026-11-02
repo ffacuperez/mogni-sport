@@ -44,6 +44,43 @@ export async function reactivarTurno(turnoId) {
   return request(`/turnos/${turnoId}/revertir-cancelacion`, { method: 'PUT' });
 }
 
+/**
+ * HU-262: marca o corrige la asistencia de una reserva ('PRESENTE' | 'AUSENTE'). Solo en turnos que ya comenzaron y
+ * hasta el final de su día. Devuelve { reservaId, turnoId, asistencia, presentes, ausentes, sinMarcar }.
+ */
+export async function registrarAsistencia(reservaId, asistencia) {
+  return request(`/agenda/reservas/${reservaId}/asistencia`, {
+    method: 'PUT',
+    body: { asistencia },
+  });
+}
+
+/** HU-262: la agenda del día con la marca recién guardada (sin volver a pedirla al backend). */
+export function conAsistencia(agenda, registro) {
+  return {
+    ...agenda,
+    turnos: agenda.turnos.map(turno => (turno.turnoId !== registro.turnoId ? turno : {
+      ...turno,
+      presentes: registro.presentes,
+      ausentes: registro.ausentes,
+      sinMarcar: registro.sinMarcar,
+      alumnos: turno.alumnos.map(alumno => (alumno.reservaId === registro.reservaId
+        ? { ...alumno, asistencia: registro.asistencia }
+        : alumno)),
+    })),
+  };
+}
+
+/** HU-262: "5 presentes · 1 ausente", más "· 2 sin marcar" si quedan reservas sin marcar. */
+export function textoAsistencia(turno) {
+  const textos = [
+    turno.presentes === 1 ? '1 presente' : `${turno.presentes} presentes`,
+    turno.ausentes === 1 ? '1 ausente' : `${turno.ausentes} ausentes`,
+  ];
+  if (turno.sinMarcar > 0) textos.push(`${turno.sinMarcar} sin marcar`);
+  return textos.join(' · ');
+}
+
 // --- Fechas (siempre a partir del "hoy" que manda el backend, no del reloj del navegador) ---
 
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];

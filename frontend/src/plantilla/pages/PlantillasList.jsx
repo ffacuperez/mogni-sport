@@ -1,10 +1,11 @@
 import { Fragment, useEffect, useState } from 'react';
-import { ChevronRight, CircleAlert, Copy, Info, Lock, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ChevronRight, CircleAlert, Copy, Info, Lock, Pencil, Plus, Trash2, UserPlus } from 'lucide-react';
 
 import ConfirmModal from '../../shared/components/ConfirmModal';
 import { Badge, Button, Cargando, PageHeader, Panel } from '../../shared/components/ui';
 import { cx, FOCUS } from '../../shared/components/clases';
 import { duplicarPlantilla, eliminarPlantilla, listarPlantillas, textoNivel, textoObjetivo, tonoNivel } from '../services/plantillasService';
+import TarjetasSesiones from '../components/TarjetasSesiones';
 
 const plural = (n, singular, varios) => `${n} ${n === 1 ? singular : varios}`;
 
@@ -31,44 +32,11 @@ function BotonAccion({ icono: Icono, etiqueta, onClick, peligro = false, disable
   );
 }
 
-const formatoPeso = (peso) => `${Number(peso).toLocaleString('es-AR', { maximumFractionDigits: 2 })} kg`;
-
-/** Tarjetas de las sesiones con sus ejercicios, al desplegar una plantilla. */
+/** Al desplegar una plantilla: sus sesiones con los ejercicios. */
 function DetalleSesiones({ plantilla }) {
   return (
     <div className="px-4 pb-4 pl-12">
-      <ul className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {plantilla.sesiones.map(sesion => (
-          <li key={sesion.id} className="rounded-lg bg-row-hover p-3">
-            <div className="flex items-center gap-3">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-card text-sm font-bold tabular-nums text-ink shadow-card">
-                {sesion.numero}
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-ink">
-                  Sesión {sesion.numero}{sesion.nombre && ` · ${sesion.nombre}`}
-                </p>
-                <p className="text-xs text-ink-soft">{plural(sesion.ejercicios.length, 'ejercicio', 'ejercicios')}</p>
-              </div>
-            </div>
-            <ol className="mt-3 divide-y divide-line-soft rounded-md bg-card px-3 shadow-card">
-              {sesion.ejercicios.map(ej => (
-                <li key={ej.id} className="flex items-baseline justify-between gap-3 py-2 text-xs">
-                  <span className="min-w-0 text-ink">
-                    {ej.nombre}
-                    {!ej.ejercicioActivo && <span className="ml-1 text-ink-muted">(dado de baja)</span>}
-                  </span>
-                  <span className="shrink-0 tabular-nums text-ink-soft">
-                    {ej.series} × {ej.repeticiones}
-                    {ej.pesoSugerido != null && ` · ${formatoPeso(ej.pesoSugerido)}`}
-                    {ej.rirObjetivo != null && ` · RIR ${ej.rirObjetivo}`}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </li>
-        ))}
-      </ul>
+      <TarjetasSesiones sesiones={plantilla.sesiones} />
       {plantilla.asignacionesActivas > 0 && (
         <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-soft">
           <Lock className="h-3.5 w-3.5" /> No se puede eliminar una plantilla con asignaciones activas.
@@ -78,7 +46,7 @@ function DetalleSesiones({ plantilla }) {
   );
 }
 
-export default function PlantillasList({ onAdd, onEdit, onToast }) {
+export default function PlantillasList({ onAdd, onEdit, onAsignar, onToast }) {
   const [plantillas, setPlantillas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
@@ -129,9 +97,14 @@ export default function PlantillasList({ onAdd, onEdit, onToast }) {
         eyebrow={`Gestión · ${plural(plantillas.length, 'plantilla', 'plantillas')}`}
         title="Plantillas de plan de entrenamiento"
         actions={
-          <Button variant="primary" onClick={onAdd}>
-            <Plus className="h-4 w-4" /> Agregar nueva plantilla
-          </Button>
+          <>
+            <Button variant="secondary" onClick={() => onAsignar()}>
+              <UserPlus className="h-4 w-4" /> Asignar plan a un alumno
+            </Button>
+            <Button variant="primary" onClick={onAdd}>
+              <Plus className="h-4 w-4" /> Agregar nueva plantilla
+            </Button>
+          </>
         }
       />
 
@@ -154,7 +127,7 @@ export default function PlantillasList({ onAdd, onEdit, onToast }) {
                     <th scope="col" className="h-11 w-32 px-3">Nivel</th>
                     <th scope="col" className="h-11 w-40 px-3">Objetivo</th>
                     <th scope="col" className="h-11 w-28 px-3">Sesiones</th>
-                    <th scope="col" className="h-11 w-36 px-3">Acciones</th>
+                    <th scope="col" className="h-11 w-44 px-3">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line-soft">
@@ -193,6 +166,8 @@ export default function PlantillasList({ onAdd, onEdit, onToast }) {
                           <td className="px-3 py-3 tabular-nums text-ink-soft">{plural(plantilla.sesiones.length, 'sesión', 'sesiones')}</td>
                           <td className="px-3 py-3">
                             <div className="flex items-center gap-1">
+                              <BotonAccion icono={UserPlus} etiqueta={`Asignar ${plantilla.nombre} a un alumno`} title="Asignar a un alumno"
+                                onClick={() => onAsignar(plantilla.id)} />
                               <BotonAccion icono={Copy} etiqueta={`Duplicar ${plantilla.nombre}`} title="Duplicar"
                                 onClick={() => duplicar(plantilla)} disabled={duplicando === plantilla.id} />
                               <BotonAccion icono={Pencil} etiqueta={`Modificar ${plantilla.nombre}`} title="Modificar"

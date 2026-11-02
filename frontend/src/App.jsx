@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { Calendar, ClipboardList, Clock, CreditCard, Dumbbell, Home as IconHome, LogOut, Users, Wallet } from 'lucide-react';
 
 import Home from './home/pages/Home';
@@ -21,6 +21,9 @@ import EjerciciosList from './ejercicio/pages/EjerciciosList';
 import EjercicioForm from './ejercicio/pages/EjercicioForm';
 import PlantillasList from './plantilla/pages/PlantillasList';
 import PlantillaForm from './plantilla/pages/PlantillaForm';
+import AsignarPlan from './plan/pages/AsignarPlan';
+import PlanAsignadoDetalle from './plan/pages/PlanAsignadoDetalle';
+import PlanAsignadoForm from './plan/pages/PlanAsignadoForm';
 import CuotasList from './cuota/pages/CuotasList';
 import RegistrarPagoModal from './cuota/pages/RegistrarPagoModal';
 import HistorialPagosModal from './cuota/pages/HistorialPagosModal';
@@ -98,6 +101,22 @@ function ConEjercicio({ ejercicios, cargado, onNoEncontrado, children }) {
 function PlantillaFormRuta(props) {
   const { id } = useParams();
   return <PlantillaForm key={id} plantillaId={Number(id)} {...props} />;
+}
+
+// HU-266: ?plantilla= y ?alumno= preseleccionan (desde el listado de plantillas o desde un plan finalizado)
+function AsignarPlanRuta(props) {
+  const [params] = useSearchParams();
+  return <AsignarPlan key={params.toString()} plantillaInicialId={params.get('plantilla')} alumnoInicialId={params.get('alumno')} {...props} />;
+}
+
+function PlanAsignadoDetalleRuta(props) {
+  const { id } = useParams();
+  return <PlanAsignadoDetalle key={id} planId={Number(id)} {...props} />;
+}
+
+function PlanAsignadoFormRuta(props) {
+  const { id } = useParams();
+  return <PlanAsignadoForm key={id} planId={Number(id)} {...props} />;
 }
 
 // --- MAIN APP COMPONENT ---
@@ -224,7 +243,7 @@ function MainApp({ onLogout }) {
     if (alumno.estado === 'Activo') {
       showModal(
         'Confirmar baja',
-        `¿Estás seguro de que deseas dar de baja al alumno ${nombre}? Se cancelarán su inscripción y sus turnos reservados que todavía no empezaron. Si ya pagó el mes siguiente, no se devuelve.`,
+        `¿Estás seguro de que deseas dar de baja al alumno ${nombre}? Se cancelarán su inscripción y sus turnos reservados que todavía no empezaron, y se finalizará su plan de entrenamiento activo. Si ya pagó el mes siguiente, no se devuelve.`,
         async () => {
           // Se queda en el detalle, que ya muestra el estado actualizado
           await ejecutar(async () => reemplazarAlumno(await darDeBajaAlumno(alumno.id)),
@@ -537,6 +556,9 @@ function MainApp({ onLogout }) {
                   onEdit={() => navigate(`/alumnos/${alumno.id}/editar`)}
                   onEditMembresia={() => navigate(`/alumnos/${alumno.id}/membresia`)}
                   onToggleStatus={() => handleToggleEstadoAlumno(alumno)}
+                  puedeVerPlanes={puedeVerPlanes}
+                  onVerPlan={(planId) => navigate(`/planes/asignados/${planId}`)}
+                  onAsignarPlan={() => navigate(`/planes/asignar?alumno=${alumno.id}`)}
                 />
               )}
             </ConAlumno>
@@ -651,13 +673,26 @@ function MainApp({ onLogout }) {
 
           {/* Plantillas de plan de entrenamiento (HU-265) */}
           <Route path="planes" element={puedeVerPlanes
-            ? <PlantillasList onAdd={() => navigate('/planes/nueva')} onEdit={(id) => navigate(`/planes/${id}/editar`)} onToast={displayToast} />
+            ? <PlantillasList onAdd={() => navigate('/planes/nueva')} onEdit={(id) => navigate(`/planes/${id}/editar`)}
+                onAsignar={(id) => navigate(id ? `/planes/asignar?plantilla=${id}` : '/planes/asignar')} onToast={displayToast} />
             : <Navigate to="/alumnos" replace />} />
           <Route path="planes/nueva" element={puedeVerPlanes
             ? <PlantillaForm onVolver={() => navigate('/planes')} onGuardada={() => navigate('/planes')} onToast={displayToast} />
             : <Navigate to="/alumnos" replace />} />
           <Route path="planes/:id/editar" element={puedeVerPlanes
             ? <PlantillaFormRuta onVolver={() => navigate('/planes')} onGuardada={() => navigate('/planes')} onToast={displayToast} />
+            : <Navigate to="/alumnos" replace />} />
+          {/* Asignar plan de entrenamiento a alumno (HU-266) */}
+          <Route path="planes/asignar" element={puedeVerPlanes
+            ? <AsignarPlanRuta onCancelar={() => navigate('/planes')} onAsignado={(plan) => navigate(`/planes/asignados/${plan.id}`)}
+                onVerPlan={(id) => navigate(`/planes/asignados/${id}`)} onToast={displayToast} />
+            : <Navigate to="/alumnos" replace />} />
+          <Route path="planes/asignados/:id" element={puedeVerPlanes
+            ? <PlanAsignadoDetalleRuta onVolver={() => navigate(-1)} onModificar={(id) => navigate(`/planes/asignados/${id}/editar`)}
+                onAsignarNuevo={(alumnoId) => navigate(`/planes/asignar?alumno=${alumnoId}`)} onToast={displayToast} />
+            : <Navigate to="/alumnos" replace />} />
+          <Route path="planes/asignados/:id/editar" element={puedeVerPlanes
+            ? <PlanAsignadoFormRuta onVolver={() => navigate(-1)} onGuardado={() => navigate(-1)} onToast={displayToast} />
             : <Navigate to="/alumnos" replace />} />
 
           <Route path="cuotas" element={esPropietario ? (

@@ -45,7 +45,18 @@ class PlantillaRequestJsonTest {
     }
 
     @Test
-    void textos_y_rangos_se_rechazan() {
+    void rango_de_repeticiones_va_en_dos_campos() {
+        EjercicioSesionRequest e = mapper.readValue(
+                "{\"repeticiones\":8,\"repeticionesMax\":10,\"descansoMinutos\":1.5}", EjercicioSesionRequest.class);
+        assertEquals(8, e.getRepeticiones());
+        assertEquals(10, e.getRepeticionesMax());
+        assertEquals(new java.math.BigDecimal("1.5"), e.getDescansoMinutos());
+        rechaza("{\"repeticionesMax\":10.5}", EjercicioSesionRequest.class);
+        rechaza("{\"descansoMinutos\":\"1:30\"}", EjercicioSesionRequest.class);
+    }
+
+    @Test
+    void textos_se_rechazan_aunque_parezcan_un_rango() {
         rechaza("{\"repeticiones\":\"8-10\"}", EjercicioSesionRequest.class);
         rechaza("{\"repeticiones\":\"10\"}", EjercicioSesionRequest.class);
     }

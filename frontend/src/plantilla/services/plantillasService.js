@@ -26,7 +26,20 @@ export const tonoNivel = (valor) => TONO_NIVEL[valor] ?? 'neutral';
 export const textoObjetivo = (valor) => OBJETIVOS.find(o => o.valor === valor)?.texto ?? valor;
 
 /** Límites del formulario (los mismos que valida el backend). */
-export const LIMITES = { seriesMax: 20, repeticionesMax: 100, pesoMax: 999.99, nombreMax: 100, nombreSesionMax: 100, rirMax: 10 };
+export const LIMITES = { seriesMax: 20, repeticionesMax: 100, pesoMax: 999.99, nombreMax: 100, nombreSesionMax: 100, rirMax: 10, descansoMax: 10 };
+
+/** "8" → { min: 8, max: null }; "8-10" → { min: 8, max: 10 }; otro formato → null. No valida límites. */
+export function parsearRepeticiones(texto) {
+  const partes = /^\s*(\d+)\s*(?:-\s*(\d+)\s*)?$/.exec(texto ?? '');
+  if (!partes) return null;
+  return { min: Number(partes[1]), max: partes[2] == null ? null : Number(partes[2]) };
+}
+
+/** 8 / 8-10, como se muestra y se escribe en el formulario. */
+export const textoRepeticiones = (min, max) => (max == null ? String(min) : `${min}-${max}`);
+
+/** 1.5 → "1,5 min". */
+export const textoDescanso = (minutos) => `${Number(minutos).toLocaleString('es-AR', { maximumFractionDigits: 2 })} min`;
 
 const fromApi = (p) => ({
   id: p.id,
@@ -35,7 +48,11 @@ const fromApi = (p) => ({
   objetivo: p.objetivo,
   asignacionesActivas: p.asignacionesActivas ?? 0,
   fechaActualizacion: p.fechaActualizacion,
-  sesiones: (p.sesiones ?? []).map(s => ({
+  sesiones: sesionesFromApi(p.sesiones),
+});
+
+/** Sesiones con sus ejercicios; mismo formato en plantillas y en planes asignados (HU-266). */
+export const sesionesFromApi = (sesiones) => (sesiones ?? []).map(s => ({
     id: s.id,
     numero: s.numero,
     nombre: s.nombre ?? '',
@@ -47,14 +64,15 @@ const fromApi = (p) => ({
       ejercicioActivo: e.ejercicioActivo,
       series: e.series,
       repeticiones: e.repeticiones,
+      repeticionesMax: e.repeticionesMax ?? null,
+      descansoMinutos: e.descansoMinutos ?? null,
       pesoSugerido: e.pesoSugerido,
       rirObjetivo: e.rirObjetivo,
     })),
-  })),
-});
+}));
 
-// Formulario -> body que espera el backend (PlantillaRequest). El peso acepta coma decimal.
-const toApi = (form) => ({
+// Formulario -> body que espera el backend (PlantillaRequest). El peso y el descanso aceptan coma decimal.
+export const formularioAApi = (form) => ({
   nombre: form.nombre.trim(),
   nivel: form.nivel,
   objetivo: form.objetivo,
@@ -63,7 +81,9 @@ const toApi = (form) => ({
     ejercicios: s.ejercicios.map(e => ({
       ejercicioId: Number(e.ejercicioId),
       series: Number(e.series),
-      repeticiones: Number(e.repeticiones),
+      repeticiones: parsearRepeticiones(e.repeticiones).min,
+      repeticionesMax: parsearRepeticiones(e.repeticiones).max,
+      descansoMinutos: String(e.descanso ?? '').trim() ? Number(String(e.descanso).replace(',', '.')) : null,
       pesoSugerido: String(e.peso ?? '').trim() ? Number(String(e.peso).replace(',', '.')) : null,
       rirObjetivo: String(e.rir ?? '').trim() ? Number(e.rir) : null,
     })),
@@ -80,11 +100,11 @@ export async function obtenerPlantilla(id) {
 }
 
 export async function crearPlantilla(form) {
-  return fromApi(await request(BASE_PATH, { method: 'POST', body: toApi(form) }));
+  return fromApi(await request(BASE_PATH, { method: 'POST', body: formularioAApi(form) }));
 }
 
 export async function actualizarPlantilla(id, form) {
-  return fromApi(await request(`${BASE_PATH}/${id}`, { method: 'PUT', body: toApi(form) }));
+  return fromApi(await request(`${BASE_PATH}/${id}`, { method: 'PUT', body: formularioAApi(form) }));
 }
 
 /** Baja lógica; el backend responde 409 si la plantilla está asignada a algún alumno. */

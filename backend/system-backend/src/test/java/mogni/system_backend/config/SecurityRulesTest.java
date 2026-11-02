@@ -90,6 +90,20 @@ class SecurityRulesTest {
     }
 
     @Test
+    void planesAsignadosSoloParaPropietarioYEntrenador() throws Exception {
+        String ruta = "/planes-asignados/999999";
+        mockMvc.perform(get(ruta)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get(ruta).with(user("a@x.com").roles("ALUMNO"))).andExpect(status().isForbidden());
+        mockMvc.perform(get(ruta).with(user("n@x.com").roles("NUTRICIONISTA"))).andExpect(status().isForbidden());
+        // Entrenador y propietario pasan la regla de seguridad (404 porque ese plan no existe)
+        mockMvc.perform(get(ruta).with(user("e@x.com").roles("ENTRENADOR"))).andExpect(status().isNotFound());
+        mockMvc.perform(get(ruta).with(user("p@x.com").roles("PROPIETARIO"))).andExpect(status().isNotFound());
+        mockMvc.perform(post("/planes-asignados/desde-cero").with(user("a@x.com").roles("ALUMNO"))
+                        .contentType("application/json").content("{}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void personalDelGimnasioPuedeListar() throws Exception {
         mockMvc.perform(get("/alumnos").with(user("e@x.com").roles("ENTRENADOR"))).andExpect(status().isOk());
         mockMvc.perform(get("/membresias").with(user("e@x.com").roles("ENTRENADOR"))).andExpect(status().isOk());
@@ -174,6 +188,22 @@ class SecurityRulesTest {
             mockMvc.perform(get(ruta).with(user("a@x.com").roles("ALUMNO"))).andExpect(status().isForbidden());
             mockMvc.perform(get(ruta).with(user("n@x.com").roles("NUTRICIONISTA"))).andExpect(status().isForbidden());
         }
+    }
+
+    @Test
+    void registrarAsistenciaSoloParaPropietarioYEntrenador() throws Exception {
+        String ruta = "/agenda/reservas/999999/asistencia";
+        String cuerpo = "{\"asistencia\":\"PRESENTE\"}";
+        mockMvc.perform(put(ruta).contentType("application/json").content(cuerpo)).andExpect(status().isUnauthorized());
+        mockMvc.perform(put(ruta).contentType("application/json").content(cuerpo).with(user("a@x.com").roles("ALUMNO")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put(ruta).contentType("application/json").content(cuerpo).with(user("n@x.com").roles("NUTRICIONISTA")))
+                .andExpect(status().isForbidden());
+        // ENTRENADOR y PROPIETARIO pasan la regla de seguridad (404 porque esa reserva no existe)
+        mockMvc.perform(put(ruta).contentType("application/json").content(cuerpo).with(user("e@x.com").roles("ENTRENADOR")))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(put(ruta).contentType("application/json").content(cuerpo).with(user("p@x.com").roles("PROPIETARIO")))
+                .andExpect(status().isNotFound());
     }
 
     @Test

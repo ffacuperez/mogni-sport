@@ -26,6 +26,16 @@ public class TurnoAgendaResponse {
     private boolean canceladoPorFranja;
     /** Si está transcurriendo ahora (badge "Ahora"). */
     private boolean enCurso;
+    /** HU-262: ya llegó su hora de inicio (y no está cancelado). Antes de eso no hay asistencia para mostrar. */
+    private boolean comenzo;
+    /** HU-262: se puede marcar o corregir la asistencia ahora (ya comenzó y todavía es su día). */
+    private boolean asistenciaEditable;
+    /** HU-262: reservas activas marcadas PRESENTE. */
+    private int presentes;
+    /** HU-262: reservas activas marcadas AUSENTE (en un día terminado incluye las que quedaron sin marcar). */
+    private int ausentes;
+    /** HU-262: reservas activas todavía sin marcar (siempre 0 en un día terminado). */
+    private int sinMarcar;
     /** Alumnos con reserva activa, por apellido y nombre. En la vista semanal siempre vacío. */
     private List<AlumnoAgendaResponse> alumnos;
 }

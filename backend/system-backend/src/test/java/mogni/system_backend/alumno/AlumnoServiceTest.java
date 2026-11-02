@@ -31,12 +31,14 @@ import mogni.system_backend.alumno.dto.ActualizarAlumnoRequest;
 import mogni.system_backend.alumno.dto.AlumnoResponse;
 import mogni.system_backend.alumno.dto.CambiarMembresiaRequest;
 import mogni.system_backend.alumno.dto.CambioMembresiaResponse;
+import mogni.system_backend.alumno.dto.FiltroEstadoPlan;
 import mogni.system_backend.alumno.dto.ReactivarAlumnoRequest;
 import mogni.system_backend.alumno.dto.RegistrarAlumnoRequest;
 import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.alumno.service.AlumnoService;
 import mogni.system_backend.alumno.service.BajaAlumnoService;
+import mogni.system_backend.plan.service.PlanAsignadoService;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
 import mogni.system_backend.auth.repository.CuentaRepository;
@@ -50,6 +52,9 @@ import mogni.system_backend.membresia.repository.MembresiaRepository;
 import mogni.system_backend.pago.entity.MedioDePago;
 import mogni.system_backend.pago.entity.Pago;
 import mogni.system_backend.pago.repository.PagoRepository;
+import mogni.system_backend.plan.entity.EstadoPlanAsignado;
+import mogni.system_backend.plan.entity.PlanAsignado;
+import mogni.system_backend.plan.repository.PlanAsignadoRepository;
 import mogni.system_backend.turno.service.CancelacionPorSistemaService;
 
 @ExtendWith(MockitoExtension.class)
@@ -73,6 +78,12 @@ class AlumnoServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private PlanAsignadoRepository planAsignadoRepository;
+
+    @Mock
+    private PlanAsignadoService planAsignadoService;
+
     private AlumnoService alumnoService;
 
     private Membresia membresia;
@@ -83,7 +94,7 @@ class AlumnoServiceTest {
         membresia = new Membresia(7L, "Pro", 40000.0, 5, null);
         // La baja real (no un mock), así se prueba que cancela la inscripción y pide cancelar los turnos
         alumnoService = new AlumnoService(alumnoRepository, cuentaRepository, membresiaRepository, pagoRepository,
-                new BajaAlumnoService(cancelacionPorSistemaService), passwordEncoder);
+                new BajaAlumnoService(cancelacionPorSistemaService, planAsignadoService), passwordEncoder, planAsignadoRepository);
     }
 
     private RegistrarAlumnoRequest registro() {
@@ -662,8 +673,8 @@ class AlumnoServiceTest {
         when(alumnoRepository.findByCuentaActiva(true)).thenReturn(List.of(activo));
         when(alumnoRepository.findByCuentaActiva(false)).thenReturn(List.of(inactivo));
 
-        List<AlumnoResponse> activos = alumnoService.listarAlumnos(true);
-        List<AlumnoResponse> inactivos = alumnoService.listarAlumnos(false);
+        List<AlumnoResponse> activos = alumnoService.listarAlumnos(true, null);
+        List<AlumnoResponse> inactivos = alumnoService.listarAlumnos(false, null);
 
         assertEquals(1, activos.size());
         assertTrue(activos.get(0).isActivo());
@@ -671,6 +682,67 @@ class AlumnoServiceTest {
         assertEquals(1, inactivos.size());
         assertFalse(inactivos.get(0).isActivo());
         assertTrue(inactivos.get(0).getReactivacionRequierePago());
+    }
+
+    private Alumno alumnoConId(Long id) {
+        Alumno alumno = alumnoExistente();
+        alumno.setId(id);
+        return alumno;
+    }
+
+    private PlanAsignado planActivo(Long id, Alumno alumno, String nombre) {
+        PlanAsignado plan = new PlanAsignado(alumno, hoy);
+        plan.setId(id);
+        plan.setNombre(nombre);
+        return plan;
+    }
+
+    @Test
+    void listarAlumnos_conPlanActivoMuestraElNombreDelPlan() {
+        Alumno conPlan = alumnoConId(10L);
+        when(alumnoRepository.findByCuentaActiva(true)).thenReturn(List.of(conPlan));
+        when(planAsignadoRepository.findByEstado(EstadoPlanAsignado.ACTIVO))
+                .thenReturn(List.of(planActivo(5L, conPlan, "Fuerza intermedio")));
+
+        AlumnoResponse response = alumnoService.listarAlumnos(true, null).get(0);
+
+        assertEquals(5L, response.getPlanActivo().getId());
+        assertEquals("Fuerza intermedio", response.getPlanActivo().getNombre());
+    }
+
+    @Test
+    void listarAlumnos_sinPlanActivoDevuelvePlanNull() {
+        when(alumnoRepository.findByCuentaActiva(true)).thenReturn(List.of(alumnoConId(10L)));
+        when(planAsignadoRepository.findByEstado(EstadoPlanAsignado.ACTIVO)).thenReturn(List.of());
+
+        assertNull(alumnoService.listarAlumnos(true, null).get(0).getPlanActivo());
+    }
+
+    @Test
+    void listarAlumnos_filtraPorEstadoDelPlan() {
+        Alumno conPlan = alumnoConId(10L);
+        Alumno sinPlan = alumnoConId(11L);
+        when(alumnoRepository.findByCuentaActiva(true)).thenReturn(List.of(conPlan, sinPlan));
+        when(planAsignadoRepository.findByEstado(EstadoPlanAsignado.ACTIVO))
+                .thenReturn(List.of(planActivo(5L, conPlan, "Fuerza intermedio")));
+
+        List<AlumnoResponse> todos = alumnoService.listarAlumnos(true, null);
+        List<AlumnoResponse> soloConPlan = alumnoService.listarAlumnos(true, FiltroEstadoPlan.ACTIVO);
+        List<AlumnoResponse> soloSinPlan = alumnoService.listarAlumnos(true, FiltroEstadoPlan.SIN_PLAN);
+
+        assertEquals(2, todos.size());
+        assertEquals(List.of(10L), soloConPlan.stream().map(AlumnoResponse::getId).toList());
+        assertEquals(List.of(11L), soloSinPlan.stream().map(AlumnoResponse::getId).toList());
+    }
+
+    @Test
+    void obtenerAlumno_incluyeSuPlanActivo() {
+        Alumno alumno = alumnoConId(10L);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+        when(planAsignadoRepository.findFirstByAlumnoIdAndEstado(10L, EstadoPlanAsignado.ACTIVO))
+                .thenReturn(Optional.of(planActivo(5L, alumno, "Fuerza intermedio")));
+
+        assertEquals("Fuerza intermedio", alumnoService.obtenerAlumno(10L).getPlanActivo().getNombre());
     }
 
     @Test
@@ -731,6 +803,7 @@ class AlumnoServiceTest {
         assertEquals(EstadoInscripcion.CANCELADA, inscripcion.getEstado());
         assertEquals(hoy, inscripcion.getFechaFin());
         verify(cancelacionPorSistemaService).cancelarReservasFuturas(eq(10L), any());
+        verify(planAsignadoService).finalizarPlanActivoDe(10L);
         // Todavía le quedan 20 días pagos: reactivarlo no requiere pago
         assertFalse(baja.getReactivacionRequierePago());
     }

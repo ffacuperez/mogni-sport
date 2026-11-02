@@ -4,7 +4,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -17,7 +16,6 @@ import mogni.system_backend.ejercicio.repository.EjercicioRepository;
 import mogni.system_backend.exception.ConflictoException;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
-import mogni.system_backend.plantilla.dto.EjercicioSesionRequest;
 import mogni.system_backend.plantilla.dto.EjercicioSesionResponse;
 import mogni.system_backend.plantilla.dto.PlantillaRequest;
 import mogni.system_backend.plantilla.dto.PlantillaResponse;
@@ -39,11 +37,11 @@ public class PlantillaService {
     private static final int NOMBRE_MAX = 100;
 
     private final PlantillaPlanRepository plantillaRepository;
-    private final EjercicioRepository ejercicioRepository;
+    private final CatalogoEjercicios catalogoEjercicios;
 
     public PlantillaService(PlantillaPlanRepository plantillaRepository, EjercicioRepository ejercicioRepository) {
         this.plantillaRepository = plantillaRepository;
-        this.ejercicioRepository = ejercicioRepository;
+        this.catalogoEjercicios = new CatalogoEjercicios(ejercicioRepository);
     }
 
     /** Plantillas activas, de la modificada más recientemente a la más antigua. */
@@ -125,7 +123,7 @@ public class PlantillaService {
         if (request.getSesiones() == null || request.getSesiones().isEmpty()) {
             throw new RegistroInvalidoException("La plantilla tiene que tener al menos una sesión");
         }
-        Map<Long, Ejercicio> catalogo = buscarEjercicios(request.getSesiones(), ejerciciosPermitidosInactivos);
+        Map<Long, Ejercicio> catalogo = catalogoEjercicios.buscar(request.getSesiones(), ejerciciosPermitidosInactivos);
 
         plantilla.setNombre(nombre);
         plantilla.setNivel(request.getNivel());
@@ -140,35 +138,12 @@ public class PlantillaService {
         if (request.getEjercicios() == null || request.getEjercicios().isEmpty()) {
             throw new RegistroInvalidoException("Cada sesión tiene que tener al menos un ejercicio");
         }
-        String nombre = request.getNombre() == null || request.getNombre().isBlank() ? null : request.getNombre().trim();
-        SesionPlantilla sesion = new SesionPlantilla(nombre);
+        SesionPlantilla sesion = new SesionPlantilla(CatalogoEjercicios.nombreDeSesion(request));
         sesion.agregarEjercicios(request.getEjercicios().stream()
                 .map(e -> new EjercicioSesion(catalogo.get(e.getEjercicioId()), e.getSeries(), e.getRepeticiones(),
-                        e.getPesoSugerido(), e.getRirObjetivo()))
+                        e.getRepeticionesMax(), e.getDescansoMinutos(), e.getPesoSugerido(), e.getRirObjetivo()))
                 .toList());
         return sesion;
-    }
-
-    /** Trae de una vez todos los ejercicios pedidos y verifica que existan y estén activos. */
-    private Map<Long, Ejercicio> buscarEjercicios(List<SesionRequest> sesiones, Set<Long> permitidosInactivos) {
-        Set<Long> ids = sesiones.stream()
-                .filter(sesion -> sesion.getEjercicios() != null)
-                .flatMap(sesion -> sesion.getEjercicios().stream())
-                .map(EjercicioSesionRequest::getEjercicioId)
-                .collect(Collectors.toSet());
-        Map<Long, Ejercicio> encontrados = ejercicioRepository.findAllById(ids).stream()
-                .collect(Collectors.toMap(Ejercicio::getId, Function.identity()));
-
-        for (Long id : ids) {
-            Ejercicio ejercicio = encontrados.get(id);
-            if (ejercicio == null) {
-                throw new RegistroInvalidoException("No existe un ejercicio con id " + id + " en el catálogo");
-            }
-            if (!ejercicio.isActivo() && !permitidosInactivos.contains(id)) {
-                throw new RegistroInvalidoException("El ejercicio \"" + ejercicio.getNombre() + "\" está dado de baja");
-            }
-        }
-        return encontrados;
     }
 
     /** "Fuerza base" -> "Fuerza base (copia)", y si ya existe, "(copia 2)", "(copia 3)"... */
@@ -213,20 +188,6 @@ public class PlantillaService {
                 sesion.getId(),
                 sesion.getNumero(),
                 sesion.getNombre(),
-                sesion.getEjercicios().stream().map(this::mapearEjercicio).toList());
-    }
-
-    private EjercicioSesionResponse mapearEjercicio(EjercicioSesion ejercicioSesion) {
-        Ejercicio ejercicio = ejercicioSesion.getEjercicio();
-        return new EjercicioSesionResponse(
-                ejercicioSesion.getId(),
-                ejercicio.getId(),
-                ejercicio.getNombre(),
-                ejercicio.getGrupoMuscular(),
-                ejercicio.isActivo(),
-                ejercicioSesion.getSeries(),
-                ejercicioSesion.getRepeticiones(),
-                ejercicioSesion.getPesoSugerido(),
-                ejercicioSesion.getRirObjetivo());
+                sesion.getEjercicios().stream().map(EjercicioSesionResponse::desde).toList());
     }
 }

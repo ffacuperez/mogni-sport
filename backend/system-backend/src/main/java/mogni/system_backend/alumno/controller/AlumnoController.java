@@ -20,6 +20,7 @@ import mogni.system_backend.alumno.dto.ActualizarAlumnoRequest;
 import mogni.system_backend.alumno.dto.AlumnoResponse;
 import mogni.system_backend.alumno.dto.CambiarMembresiaRequest;
 import mogni.system_backend.alumno.dto.CambioMembresiaResponse;
+import mogni.system_backend.alumno.dto.FiltroEstadoPlan;
 import mogni.system_backend.alumno.dto.ReactivarAlumnoRequest;
 import mogni.system_backend.alumno.dto.RegistrarAlumnoRequest;
 import mogni.system_backend.alumno.service.AlumnoService;
@@ -50,14 +51,16 @@ public class AlumnoController {
     }
 
     /**
-     * Por defecto solo activos; ?activo=false devuelve los dados de baja. Antes se pone al día (bajas automáticas por
-     * mora), en su propia transacción.
+     * Por defecto solo activos; ?activo=false devuelve los dados de baja. ?estadoPlan=ACTIVO|SIN_PLAN filtra por plan
+     * de entrenamiento activo (sin el parámetro, todos). Antes se pone al día (bajas automáticas por mora), en su propia
+     * transacción.
      */
     @GetMapping
     public ResponseEntity<List<AlumnoResponse>> listarAlumnos(
-            @RequestParam(defaultValue = "true") boolean activo) {
+            @RequestParam(defaultValue = "true") boolean activo,
+            @RequestParam(required = false) FiltroEstadoPlan estadoPlan) {
         puestaAlDiaService.ponerAlDia();
-        return ResponseEntity.ok(alumnoService.listarAlumnos(activo));
+        return ResponseEntity.ok(alumnoService.listarAlumnos(activo, estadoPlan));
     }
 
     /** Datos del alumno logueado. Solo para el rol ALUMNO (ver SecurityConfig). */

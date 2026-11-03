@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -47,6 +48,7 @@ import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
+import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.ejercicio.entity.Ejercicio;
 import mogni.system_backend.ejercicio.repository.EjercicioRepository;
 import tools.jackson.databind.JsonNode;
@@ -170,9 +172,20 @@ class PlanAsignadoIntegrationTest {
         return plan;
     }
 
+    /** HU-266: fecha fin válida para asignar o modificar (las plantillas no la tienen). */
+    private static final String FIN_PLAN = ZonaHoraria.hoy().plusWeeks(8).toString();
+
+    /** Datos de un plan asignado (para asignarlo desde cero o modificarlo): los de una plantilla más la fecha fin. */
+    @SafeVarargs
+    private static Map<String, Object> datosPlanAsignado(String nombre, Map<String, Object>... sesiones) {
+        Map<String, Object> plan = datosPlan(nombre, sesiones);
+        plan.put("fechaFin", FIN_PLAN);
+        return plan;
+    }
+
     @SafeVarargs
     private static Map<String, Object> desdeCero(Long alumnoId, String nombre, Map<String, Object>... sesiones) {
-        Map<String, Object> plan = datosPlan(nombre, sesiones);
+        Map<String, Object> plan = datosPlanAsignado(nombre, sesiones);
         plan.put("alumnoId", alumnoId);
         return plan;
     }
@@ -181,6 +194,7 @@ class PlanAsignadoIntegrationTest {
         Map<String, Object> pedido = new HashMap<>();
         pedido.put("alumnoId", alumnoId);
         pedido.put("plantillaId", plantillaId);
+        pedido.put("fechaFin", FIN_PLAN);
         return pedido;
     }
 
@@ -425,7 +439,7 @@ class PlanAsignadoIntegrationTest {
         Long planId = id(asignar(alumno(), plantillaId));
         String antes = contenido(plantilla(plantillaId));
 
-        Map<String, Object> cambios = datosPlan("Plan retocado",
+        Map<String, Object> cambios = datosPlanAsignado("Plan retocado",
                 sesion("Una sola", ejercicioDeSesion(ejercicio(), 20, 100, null, "10", "999.99", 10)));
         cambios.put("nivel", "AVANZADO");
         cambios.put("objetivo", "FUERZA");
@@ -479,6 +493,8 @@ class PlanAsignadoIntegrationTest {
         for (Map.Entry<String, Map<String, Object>> caso : invalidos.entrySet()) {
             Map<String, Object> plan = new HashMap<>(caso.getValue());
             plan.put("alumnoId", alumno);
+            // Con fecha fin válida: así el plan se rechaza por lo mismo que la plantilla y no por faltar la fecha
+            plan.put("fechaFin", FIN_PLAN);
             assertEquals(400, pedir(post("/planes-asignados/desde-cero"), plan).status(), "plan: " + caso.getKey());
             assertEquals(400, pedir(post("/plantillas"), caso.getValue()).status(), "plantilla: " + caso.getKey());
         }
@@ -609,7 +625,7 @@ class PlanAsignadoIntegrationTest {
 
         assertEquals(409, pedir(put("/planes-asignados/" + planId + "/finalizar")).status());
         assertEquals(409, pedir(put("/planes-asignados/" + planId),
-                datosPlan("Cambio", sesion(null, ejercicioSimple(ejercicio())))).status());
+                datosPlanAsignado("Cambio", sesion(null, ejercicioSimple(ejercicio())))).status());
         assertEquals(antes, contenido(plan(planId)));
         assertFalse(plan(planId).path("fechaFinalizacion").isNull());
     }
@@ -620,7 +636,7 @@ class PlanAsignadoIntegrationTest {
         Long ejercicio = ejercicio();
 
         for (int vuelta = 1; vuelta <= 3; vuelta++) {
-            Respuesta modificado = pedir(put("/planes-asignados/" + planId), datosPlan("Vuelta " + vuelta,
+            Respuesta modificado = pedir(put("/planes-asignados/" + planId), datosPlanAsignado("Vuelta " + vuelta,
                     sesion("A", ejercicioSimple(ejercicio), ejercicioSimple(ejercicio)), sesion("B", ejercicioSimple(ejercicio))));
             assertEquals(200, modificado.status(), modificado.cuerpo().toString());
             // Las sesiones e ids que devuelve la respuesta son los que quedaron guardados
@@ -641,9 +657,9 @@ class PlanAsignadoIntegrationTest {
         assertEquals(200, pedir(patch("/ejercicios/" + propio + "/estado")).status());
 
         assertFalse(plan(planId).path("sesiones").get(0).path("ejercicios").get(0).path("ejercicioActivo").asBoolean());
-        assertEquals(200, pedir(put("/planes-asignados/" + planId), datosPlan("Conserva", sesion(null, ejercicioSimple(propio)))).status());
+        assertEquals(200, pedir(put("/planes-asignados/" + planId), datosPlanAsignado("Conserva", sesion(null, ejercicioSimple(propio)))).status());
         // Pero uno de baja que no tenía no se puede agregar
-        assertEquals(400, pedir(put("/planes-asignados/" + planId), datosPlan("Agrega", sesion(null, ejercicioSimple(ejercicio(false))))).status());
+        assertEquals(400, pedir(put("/planes-asignados/" + planId), datosPlanAsignado("Agrega", sesion(null, ejercicioSimple(ejercicio(false))))).status());
     }
 
     @Test
@@ -819,5 +835,173 @@ class PlanAsignadoIntegrationTest {
             boolean asignada = codigos.get(1) == 201;
             assertFalse(eliminada && asignada, "vuelta " + vuelta + ": " + codigos);
         }
+    }
+
+    // --- HU-266: fecha fin y vigencia, contra la base real ---
+
+    private static final LocalDate HOY = ZonaHoraria.hoy();
+
+    /** Simula el paso del tiempo: corre la fecha fin del plan (la de inicio queda como está). */
+    private void cambiarFechaFin(Long planId, LocalDate fechaFin) {
+        jdbc.update("update planes_asignados set fecha_fin = ? where id = ?", fechaFin, planId);
+    }
+
+    private String estadoEnLaBase(Long planId) {
+        return jdbc.queryForObject("select estado from planes_asignados where id = ?", String.class, planId);
+    }
+
+    @Test
+    void pa7_asignar_un_plan_con_una_fecha_fin_valida_pasa_y_el_inicio_es_hoy() throws Exception {
+        Long alumno = alumno();
+
+        Respuesta creado = pedir(post("/planes-asignados/desde-cero"),
+                desdeCero(alumno, "Con fin", sesion(null, ejercicioSimple(ejercicio()))));
+
+        assertEquals(201, creado.status(), creado.cuerpo().toString());
+        assertEquals(HOY.toString(), creado.cuerpo().path("fechaAsignacion").asString());
+        assertEquals(FIN_PLAN, creado.cuerpo().path("fechaFin").asString());
+        assertEquals(FIN_PLAN, jdbc.queryForObject("select fecha_fin from planes_asignados where id = ?",
+                LocalDate.class, id(creado.cuerpo())).toString());
+    }
+
+    @Test
+    void pa8_asignar_un_plan_sin_fecha_fin_falla_desde_plantilla_y_desde_cero() throws Exception {
+        Long alumno = alumno();
+        Map<String, Object> plantilla = desdePlantilla(alumno, id(plantillaCompleta()));
+        plantilla.remove("fechaFin");
+        Map<String, Object> cero = desdeCero(alumno, "Sin fin", sesion(null, ejercicioSimple(ejercicio())));
+        cero.remove("fechaFin");
+
+        Respuesta desdePlantilla = pedir(post("/planes-asignados/desde-plantilla"), plantilla);
+        Respuesta desdeCero = pedir(post("/planes-asignados/desde-cero"), cero);
+
+        assertEquals(400, desdePlantilla.status());
+        assertEquals(400, desdeCero.status());
+        assertTrue(desdePlantilla.cuerpo().toString().contains("La fecha fin es obligatoria"), desdePlantilla.cuerpo().toString());
+        assertTrue(desdeCero.cuerpo().toString().contains("La fecha fin es obligatoria"), desdeCero.cuerpo().toString());
+        assertEquals(0, planesDe(alumno));
+    }
+
+    @Test
+    void pa9_asignar_un_plan_con_fecha_fin_igual_o_anterior_a_la_de_inicio_falla() throws Exception {
+        Long alumno = alumno();
+        for (LocalDate fin : List.of(HOY, HOY.minusDays(1))) {
+            Map<String, Object> cero = desdeCero(alumno, "Mal fin", sesion(null, ejercicioSimple(ejercicio())));
+            cero.put("fechaFin", fin.toString());
+            Respuesta respuesta = pedir(post("/planes-asignados/desde-cero"), cero);
+
+            assertEquals(400, respuesta.status(), "fin " + fin);
+            assertEquals("La fecha fin tiene que ser posterior a la fecha de inicio", respuesta.cuerpo().path("error").asString());
+        }
+        assertEquals(0, planesDe(alumno));
+    }
+
+    @Test
+    void pa10_el_dia_de_la_fecha_fin_el_plan_sigue_activo() throws Exception {
+        Long alumno = alumno();
+        JsonNode plan = asignar(alumno, id(plantillaCompleta()));
+        cambiarFechaFin(id(plan), HOY);
+
+        Respuesta activo = pedir(get("/planes-asignados/activo").param("alumnoId", String.valueOf(alumno)));
+
+        assertEquals(200, activo.status());
+        assertEquals("ACTIVO", activo.cuerpo().path("estado").asString());
+        assertEquals(409, pedir(post("/planes-asignados/desde-cero"),
+                desdeCero(alumno, "Otro", sesion(null, ejercicioSimple(ejercicio())))).status());
+    }
+
+    @Test
+    void pa11_el_dia_siguiente_a_la_fecha_fin_figura_finalizado_sin_que_nadie_lo_finalice() throws Exception {
+        Long alumno = alumno();
+        JsonNode plan = asignar(alumno, id(plantillaCompleta()));
+        cambiarFechaFin(id(plan), HOY.minusDays(1));
+
+        assertEquals(204, pedir(get("/planes-asignados/activo").param("alumnoId", String.valueOf(alumno))).status());
+        JsonNode detalle = plan(id(plan));
+        assertEquals("FINALIZADO", detalle.path("estado").asString());
+        assertEquals(HOY.minusDays(1).toString(), detalle.path("fechaFinalizacion").asString());
+        // Nadie lo finalizó: en la base sigue ACTIVO hasta la puesta al día
+        assertEquals("ACTIVO", estadoEnLaBase(id(plan)));
+    }
+
+    @Test
+    void pa12_asignar_un_plan_nuevo_con_el_plan_vencido_pasa_sin_finalizarlo_a_mano() throws Exception {
+        Long alumno = alumno();
+        Long plantillaId = id(plantillaCompleta());
+        JsonNode viejo = asignar(alumno, plantillaId);
+        cambiarFechaFin(id(viejo), HOY.minusDays(2));
+
+        Respuesta nuevo = pedir(post("/planes-asignados/desde-plantilla"), desdePlantilla(alumno, plantillaId));
+
+        assertEquals(201, nuevo.status(), nuevo.cuerpo().toString());
+        assertEquals(1, planesActivosDe(alumno));
+        assertEquals("FINALIZADO", estadoEnLaBase(id(viejo)));
+        assertEquals(HOY.minusDays(2).toString(), plan(id(viejo)).path("fechaFinalizacion").asString());
+        // El vencido liberó la plantilla y el nuevo la volvió a sumar
+        assertEquals(1, asignacionesActivas(plantillaId));
+    }
+
+    @Test
+    void modificar_la_fecha_fin_de_un_plan_activo_pasa_y_a_una_anterior_a_hoy_falla() throws Exception {
+        Long alumno = alumno();
+        JsonNode plan = asignar(alumno, id(plantillaCompleta()));
+        // Asignado hace 10 días: así "ayer" es posterior al inicio y solo falla por ser anterior a hoy
+        jdbc.update("update planes_asignados set fecha_asignacion = ? where id = ?", HOY.minusDays(10), id(plan));
+        Map<String, Object> cambios = datosPlanAsignado("Con otro fin", sesion(null, ejercicioSimple(ejercicio())));
+
+        cambios.put("fechaFin", HOY.plusWeeks(12).toString());
+        Respuesta futura = pedir(put("/planes-asignados/" + id(plan)), cambios);
+        cambios.put("fechaFin", HOY.minusDays(1).toString());
+        Respuesta pasada = pedir(put("/planes-asignados/" + id(plan)), cambios);
+
+        assertEquals(200, futura.status(), futura.cuerpo().toString());
+        assertEquals(HOY.plusWeeks(12).toString(), futura.cuerpo().path("fechaFin").asString());
+        assertEquals(400, pasada.status());
+        assertEquals("La fecha fin no puede ser anterior a hoy", pasada.cuerpo().path("error").asString());
+        assertEquals(HOY.plusWeeks(12).toString(), plan(id(plan)).path("fechaFin").asString());
+    }
+
+    @Test
+    void un_plan_vencido_no_se_modifica_ni_se_finaliza() throws Exception {
+        Long alumno = alumno();
+        JsonNode plan = asignar(alumno, id(plantillaCompleta()));
+        cambiarFechaFin(id(plan), HOY.minusDays(1));
+
+        assertEquals(409, pedir(put("/planes-asignados/" + id(plan)),
+                datosPlanAsignado("Cambio", sesion(null, ejercicioSimple(ejercicio())))).status());
+        assertEquals(409, pedir(put("/planes-asignados/" + id(plan) + "/finalizar")).status());
+    }
+
+    @Test
+    void un_plan_viejo_sin_fecha_fin_sigue_activo_hasta_que_se_finalice_a_mano() throws Exception {
+        Long alumno = alumno();
+        JsonNode plan = asignar(alumno, id(plantillaCompleta()));
+        cambiarFechaFin(id(plan), null);
+
+        assertEquals(200, pedir(get("/planes-asignados/activo").param("alumnoId", String.valueOf(alumno))).status());
+        assertTrue(plan(id(plan)).path("fechaFin").isNull());
+        assertEquals(200, pedir(put("/planes-asignados/" + id(plan) + "/finalizar")).status());
+        assertEquals("FINALIZADO", estadoEnLaBase(id(plan)));
+    }
+
+    @Test
+    void con_el_plan_vencido_el_alumno_figura_sin_plan_y_la_puesta_al_dia_libera_la_plantilla() throws Exception {
+        Long alumno = alumno();
+        Long plantillaId = id(plantillaCompleta());
+        JsonNode plan = asignar(alumno, plantillaId);
+        cambiarFechaFin(id(plan), HOY.minusDays(1));
+        assertEquals(1, asignacionesActivas(plantillaId));
+
+        // Listar alumnos corre la puesta al día
+        JsonNode sinPlan = pedir(get("/alumnos").param("estadoPlan", "SIN_PLAN")).cuerpo();
+
+        List<Long> ids = new ArrayList<>();
+        sinPlan.forEach(a -> ids.add(a.path("id").asLong()));
+        assertTrue(ids.contains(alumno));
+        assertEquals("FINALIZADO", estadoEnLaBase(id(plan)));
+        assertEquals(HOY.minusDays(1).toString(), plan(id(plan)).path("fechaFinalizacion").asString());
+        assertEquals(0, asignacionesActivas(plantillaId));
+        // Sin asignaciones activas, la plantilla ya se puede eliminar
+        assertEquals(204, pedir(delete("/plantillas/" + plantillaId)).status());
     }
 }

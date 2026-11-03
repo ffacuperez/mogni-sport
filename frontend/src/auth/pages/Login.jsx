@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 
-import { ArrowLeft, ChevronRight, Eye, EyeOff, Lock, Mail, ShieldCheck, Smartphone, UserPlus } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Eye, EyeOff, Lock, Mail, ShieldCheck, Smartphone } from 'lucide-react';
 
 import { login } from '../services/authService';
 import Toast from '../../shared/components/Toast';
@@ -34,11 +34,6 @@ export default function Login({ onLogin, onBack }) {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // No hay registro público: las cuentas de alumnos las crea el personal al inscribirlos
-  const handleRegister = () => {
-    mostrarToast('Las cuentas las crea el gimnasio al inscribirte. Tu contraseña inicial es tu DNI.', 'info');
   };
 
   return (
@@ -89,10 +84,6 @@ export default function Login({ onLogin, onBack }) {
               {isLoading
                 ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-on-dark border-t-transparent" aria-label="Ingresando" />
                 : <>Iniciar sesión <ChevronRight className="h-4 w-4" /></>}
-            </Button>
-
-            <Button onClick={handleRegister} disabled={isLoading} size="lg" className="w-full">
-              <UserPlus className="h-5 w-5" /> Registrarse
             </Button>
 
             {/* Recuperar contraseña: link por mail (Brevo) */}

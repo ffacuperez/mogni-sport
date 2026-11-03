@@ -509,7 +509,7 @@ function MainApp({ onLogout }) {
               );
             })}
             <li className="md:mt-4 md:border-t md:border-sidebar-hover md:pt-4">
-              <button type="button" onClick={() => navigate('/')} className={itemClass(false)}>
+              <button type="button" onClick={() => navigate('/sitio')} className={itemClass(false)}>
                 <IconHome className={iconClass(false)} /> Sitio web
               </button>
             </li>
@@ -844,7 +844,13 @@ export default function App() {
 
   return (
     <Routes>
+      {/* La app arranca en el login, para todos los perfiles; con sesión iniciada va directo a su pantalla */}
       <Route path="/" element={
+        <Navigate to={authSession.isAuthenticated ? rutaInicial(authSession.rol) : '/login'} replace />
+      } />
+
+      {/* La landing sigue disponible, pero ya no es la página de entrada */}
+      <Route path="/sitio" element={
         <Home
           isAuthenticated={authSession.isAuthenticated}
           onLogin={() => navigate(authSession.isAuthenticated ? rutaInicial(authSession.rol) : '/login')}
@@ -854,7 +860,7 @@ export default function App() {
       <Route path="/login" element={
         authSession.isAuthenticated
           ? <Navigate to={rutaInicial(authSession.rol)} replace />
-          : <Login onLogin={handleLogin} onBack={() => navigate('/')} />
+          : <Login onLogin={handleLogin} />
       } />
 
       {/* Recuperar contraseña: sin sesión (se llega desde el login y desde el link del mail) */}

@@ -11,6 +11,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,27 +20,35 @@ import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.exception.AccesoDenegadoException;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
+import mogni.system_backend.exception.RegistroInvalidoException;
 import mogni.system_backend.plan.entity.EstadoPlanAsignado;
 import mogni.system_backend.plan.entity.PlanAsignado;
 import mogni.system_backend.plan.entity.SesionPlan;
 import mogni.system_backend.plan.repository.PlanAsignadoRepository;
-import mogni.system_backend.progreso.dto.EjercicioIndicadoResponse;
+import mogni.system_backend.plantilla.entity.EjercicioPrescripto;
 import mogni.system_backend.progreso.dto.EjercicioRealizadoResponse;
+import mogni.system_backend.progreso.dto.EjercicioSesionResponse;
 import mogni.system_backend.progreso.dto.EstadoSesion;
+import mogni.system_backend.progreso.dto.IniciarSesionRequest;
 import mogni.system_backend.progreso.dto.MisPlanesResponse;
 import mogni.system_backend.progreso.dto.PlanDetalleResponse;
 import mogni.system_backend.progreso.dto.PlanResumenResponse;
+import mogni.system_backend.progreso.dto.RegistrarEjercicioRequest;
 import mogni.system_backend.progreso.dto.SemanaPlanResponse;
 import mogni.system_backend.progreso.dto.SesionDetalleResponse;
 import mogni.system_backend.progreso.dto.SesionRegistradaResponse;
+import mogni.system_backend.progreso.dto.SerieRequest;
 import mogni.system_backend.progreso.dto.SesionSemanaResponse;
+import mogni.system_backend.progreso.entity.RegistroEjercicio;
+import mogni.system_backend.progreso.entity.RegistroSerie;
 import mogni.system_backend.progreso.entity.RegistroSesion;
 import mogni.system_backend.progreso.repository.RegistroSesionRepository;
 
 /**
  * HU-270: el progreso del alumno logueado. El alumno sale siempre de la sesión, así que nunca puede ver los datos
  * de otro. Las semanas se cuentan de a 7 días desde la fecha de asignación y las sesiones del plan se repiten en
- * cada una.
+ * cada una. HU-269: el alumno registra las sesiones de la semana actual de su plan activo, ejercicio por ejercicio y
+ * en cualquier orden; la sesión queda en curso hasta que la finaliza con todos los ejercicios hechos.
  */
 @Service
 public class MiProgresoService {
@@ -47,12 +56,14 @@ public class MiProgresoService {
     private final AlumnoRepository alumnoRepository;
     private final PlanAsignadoRepository planRepository;
     private final RegistroSesionRepository registroRepository;
+    private final AltaRegistroSesionService altaRegistro;
 
     public MiProgresoService(AlumnoRepository alumnoRepository, PlanAsignadoRepository planRepository,
-            RegistroSesionRepository registroRepository) {
+            RegistroSesionRepository registroRepository, AltaRegistroSesionService altaRegistro) {
         this.alumnoRepository = alumnoRepository;
         this.planRepository = planRepository;
         this.registroRepository = registroRepository;
+        this.altaRegistro = altaRegistro;
     }
 
     @Transactional(readOnly = true)
@@ -93,7 +104,7 @@ public class MiProgresoService {
     @Transactional(readOnly = true)
     public List<SesionRegistradaResponse> listarSesionesRegistradas(String email, Long planId) {
         PlanAsignado plan = buscarPlanDelAlumno(email, planId);
-        return registroRepository.findByPlanIdOrderBySemanaDescFechaDescIdDesc(plan.getId()).stream()
+        return registroRepository.findByPlanIdAndCompletadaTrueOrderBySemanaDescFechaDescIdDesc(plan.getId()).stream()
                 .map(registro -> new SesionRegistradaResponse(
                         registro.getId(),
                         registro.getSemana(),
@@ -119,6 +130,108 @@ public class MiProgresoService {
                 plan.getMetodo(),
                 plan.getMesociclo(),
                 registro.getEjercicios().stream().map(EjercicioRealizadoResponse::desde).toList());
+    }
+
+    /** HU-269: empieza una sesión de la semana actual o, si ya estaba empezada, devuelve esa. */
+    @Transactional
+    public SesionSemanaResponse iniciarSesion(String email, Long planId, IniciarSesionRequest request) {
+        PlanAsignado plan = buscarPlanDelAlumno(email, planId);
+        LocalDate hoy = ZonaHoraria.hoy();
+        int semana = request.getSemana();
+        validarSemanaRegistrable(plan, semana, hoy);
+        SesionPlan sesion = plan.getSesiones().stream()
+                .filter(s -> s.getNumero() == request.getNumeroSesion())
+                .findFirst()
+                .orElseThrow(() -> new RegistroInvalidoException("Esa sesión no existe en tu plan"));
+        RegistroSesion registro = registroRepository
+                .findByPlanIdAndSemanaAndNumeroSesion(plan.getId(), semana, sesion.getNumero())
+                .orElseGet(() -> crearRegistro(plan, semana, sesion.getNumero(), hoy));
+        return mapearSesion(plan, semana, sesion.getNumero(), sesion.getEjercicios(), registro, hoy);
+    }
+
+    /**
+     * HU-269: carga o corrige un ejercicio de una sesión en curso, en cualquier orden. Tienen que venir todas las
+     * series que pide el plan, cada una con peso, repeticiones y RIR.
+     */
+    @Transactional
+    public SesionSemanaResponse registrarEjercicio(String email, Long registroId, int orden,
+            RegistrarEjercicioRequest request) {
+        LocalDate hoy = ZonaHoraria.hoy();
+        RegistroSesion registro = buscarRegistroEnCurso(email, registroId, hoy);
+        RegistroEjercicio ejercicio = registro.getEjercicios().stream()
+                .filter(e -> e.getOrden() == orden)
+                .findFirst()
+                .orElseThrow(() -> new RecursoNoEncontradoException("No encontramos ese ejercicio en la sesión"));
+        ejercicio.registrar(seriesDelEjercicio(ejercicio, request.getSeries()), textoONull(request.getNotas()));
+        return mapearRegistro(registro, hoy);
+    }
+
+    /** HU-269: la sesión se finaliza recién con todos sus ejercicios registrados; después ya no se modifica. */
+    @Transactional
+    public SesionSemanaResponse completarSesion(String email, Long registroId) {
+        LocalDate hoy = ZonaHoraria.hoy();
+        RegistroSesion registro = buscarRegistroEnCurso(email, registroId, hoy);
+        if (!registro.todosLosEjerciciosCompletos()) {
+            throw new RegistroInvalidoException("Para finalizar la sesión, registrá todos sus ejercicios");
+        }
+        registro.setCompletada(true);
+        return mapearRegistro(registro, hoy);
+    }
+
+    /**
+     * El alta va en su propia transacción: si otro pedido inició la misma sesión a la vez, la restricción única deja
+     * uno solo y se devuelve ese.
+     */
+    private RegistroSesion crearRegistro(PlanAsignado plan, int semana, int numeroSesion, LocalDate hoy) {
+        try {
+            altaRegistro.crear(plan.getId(), semana, numeroSesion, hoy);
+        } catch (DataIntegrityViolationException e) {
+            // Ya la creó el otro pedido: se lee abajo
+        }
+        return registroRepository.findByPlanIdAndSemanaAndNumeroSesion(plan.getId(), semana, numeroSesion).orElseThrow();
+    }
+
+    /** 404 si es de otro alumno; 400 si ya se finalizó o si ya no se puede registrar (plan terminado, otra semana). */
+    private RegistroSesion buscarRegistroEnCurso(String email, Long registroId, LocalDate hoy) {
+        Alumno alumno = buscarAlumnoConAcceso(email);
+        RegistroSesion registro = registroRepository.findByIdAndPlanAlumnoId(registroId, alumno.getId())
+                .orElseThrow(() -> new RecursoNoEncontradoException("No encontramos esa sesión"));
+        if (registro.isCompletada()) {
+            throw new RegistroInvalidoException("La sesión ya está finalizada");
+        }
+        validarSemanaRegistrable(registro.getPlan(), registro.getSemana(), hoy);
+        return registro;
+    }
+
+    private static void validarSemanaRegistrable(PlanAsignado plan, int semana, LocalDate hoy) {
+        if (!plan.estaVigente(hoy)) {
+            throw new RegistroInvalidoException("Solo podés registrar sesiones de tu plan activo");
+        }
+        if (semana != semanaActual(plan, cantidadSemanas(plan), hoy)) {
+            throw new RegistroInvalidoException("Solo podés registrar sesiones de la semana actual");
+        }
+    }
+
+    private static boolean esSemanaRegistrable(PlanAsignado plan, int semana, LocalDate hoy) {
+        return plan.estaVigente(hoy) && semana == semanaActual(plan, cantidadSemanas(plan), hoy);
+    }
+
+    /** Exactamente las series del plan, numeradas 1..N sin repetir; los datos de cada una ya los validó el request. */
+    private static List<RegistroSerie> seriesDelEjercicio(RegistroEjercicio ejercicio, List<SerieRequest> series) {
+        List<Integer> ordenes = series.stream().map(SerieRequest::getOrden).sorted().toList();
+        if (!ordenes.equals(IntStream.rangeClosed(1, ejercicio.getSeries()).boxed().toList())) {
+            throw new RegistroInvalidoException(ejercicio.getSeries() == 1
+                    ? "Cargá peso, repeticiones y RIR de la serie del ejercicio"
+                    : "Cargá peso, repeticiones y RIR de las " + ejercicio.getSeries() + " series del ejercicio");
+        }
+        return series.stream()
+                .sorted(Comparator.comparing(SerieRequest::getOrden))
+                .map(s -> new RegistroSerie(s.getOrden(), s.getPeso(), s.getRepeticiones(), s.getRir()))
+                .toList();
+    }
+
+    private static String textoONull(String texto) {
+        return texto == null || texto.isBlank() ? null : texto.trim();
     }
 
     /** HU-266: el plan activo es el ACTIVO de la base, solo si no venció (misma regla que en todos lados). */
@@ -183,9 +296,13 @@ public class MiProgresoService {
                 plan.getSesiones().size() * cantidadSemanas);
     }
 
-    /** Si el profe le sacó sesiones al plan, las que ya no existen no suman: "registradas" nunca supera al total. */
+    /**
+     * Solo las finalizadas (HU-269). Si el profe le sacó sesiones al plan, las que ya no existen no suman:
+     * "registradas" nunca supera al total.
+     */
     private static int contarRegistradas(PlanAsignado plan, int cantidadSemanas, List<RegistroSesion> registros) {
         return (int) registros.stream()
+                .filter(RegistroSesion::isCompletada)
                 .filter(r -> r.getSemana() >= 1 && r.getSemana() <= cantidadSemanas)
                 .filter(r -> r.getNumeroSesion() >= 1 && r.getNumeroSesion() <= plan.getSesiones().size())
                 .count();
@@ -203,17 +320,40 @@ public class MiProgresoService {
                 desde,
                 hasta,
                 plan.getSesiones().stream()
-                        .map(sesion -> mapearSesion(plan, sesion, registros.get(new ClaveSesion(numero, sesion.getNumero())), hoy))
+                        .map(sesion -> mapearSesion(plan, numero, sesion.getNumero(), sesion.getEjercicios(),
+                                registros.get(new ClaveSesion(numero, sesion.getNumero())), hoy))
                         .toList());
     }
 
-    private SesionSemanaResponse mapearSesion(PlanAsignado plan, SesionPlan sesion, RegistroSesion registro, LocalDate hoy) {
-        EstadoSesion sinRegistro = plan.estaVigente(hoy) ? EstadoSesion.PENDIENTE : EstadoSesion.NO_REGISTRADA;
+    /** Una sesión ya empezada; sus ejercicios salen de la copia que se guardó al empezarla. */
+    private SesionSemanaResponse mapearRegistro(RegistroSesion registro, LocalDate hoy) {
+        return mapearSesion(registro.getPlan(), registro.getSemana(), registro.getNumeroSesion(), List.of(), registro, hoy);
+    }
+
+    /**
+     * Con registro, los ejercicios salen de la copia guardada (con lo que cargó el alumno); sin registro, de lo que
+     * indica hoy el plan. Una sesión sin terminar de un plan que ya terminó cuenta como no registrada.
+     */
+    private SesionSemanaResponse mapearSesion(PlanAsignado plan, int semana, int numero,
+            List<? extends EjercicioPrescripto> delPlan, RegistroSesion registro, LocalDate hoy) {
+        boolean vigente = plan.estaVigente(hoy);
+        RegistroSesion visible = registro != null && (registro.isCompletada() || vigente) ? registro : null;
+        EstadoSesion estado;
+        if (visible == null) {
+            estado = vigente ? EstadoSesion.PENDIENTE : EstadoSesion.NO_REGISTRADA;
+        } else {
+            estado = visible.isCompletada() ? EstadoSesion.REGISTRADA : EstadoSesion.EN_CURSO;
+        }
+        List<EjercicioSesionResponse> ejercicios = visible == null
+                ? delPlan.stream().map(EjercicioSesionResponse::indicado).toList()
+                : visible.getEjercicios().stream().map(EjercicioSesionResponse::desde).toList();
         return new SesionSemanaResponse(
-                sesion.getNumero(),
-                registro == null ? sinRegistro : EstadoSesion.REGISTRADA,
-                registro == null ? null : registro.getFecha(),
-                sesion.getEjercicios().stream().map(EjercicioIndicadoResponse::desde).toList());
+                numero,
+                estado,
+                visible == null ? null : visible.getFecha(),
+                visible == null ? null : visible.getId(),
+                estado != EstadoSesion.REGISTRADA && esSemanaRegistrable(plan, semana, hoy),
+                ejercicios);
     }
 
     /**

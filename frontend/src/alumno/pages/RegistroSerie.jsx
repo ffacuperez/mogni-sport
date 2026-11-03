@@ -10,9 +10,9 @@ export default function RegistroSerie({ index, serie, onChange }) {
           type="number"
           min="0"
           step="0.5"
-          value={serie.peso === '' ? '' : Number(serie.peso)}
+          value={serie.peso ?? ''}
           onChange={(event) => onChange('peso', event.target.value)}
-          className={cx(inputClass, 'text-center tabular-nums')}
+          className={cx(inputClass, 'h-10 rounded-md border-line bg-card text-center tabular-nums text-ink')}
           placeholder="0"
         />
       </td>
@@ -22,9 +22,9 @@ export default function RegistroSerie({ index, serie, onChange }) {
           type="number"
           min="0"
           step="1"
-          value={serie.repeticiones === '' ? '' : Number(serie.repeticiones)}
+          value={serie.repeticiones ?? ''}
           onChange={(event) => onChange('repeticiones', event.target.value)}
-          className={cx(inputClass, 'text-center tabular-nums')}
+          className={cx(inputClass, 'h-10 rounded-md border-line bg-card text-center tabular-nums text-ink')}
           placeholder="0"
         />
       </td>
@@ -34,9 +34,9 @@ export default function RegistroSerie({ index, serie, onChange }) {
           type="number"
           min="0"
           step="1"
-          value={serie.rirRealizado === '' ? '' : Number(serie.rirRealizado)}
+          value={serie.rirRealizado ?? ''}
           onChange={(event) => onChange('rirRealizado', event.target.value)}
-          className={cx(inputClass, 'text-center tabular-nums')}
+          className={cx(inputClass, 'h-10 rounded-md border-line bg-card text-center tabular-nums text-ink')}
           placeholder="0"
         />
       </td>

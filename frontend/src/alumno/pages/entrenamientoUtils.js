@@ -25,6 +25,7 @@ export function esEjercicioCompleto(ejercicio) {
 }
 
 export function obtenerEstadoSesion(session) {
+  if (!session?.entrenamientoId) return 'Sin iniciar';
   if (!session?.ejercicios?.length) return 'En curso';
   return session.ejercicios.every(esEjercicioCompleto) ? 'Completa' : 'En curso';
 }

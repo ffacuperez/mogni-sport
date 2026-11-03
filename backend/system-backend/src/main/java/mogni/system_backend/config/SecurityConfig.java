@@ -84,6 +84,8 @@ public class SecurityConfig {
                 .requestMatchers("/plantillas/**").hasAnyRole("PROPIETARIO", "ENTRENADOR")
                 // Planes asignados a alumnos (HU-266): los asigna el entrenador; el propietario también
                 .requestMatchers("/planes-asignados/**").hasAnyRole("PROPIETARIO", "ENTRENADOR")
+                // Registro de sesiones de entrenamiento: el alumno trabaja solo sobre su propio plan y sus registros
+                .requestMatchers("/entrenamientos/**").hasRole("ALUMNO")
                 // Catálogo de ejercicios: solo el personal del gimnasio, igual que su pantalla
                 .requestMatchers("/ejercicios/**").hasAnyRole("PROPIETARIO", "ENTRENADOR", "NUTRICIONISTA")
                 .anyRequest().authenticated()

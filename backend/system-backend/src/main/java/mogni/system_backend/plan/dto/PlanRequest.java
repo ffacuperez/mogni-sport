@@ -1,9 +1,10 @@
 package mogni.system_backend.plan.dto;
 
-import java.time.LocalDate;
 import java.util.List;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -12,6 +13,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import mogni.system_backend.plan.entity.PlanAsignado;
 import mogni.system_backend.plantilla.dto.SesionRequest;
 import mogni.system_backend.plantilla.entity.NivelPlantilla;
 import mogni.system_backend.plantilla.entity.ObjetivoPlantilla;
@@ -37,7 +39,12 @@ public class PlanRequest {
     @NotEmpty(message = "El plan tiene que tener al menos una sesión")
     private List<@Valid @NotNull(message = "Cada sesión tiene que tener al menos un ejercicio") SesionRequest> sesiones;
 
-    /** HU-266: último día del plan (inclusiva). Que sea posterior al inicio lo valida el servicio, que sabe qué día es hoy. */
-    @NotNull(message = "La fecha fin es obligatoria")
-    private LocalDate fechaFin;
+    /**
+     * HU-266: vigencia del plan en semanas; la fecha fin se calcula. Al modificar, que no sea menor a la semana en
+     * curso lo valida el servicio, que sabe qué día es hoy.
+     */
+    @NotNull(message = "La cantidad de semanas es obligatoria")
+    @Min(value = 1, message = "El plan tiene que durar al menos una semana")
+    @Max(value = PlanAsignado.MAXIMO_SEMANAS, message = "El plan no puede durar más de 52 semanas")
+    private Integer cantidadSemanas;
 }

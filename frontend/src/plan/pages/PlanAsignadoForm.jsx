@@ -8,7 +8,7 @@ import { listarEjercicios } from '../../ejercicio/services/ejerciciosService';
 import { DatosPlan, EditorSesiones } from '../../plantilla/components/EditorPlan';
 import { aFormulario, validarFormulario } from '../../plantilla/components/formularioPlan';
 import {
-  actualizarPlan, fechaFinPorSemanas, hoyIso, obtenerPlan, sumarDias, validarFechaFin,
+  actualizarPlan, hoyIso, obtenerPlan, semanaEn, semanasDelPlan, validarSemanas,
 } from '../services/planesService';
 import VigenciaPlan from '../components/VigenciaPlan';
 
@@ -21,10 +21,10 @@ export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast
   const [error, setError] = useState(null);
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  // HU-266: la fecha fin se puede cambiar mientras el plan está activo (no anterior a hoy)
+  // HU-266: las semanas se pueden cambiar mientras el plan está activo (no menos que la semana en curso)
   const [hoy] = useState(hoyIso);
-  const [fechaFin, setFechaFin] = useState('');
-  const [errorFechaFin, setErrorFechaFin] = useState(null);
+  const [semanas, setSemanas] = useState('');
+  const [errorSemanas, setErrorSemanas] = useState(null);
 
   useEffect(() => {
     Promise.all([listarEjercicios(), obtenerPlan(planId)])
@@ -32,9 +32,8 @@ export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast
         setCatalogo(ejercicios);
         setPlan(cargado);
         setForm(aFormulario(cargado));
-        // Un plan viejo no tiene fecha fin: si tiene cantidad de semanas, se sugiere el último día de la última semana
-        setFechaFin(cargado.fechaFin
-          ?? (cargado.cantidadSemanas ? fechaFinPorSemanas(cargado.fechaAsignacion, cargado.cantidadSemanas) : ''));
+        // Un plan con una fecha fin suelta (sin semanas) propone las semanas que la cubren
+        setSemanas(String(semanasDelPlan(cargado) ?? ''));
         // Ejercicios dados de baja que ya estaban en el plan: se pueden conservar
         setIdsPermitidosInactivos(new Set(cargado.sesiones.flatMap(s => s.ejercicios.map(e => String(e.ejercicioId)))));
       })
@@ -62,6 +61,9 @@ export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast
   }
   if (!form || !catalogo) return <Cargando texto="Cargando plan" />;
 
+  // La semana en curso: el plan termina, como pronto, al final de esta semana
+  const minimoSemanas = semanaEn(plan.fechaAsignacion, hoy);
+
   const handleSubmit = (ev) => {
     ev.preventDefault();
     const mensaje = validarFormulario(form, 'el plan');
@@ -69,29 +71,26 @@ export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast
       onToast(mensaje, true);
       return;
     }
-    const mensajeFecha = validarFechaFin(fechaFin, { inicio: plan.fechaAsignacion, hoy, alModificar: true });
-    setErrorFechaFin(mensajeFecha);
-    if (mensajeFecha) {
-      onToast(mensajeFecha, true);
+    const mensajeSemanas = validarSemanas(semanas, { minimo: minimoSemanas });
+    setErrorSemanas(mensajeSemanas);
+    if (mensajeSemanas) {
+      onToast(mensajeSemanas, true);
       return;
     }
     setConfirmando(true);
   };
 
-  // No anterior a hoy y posterior al inicio
-  const minimoFechaFin = [hoy, sumarDias(plan.fechaAsignacion, 1)].sort().at(-1);
-
   const guardar = async () => {
     setConfirmando(false);
     setEnviando(true);
     try {
-      await actualizarPlan(planId, form, fechaFin);
+      await actualizarPlan(planId, form, semanas);
       onToast('Plan modificado correctamente.');
       onGuardado();
     } catch (err) {
       onToast(err.message, true);
       setEnviando(false);
-      if (err.status === 400 && /fecha fin/i.test(err.message)) setErrorFechaFin(err.message);
+      if (err.status === 400 && /semana/i.test(err.message)) setErrorSemanas(err.message);
     }
   };
 
@@ -111,9 +110,9 @@ export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast
 
         <div className="mt-8 border-t border-line pt-6">
           <h2 className="mb-4 text-base font-semibold text-ink">Vigencia del plan</h2>
-          <VigenciaPlan inicio={plan.fechaAsignacion} fechaFin={fechaFin}
-            onCambiarFechaFin={(valor) => { setFechaFin(valor); setErrorFechaFin(null); }}
-            minimo={minimoFechaFin} error={errorFechaFin} idPrefijo="plan" />
+          <VigenciaPlan inicio={plan.fechaAsignacion} semanas={semanas}
+            onCambiarSemanas={(valor) => { setSemanas(valor); setErrorSemanas(null); }}
+            minimo={minimoSemanas} error={errorSemanas} idPrefijo="plan" />
         </div>
 
         <div className="mt-8 border-t border-line pt-6">

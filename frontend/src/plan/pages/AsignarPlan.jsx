@@ -12,7 +12,7 @@ import {
 import { DatosPlan, EditorSesiones } from '../../plantilla/components/EditorPlan';
 import { formularioVacio, validarFormulario } from '../../plantilla/components/formularioPlan';
 import {
-  asignarDesdeCero, asignarDesdePlantilla, hoyIso, obtenerPlanActivo, sumarDias, textoFecha, validarFechaFin,
+  asignarDesdeCero, asignarDesdePlantilla, fechaFinPorSemanas, hoyIso, obtenerPlanActivo, textoFecha, validarSemanas,
 } from '../services/planesService';
 import VigenciaPlan from '../components/VigenciaPlan';
 
@@ -122,10 +122,10 @@ export default function AsignarPlan({ plantillaInicialId, alumnoInicialId, onCan
   const [origen, setOrigen] = useState('plantilla');
   const [plantillaId, setPlantillaId] = useState(plantillaInicialId ? String(plantillaInicialId) : '');
   const [form, setForm] = useState(formularioVacio);
-  // HU-266: la fecha de inicio es hoy (la de la asignación); la fecha fin la elige el entrenador
+  // HU-266: la fecha de inicio es hoy (la de la asignación); el entrenador elige las semanas y la fecha fin se calcula
   const [hoy] = useState(hoyIso);
-  const [fechaFin, setFechaFin] = useState('');
-  const [errorFechaFin, setErrorFechaFin] = useState(null);
+  const [semanas, setSemanas] = useState('');
+  const [errorSemanas, setErrorSemanas] = useState(null);
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
 
@@ -178,15 +178,15 @@ export default function AsignarPlan({ plantillaInicialId, alumnoInicialId, onCan
       const mensaje = validarFormulario(form, 'el plan');
       if (mensaje) return onToast(mensaje, true);
     }
-    const mensajeFecha = validarFechaFin(fechaFin, { inicio: hoy, hoy });
-    setErrorFechaFin(mensajeFecha);
-    if (mensajeFecha) return onToast(mensajeFecha, true);
+    const mensajeSemanas = validarSemanas(semanas);
+    setErrorSemanas(mensajeSemanas);
+    if (mensajeSemanas) return onToast(mensajeSemanas, true);
     setConfirmando(true);
   };
 
-  const cambiarFechaFin = (valor) => {
-    setFechaFin(valor);
-    setErrorFechaFin(null);
+  const cambiarSemanas = (valor) => {
+    setSemanas(valor);
+    setErrorSemanas(null);
   };
 
   const asignar = async () => {
@@ -194,15 +194,15 @@ export default function AsignarPlan({ plantillaInicialId, alumnoInicialId, onCan
     setEnviando(true);
     try {
       const plan = origen === 'plantilla'
-        ? await asignarDesdePlantilla(alumno.id, plantilla.id, fechaFin)
-        : await asignarDesdeCero(alumno.id, form, fechaFin);
+        ? await asignarDesdePlantilla(alumno.id, plantilla.id, semanas)
+        : await asignarDesdeCero(alumno.id, form, semanas);
       onToast(`Plan asignado a ${nombreCompleto(alumno)}.`);
       onAsignado(plan);
     } catch (err) {
       onToast(err.message, true);
       setEnviando(false);
-      // Si el backend rechaza la fecha (400 con el motivo), se marca el campo
-      if (err.status === 400 && /fecha fin/i.test(err.message)) setErrorFechaFin(err.message);
+      // Si el backend rechaza las semanas (400 con el motivo), se marca el campo
+      if (err.status === 400 && /semana/i.test(err.message)) setErrorSemanas(err.message);
       // Si mientras tanto le asignaron otro plan, se muestra el aviso
       if (err.status === 409) obtenerPlanActivo(alumno.id).then(setPlanActivo).catch(() => {});
     }
@@ -300,8 +300,8 @@ export default function AsignarPlan({ plantillaInicialId, alumnoInicialId, onCan
 
         <Panel className="mt-6 p-6">
           <h2 className="mb-4 text-base font-semibold text-ink">Vigencia del plan</h2>
-          <VigenciaPlan inicio={hoy} fechaFin={fechaFin} onCambiarFechaFin={cambiarFechaFin}
-            minimo={sumarDias(hoy, 1)} error={errorFechaFin} idPrefijo="asignar" />
+          <VigenciaPlan inicio={hoy} semanas={semanas} onCambiarSemanas={cambiarSemanas}
+            error={errorSemanas} idPrefijo="asignar" />
         </Panel>
       </fieldset>
 
@@ -316,7 +316,7 @@ export default function AsignarPlan({ plantillaInicialId, alumnoInicialId, onCan
       <ConfirmModal
         isOpen={confirmando}
         title="Confirmar asignación"
-        message={alumno && `¿Desea asignar el plan “${nombrePlan}” a ${nombreCompleto(alumno)}, desde hoy hasta el ${textoFecha(fechaFin)}?`}
+        message={confirmando && alumno && `¿Desea asignar el plan “${nombrePlan}” a ${nombreCompleto(alumno)}, por ${semanas} ${Number(semanas) === 1 ? 'semana' : 'semanas'}, desde hoy hasta el ${textoFecha(fechaFinPorSemanas(hoy, Number(semanas)))}?`}
         onConfirm={asignar}
         onCancel={() => setConfirmando(false)}
       />

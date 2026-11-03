@@ -74,6 +74,12 @@ public class PlanAsignado {
     /** Null mientras está ACTIVO. */
     private LocalDate fechaFinalizacion;
 
+    /**
+     * HU-266: último día del plan (inclusiva). Al asignar es obligatoria, pero la columna admite null por los planes
+     * anteriores a esta regla: un plan sin fecha fin sigue vigente hasta que se lo finalice a mano.
+     */
+    private LocalDate fechaFin;
+
     /** HU-270: null en los planes que no lo tienen cargado, igual que los tres campos siguientes. */
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
@@ -109,8 +115,32 @@ public class PlanAsignado {
         return plan;
     }
 
+    /** Solo mira el estado guardado. Para saber si el alumno lo tiene como plan actual, usar {@link #estaVigente}. */
     public boolean estaActivo() {
         return estado == EstadoPlanAsignado.ACTIVO;
+    }
+
+    /**
+     * HU-266: la única definición de "plan activo" del alumno. ACTIVO y sin vencer: la fecha fin es inclusiva, así que
+     * ese día todavía es vigente y desde el siguiente ya no, sin que nadie lo finalice a mano.
+     */
+    public boolean estaVigente(LocalDate hoy) {
+        return estaActivo() && (fechaFin == null || !fechaFin.isBefore(hoy));
+    }
+
+    /** ACTIVO y con la fecha fin ya pasada: se muestra como finalizado aunque la puesta al día todavía no lo cerró. */
+    public boolean estaVencido(LocalDate hoy) {
+        return estaActivo() && !estaVigente(hoy);
+    }
+
+    /** El estado que ve la gente: un plan vencido figura FINALIZADO. */
+    public EstadoPlanAsignado estadoAl(LocalDate hoy) {
+        return estaVigente(hoy) ? EstadoPlanAsignado.ACTIVO : EstadoPlanAsignado.FINALIZADO;
+    }
+
+    /** Un plan vencido terminó el día de su fecha fin. */
+    public LocalDate fechaFinalizacionAl(LocalDate hoy) {
+        return estaVencido(hoy) ? fechaFin : fechaFinalizacion;
     }
 
     public void finalizar(LocalDate fecha) {

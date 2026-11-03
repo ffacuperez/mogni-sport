@@ -34,6 +34,7 @@ import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
 import mogni.system_backend.inscripcion.entity.Inscripcion;
 import mogni.system_backend.inscripcion.repository.InscripcionRepository;
 import mogni.system_backend.membresia.entity.Membresia;
+import mogni.system_backend.plan.service.PlanAsignadoService;
 import mogni.system_backend.turno.service.CancelacionPorSistemaService;
 
 /** Nueva HU "Gestionar alumnos en mora": cancelación de turnos en mora (sin baja automática, decidido 24/10). */
@@ -52,12 +53,16 @@ class PuestaAlDiaServiceTest {
     @Mock
     private InscripcionRepository inscripcionRepository;
 
+    @Mock
+    private PlanAsignadoService planAsignadoService;
+
     private PuestaAlDiaService puestaAlDiaService;
     private final Map<Long, Cuota> ultimas = new HashMap<>();
 
     @BeforeEach
     void setUp() {
-        puestaAlDiaService = new PuestaAlDiaService(cuotaRepository, inscripcionRepository, cancelacionPorSistemaService);
+        puestaAlDiaService = new PuestaAlDiaService(cuotaRepository, inscripcionRepository, cancelacionPorSistemaService,
+                planAsignadoService);
         when(cuotaRepository.buscarUltimasCuotas()).thenReturn(ultimas);
     }
 
@@ -200,6 +205,27 @@ class PuestaAlDiaServiceTest {
         puestaAlDiaService.ponerAlDia(AHORA.plusDays(4));
 
         assertTrue(alumno.getCuenta().isActiva());
+        verify(cancelacionPorSistemaService, never()).cancelarReservasFuturas(anyLong(), any());
+    }
+
+    // --- HU-266: planes de entrenamiento vencidos ---
+
+    @Test
+    void cierra_los_planes_de_entrenamiento_vencidos_con_la_fecha_del_dia() {
+        when(planAsignadoService.cerrarVencidos(HOY)).thenReturn(2);
+
+        puestaAlDiaService.ponerAlDia(AHORA);
+
+        verify(planAsignadoService).cerrarVencidos(HOY);
+    }
+
+    @Test
+    void cierra_los_planes_vencidos_aunque_nadie_este_en_mora() {
+        alumnoQueVencioHace(1L, -5);
+
+        puestaAlDiaService.ponerAlDia(AHORA);
+
+        verify(planAsignadoService, times(1)).cerrarVencidos(HOY);
         verify(cancelacionPorSistemaService, never()).cancelarReservasFuturas(anyLong(), any());
     }
 }

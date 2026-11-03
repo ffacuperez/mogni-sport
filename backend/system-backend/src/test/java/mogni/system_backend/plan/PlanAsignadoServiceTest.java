@@ -33,6 +33,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.auth.entity.Cuenta;
+import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.ejercicio.entity.Ejercicio;
 import mogni.system_backend.ejercicio.repository.EjercicioRepository;
 import mogni.system_backend.exception.ConflictoException;
@@ -146,6 +147,7 @@ class PlanAsignadoServiceTest {
         r.setNivel(NivelPlantilla.PRINCIPIANTE);
         r.setObjetivo(ObjetivoPlantilla.FUERZA);
         r.setSesiones(new ArrayList<>(List.of(sesiones)));
+        r.setFechaFin(FIN_LEJANO);
         return r;
     }
 
@@ -153,8 +155,15 @@ class PlanAsignadoServiceTest {
         AsignarPlanDesdePlantillaRequest r = new AsignarPlanDesdePlantillaRequest();
         r.setAlumnoId(alumnoId);
         r.setPlantillaId(plantillaId);
+        r.setFechaFin(FIN_LEJANO);
         return r;
     }
+
+    /**
+     * HU-266: la fecha fin es obligatoria. Los tests que no tratan de la fecha usan una bien lejana, válida tanto con
+     * la fecha real de hoy como con la fija de los tests de vigencia.
+     */
+    private static final LocalDate FIN_LEJANO = LocalDate.of(2099, 12, 31);
 
     private PlanAsignado planGuardado() {
         ArgumentCaptor<PlanAsignado> captor = ArgumentCaptor.forClass(PlanAsignado.class);
@@ -435,5 +444,288 @@ class PlanAsignadoServiceTest {
         when(alumnoRepository.existsById(99L)).thenReturn(false);
 
         assertThrows(RecursoNoEncontradoException.class, () -> planService.obtenerPlanActivo(99L));
+    }
+
+    // --- HU-266: fecha fin y vigencia (fecha fija: martes 03/11/2026) ---
+
+    private static final LocalDate HOY = LocalDate.of(2026, 11, 3);
+
+    /** Plan ACTIVO en la base, asignado hace un mes y con la fecha fin indicada (null = plan viejo, sin fecha fin). */
+    private PlanAsignado planActivoConFin(LocalDate fechaFin) {
+        PlanAsignado plan = new PlanAsignado(juan, HOY.minusMonths(1));
+        plan.setId(30L);
+        plan.setNombre("Hipertrofia - Buenardo");
+        plan.setNivel(NivelPlantilla.INTERMEDIO);
+        plan.setObjetivo(ObjetivoPlantilla.HIPERTROFIA);
+        plan.setFechaFin(fechaFin);
+        return plan;
+    }
+
+    private void tieneEnLaBase(PlanAsignado plan) {
+        lenient().when(planRepository.findFirstByAlumnoIdAndEstado(7L, EstadoPlanAsignado.ACTIVO))
+                .thenReturn(Optional.of(plan));
+        lenient().when(planRepository.findById(plan.getId())).thenReturn(Optional.of(plan));
+        lenient().when(alumnoRepository.existsById(7L)).thenReturn(true);
+    }
+
+    private AsignarPlanDesdeCeroRequest desdeCeroConFin(LocalDate fechaFin) {
+        AsignarPlanDesdeCeroRequest r = desdeCero(7L, sesion(null, ejercicio(1L, 4, 10)));
+        r.setFechaFin(fechaFin);
+        return r;
+    }
+
+    private AsignarPlanDesdePlantillaRequest desdePlantillaConFin(LocalDate fechaFin) {
+        AsignarPlanDesdePlantillaRequest r = desdePlantilla(7L, 5L);
+        r.setFechaFin(fechaFin);
+        return r;
+    }
+
+    @Test
+    void asignar_desde_plantilla_con_una_fecha_fin_valida_pasa_y_el_inicio_es_hoy() {
+        when(plantillaRepository.findByIdAndActivaTrue(5L)).thenReturn(Optional.of(plantilla(5L)));
+        LocalDate fin = HOY.plusWeeks(8);
+
+        PlanAsignadoResponse asignado = planService.asignarDesdePlantilla(desdePlantillaConFin(fin), HOY);
+
+        assertEquals(HOY, asignado.getFechaAsignacion());
+        assertEquals(fin, asignado.getFechaFin());
+        assertEquals(EstadoPlanAsignado.ACTIVO, asignado.getEstado());
+        assertEquals(fin, planGuardado().getFechaFin());
+    }
+
+    @Test
+    void asignar_desde_cero_con_una_fecha_fin_valida_pasa_y_el_inicio_es_hoy() {
+        // El día siguiente al inicio es la primera fecha fin válida
+        PlanAsignadoResponse asignado = planService.asignarDesdeCero(desdeCeroConFin(HOY.plusDays(1)), HOY);
+
+        assertEquals(HOY, asignado.getFechaAsignacion());
+        assertEquals(HOY.plusDays(1), asignado.getFechaFin());
+    }
+
+    @Test
+    void asignar_un_plan_sin_fecha_fin_falla() {
+        RegistroInvalidoException desdePlantilla = assertThrows(RegistroInvalidoException.class,
+                () -> planService.asignarDesdePlantilla(desdePlantillaConFin(null), HOY));
+        RegistroInvalidoException desdeCero = assertThrows(RegistroInvalidoException.class,
+                () -> planService.asignarDesdeCero(desdeCeroConFin(null), HOY));
+
+        assertEquals("La fecha fin es obligatoria", desdePlantilla.getMessage());
+        assertEquals("La fecha fin es obligatoria", desdeCero.getMessage());
+        verify(planRepository, never()).save(any());
+        verify(plantillaRepository, never()).sumarAsignacion(anyLong());
+    }
+
+    @Test
+    void asignar_un_plan_con_fecha_fin_igual_a_la_de_inicio_falla() {
+        RegistroInvalidoException desdePlantilla = assertThrows(RegistroInvalidoException.class,
+                () -> planService.asignarDesdePlantilla(desdePlantillaConFin(HOY), HOY));
+        RegistroInvalidoException desdeCero = assertThrows(RegistroInvalidoException.class,
+                () -> planService.asignarDesdeCero(desdeCeroConFin(HOY), HOY));
+
+        assertEquals("La fecha fin tiene que ser posterior a la fecha de inicio", desdePlantilla.getMessage());
+        assertEquals(desdePlantilla.getMessage(), desdeCero.getMessage());
+        verify(planRepository, never()).save(any());
+    }
+
+    @Test
+    void asignar_un_plan_con_fecha_fin_anterior_a_la_de_inicio_falla() {
+        assertThrows(RegistroInvalidoException.class,
+                () -> planService.asignarDesdePlantilla(desdePlantillaConFin(HOY.minusDays(1)), HOY));
+        assertThrows(RegistroInvalidoException.class,
+                () -> planService.asignarDesdeCero(desdeCeroConFin(HOY.minusDays(1)), HOY));
+        verify(planRepository, never()).save(any());
+    }
+
+    @Test
+    void el_dia_de_la_fecha_fin_el_plan_sigue_activo() {
+        tieneEnLaBase(planActivoConFin(HOY));
+
+        PlanAsignadoResponse activo = planService.obtenerPlanActivo(7L, HOY).orElseThrow();
+
+        assertEquals(EstadoPlanAsignado.ACTIVO, activo.getEstado());
+        assertNull(activo.getFechaFinalizacion());
+        // Todavía es su plan activo: no se le puede asignar otro
+        assertThrows(ConflictoException.class, () -> planService.asignarDesdeCero(desdeCeroConFin(HOY.plusWeeks(4)), HOY));
+    }
+
+    @Test
+    void el_dia_siguiente_a_la_fecha_fin_ya_no_es_el_plan_activo_y_figura_finalizado_ese_dia() {
+        PlanAsignado plan = planActivoConFin(HOY.minusDays(1));
+        tieneEnLaBase(plan);
+
+        assertTrue(planService.obtenerPlanActivo(7L, HOY).isEmpty());
+        assertEquals(EstadoPlanAsignado.FINALIZADO, plan.estadoAl(HOY));
+        assertEquals(HOY.minusDays(1), plan.fechaFinalizacionAl(HOY));
+        // Nadie lo finalizó a mano: en la base sigue ACTIVO hasta la puesta al día
+        assertEquals(EstadoPlanAsignado.ACTIVO, plan.getEstado());
+    }
+
+    @Test
+    void asignar_a_un_alumno_con_un_plan_activo_y_vigente_falla_y_pide_finalizar_el_actual() {
+        tieneEnLaBase(planActivoConFin(HOY.plusDays(10)));
+
+        ConflictoException error = assertThrows(ConflictoException.class,
+                () -> planService.asignarDesdeCero(desdeCeroConFin(HOY.plusWeeks(4)), HOY));
+
+        assertTrue(error.getMessage().contains("primero finalizá su plan actual"));
+        verify(planRepository, never()).save(any());
+    }
+
+    @Test
+    void asignar_a_un_alumno_con_el_plan_vencido_pasa_sin_finalizarlo_a_mano() {
+        PlanAsignado vencido = planActivoConFin(HOY.minusDays(3));
+        vencido.setPlantillaOrigen(plantilla(5L));
+        tieneEnLaBase(vencido);
+
+        PlanAsignadoResponse nuevo = planService.asignarDesdeCero(desdeCeroConFin(HOY.plusWeeks(4)), HOY);
+
+        assertEquals(EstadoPlanAsignado.ACTIVO, nuevo.getEstado());
+        // El vencido queda cerrado en la base con su fecha fin y libera la plantilla: nunca hay dos ACTIVO
+        assertEquals(EstadoPlanAsignado.FINALIZADO, vencido.getEstado());
+        assertEquals(HOY.minusDays(3), vencido.getFechaFinalizacion());
+        verify(plantillaRepository).restarAsignacion(5L);
+    }
+
+    @Test
+    void un_plan_viejo_sin_fecha_fin_sigue_vigente_hasta_que_se_finalice_a_mano() {
+        PlanAsignado viejo = planActivoConFin(null);
+        tieneEnLaBase(viejo);
+        LocalDate dentroDeUnAnio = HOY.plusYears(1);
+
+        assertTrue(planService.obtenerPlanActivo(7L, dentroDeUnAnio).isPresent());
+        assertThrows(ConflictoException.class,
+                () -> planService.asignarDesdeCero(desdeCeroConFin(dentroDeUnAnio.plusWeeks(4)), dentroDeUnAnio));
+        assertEquals(0, planService.cerrarVencidos(dentroDeUnAnio));
+
+        planService.finalizarPlan(30L, HOY);
+
+        assertEquals(EstadoPlanAsignado.FINALIZADO, viejo.getEstado());
+        assertEquals(HOY, viejo.getFechaFinalizacion());
+    }
+
+    // --- HU-267: modificar la fecha fin y planes vencidos ---
+
+    private PlanRequest cambiosConFin(LocalDate fechaFin) {
+        PlanRequest cambios = desdeCero(7L, sesion("Solo remo", ejercicio(2L, 5, 5)));
+        cambios.setFechaFin(fechaFin);
+        return cambios;
+    }
+
+    @Test
+    void modificar_la_fecha_fin_de_un_plan_activo_a_una_futura_pasa() {
+        PlanAsignado plan = planActivoConFin(HOY.plusDays(5));
+        tieneEnLaBase(plan);
+
+        PlanAsignadoResponse modificado = planService.actualizarPlan(30L, cambiosConFin(HOY.plusWeeks(6)), HOY);
+
+        assertEquals(HOY.plusWeeks(6), modificado.getFechaFin());
+        assertEquals(HOY.plusWeeks(6), plan.getFechaFin());
+    }
+
+    @Test
+    void modificar_la_fecha_fin_a_hoy_pasa() {
+        tieneEnLaBase(planActivoConFin(HOY.plusDays(5)));
+
+        assertEquals(HOY, planService.actualizarPlan(30L, cambiosConFin(HOY), HOY).getFechaFin());
+    }
+
+    @Test
+    void modificar_la_fecha_fin_a_una_anterior_a_hoy_falla() {
+        PlanAsignado plan = planActivoConFin(HOY.plusDays(5));
+        tieneEnLaBase(plan);
+
+        RegistroInvalidoException error = assertThrows(RegistroInvalidoException.class,
+                () -> planService.actualizarPlan(30L, cambiosConFin(HOY.minusDays(1)), HOY));
+
+        assertEquals("La fecha fin no puede ser anterior a hoy", error.getMessage());
+        assertEquals(HOY.plusDays(5), plan.getFechaFin());
+        verify(planRepository, never()).save(any());
+    }
+
+    @Test
+    void modificar_la_fecha_fin_a_la_de_inicio_falla() {
+        PlanAsignado plan = planActivoConFin(HOY.plusDays(5));
+        tieneEnLaBase(plan);
+
+        RegistroInvalidoException error = assertThrows(RegistroInvalidoException.class,
+                () -> planService.actualizarPlan(30L, cambiosConFin(plan.getFechaAsignacion()), HOY));
+
+        assertEquals("La fecha fin tiene que ser posterior a la fecha de inicio", error.getMessage());
+    }
+
+    @Test
+    void modificar_sin_fecha_fin_falla() {
+        tieneEnLaBase(planActivoConFin(HOY.plusDays(5)));
+
+        RegistroInvalidoException error = assertThrows(RegistroInvalidoException.class,
+                () -> planService.actualizarPlan(30L, cambiosConFin(null), HOY));
+
+        assertEquals("La fecha fin es obligatoria", error.getMessage());
+    }
+
+    @Test
+    void un_plan_vencido_no_se_puede_modificar() {
+        PlanAsignado vencido = planActivoConFin(HOY.minusDays(1));
+        tieneEnLaBase(vencido);
+
+        ConflictoException error = assertThrows(ConflictoException.class,
+                () -> planService.actualizarPlan(30L, cambiosConFin(HOY.plusWeeks(4)), HOY));
+
+        assertEquals("El plan está finalizado y ya no se puede modificar", error.getMessage());
+        assertEquals(HOY.minusDays(1), vencido.getFechaFin());
+        verify(planRepository, never()).save(any());
+    }
+
+    @Test
+    void un_plan_vencido_no_se_puede_finalizar_a_mano() {
+        tieneEnLaBase(planActivoConFin(HOY.minusDays(1)));
+
+        ConflictoException error = assertThrows(ConflictoException.class, () -> planService.finalizarPlan(30L, HOY));
+
+        assertEquals("El plan ya está finalizado", error.getMessage());
+        verify(plantillaRepository, never()).restarAsignacion(anyLong());
+    }
+
+    // --- Puesta al día: cerrar los planes vencidos ---
+
+    @Test
+    void la_puesta_al_dia_cierra_solo_los_vencidos_con_su_fecha_fin_y_libera_la_plantilla() {
+        PlanAsignado vencido = planActivoConFin(HOY.minusDays(2));
+        vencido.setPlantillaOrigen(plantilla(5L));
+        PlanAsignado venceHoy = planActivoConFin(HOY);
+        PlanAsignado viejo = planActivoConFin(null);
+        when(planRepository.findByEstado(EstadoPlanAsignado.ACTIVO)).thenReturn(List.of(vencido, venceHoy, viejo));
+
+        assertEquals(1, planService.cerrarVencidos(HOY));
+
+        assertEquals(EstadoPlanAsignado.FINALIZADO, vencido.getEstado());
+        assertEquals(HOY.minusDays(2), vencido.getFechaFinalizacion());
+        assertEquals(EstadoPlanAsignado.ACTIVO, venceHoy.getEstado());
+        assertEquals(EstadoPlanAsignado.ACTIVO, viejo.getEstado());
+        verify(plantillaRepository).restarAsignacion(5L);
+    }
+
+    @Test
+    void la_puesta_al_dia_de_planes_es_idempotente() {
+        PlanAsignado vencido = planActivoConFin(HOY.minusDays(2));
+        vencido.setPlantillaOrigen(plantilla(5L));
+        // La segunda vez el vencido ya está FINALIZADO y la consulta de ACTIVO no lo trae
+        when(planRepository.findByEstado(EstadoPlanAsignado.ACTIVO)).thenReturn(List.of(vencido), List.of());
+
+        assertEquals(1, planService.cerrarVencidos(HOY));
+        assertEquals(0, planService.cerrarVencidos(HOY));
+
+        verify(plantillaRepository, org.mockito.Mockito.times(1)).restarAsignacion(5L);
+    }
+
+    @Test
+    void dar_de_baja_a_un_alumno_con_el_plan_vencido_lo_cierra_con_su_fecha_fin() {
+        PlanAsignado vencido = planActivoConFin(ZonaHoraria.hoy().minusDays(4));
+        tieneEnLaBase(vencido);
+
+        planService.finalizarPlanActivoDe(7L);
+
+        assertEquals(EstadoPlanAsignado.FINALIZADO, vencido.getEstado());
+        assertEquals(ZonaHoraria.hoy().minusDays(4), vencido.getFechaFinalizacion());
     }
 }

@@ -135,9 +135,11 @@ public class AlumnoService {
     /** Con estadoPlan filtra por plan de entrenamiento activo; null = todos. */
     @Transactional(readOnly = true)
     public List<AlumnoResponse> listarAlumnos(boolean activos, FiltroEstadoPlan estadoPlan) {
-        // Una sola consulta para los planes activos de todos (como mucho uno por alumno)
+        // Una sola consulta para los planes activos de todos (como mucho uno por alumno). HU-266: uno vencido no cuenta
+        LocalDate hoy = ZonaHoraria.hoy();
         Map<Long, PlanActivoResumen> planesActivos = planAsignadoRepository.findByEstado(EstadoPlanAsignado.ACTIVO)
                 .stream()
+                .filter(plan -> plan.estaVigente(hoy))
                 .collect(Collectors.toMap(p -> p.getAlumno().getId(), this::resumir, (a, b) -> a));
         return alumnoRepository.findByCuentaActiva(activos)
                 .stream()
@@ -488,6 +490,7 @@ public class AlumnoService {
     private AlumnoResponse mapearAResponse(Alumno alumno) {
         PlanActivoResumen planActivo = alumno.getId() == null ? null
                 : planAsignadoRepository.findFirstByAlumnoIdAndEstado(alumno.getId(), EstadoPlanAsignado.ACTIVO)
+                        .filter(plan -> plan.estaVigente(ZonaHoraria.hoy()))
                         .map(this::resumir)
                         .orElse(null);
         return mapearAResponse(alumno, planActivo);

@@ -15,6 +15,7 @@ import mogni.system_backend.cuota.repository.CuotaRepository;
 import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
 import mogni.system_backend.inscripcion.entity.Inscripcion;
 import mogni.system_backend.inscripcion.repository.InscripcionRepository;
+import mogni.system_backend.plan.service.PlanAsignadoService;
 import mogni.system_backend.turno.service.CancelacionPorSistemaService;
 
 /**
@@ -24,7 +25,9 @@ import mogni.system_backend.turno.service.CancelacionPorSistemaService;
  *   <li>activa las inscripciones PROGRAMADA cuyo período ya empezó (cambio de membresía pagado por adelantado):
  *       la activa del alumno termina ese día y la programada pasa a ACTIVA;</li>
  *   <li>cancela los turnos que todavía no empezaron de los alumnos EN_MORA (el lugar se libera solo, porque los
- *       lugares se cuentan con las reservas RESERVADA).</li>
+ *       lugares se cuentan con las reservas RESERVADA);</li>
+ *   <li>HU-266: finaliza los planes de entrenamiento vencidos con su fecha fin y libera la plantilla. Lo que se ve ya
+ *       se calcula con la fecha; esto solo deja prolijos la base y el contador de la plantilla.</li>
  * </ol>
  * No hay baja automática: la baja de un alumno en mora la hace el propietario a mano (decidido 24/10).
  * Es idempotente y tiene su propia transacción: los que la usan con una consulta readOnly la llaman antes, desde el
@@ -39,12 +42,15 @@ public class PuestaAlDiaService {
     private final CuotaRepository cuotaRepository;
     private final InscripcionRepository inscripcionRepository;
     private final CancelacionPorSistemaService cancelacionPorSistemaService;
+    private final PlanAsignadoService planAsignadoService;
 
     public PuestaAlDiaService(CuotaRepository cuotaRepository, InscripcionRepository inscripcionRepository,
-                              CancelacionPorSistemaService cancelacionPorSistemaService) {
+                              CancelacionPorSistemaService cancelacionPorSistemaService,
+                              PlanAsignadoService planAsignadoService) {
         this.cuotaRepository = cuotaRepository;
         this.inscripcionRepository = inscripcionRepository;
         this.cancelacionPorSistemaService = cancelacionPorSistemaService;
+        this.planAsignadoService = planAsignadoService;
     }
 
     @Transactional
@@ -65,6 +71,11 @@ public class PuestaAlDiaService {
         }
         if (reservasCanceladas > 0) {
             log.info("Puesta al día: {} reservas canceladas por mora", reservasCanceladas);
+        }
+
+        int planesVencidos = planAsignadoService.cerrarVencidos(ahora.toLocalDate());
+        if (planesVencidos > 0) {
+            log.info("Puesta al día: {} planes de entrenamiento vencidos quedan finalizados", planesVencidos);
         }
     }
 

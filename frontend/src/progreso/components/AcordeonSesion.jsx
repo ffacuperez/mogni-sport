@@ -12,41 +12,42 @@ const ESTADOS = {
   NO_REGISTRADA: { tono: 'neutral', texto: 'No registrada' },
 };
 
+const crearEstadoEjercicio = (ejercicio = {}) => Array.from({ length: Number(ejercicio.series || 1) }, () => ({
+  peso: '',
+  repeticiones: '',
+  rir: '',
+  nota: '',
+}));
+
 /** Tarjeta de una sesión: al tocarla se expande y muestra sus ejercicios; al tocarla de nuevo se contrae. */
 export default function AcordeonSesion({ sesion, planId, semanaNumero }) {
   const [abierta, setAbierta] = useState(false);
   const [registroId, setRegistroId] = useState(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
-  const [estado, setEstado] = useState(() => Object.fromEntries((sesion.ejercicios || []).map((_, idx) => [idx, {
-    peso: '',
-    repeticionesRealizadas: '',
-    rir: '',
-    notas: '',
-  }])));
+  const [estado, setEstado] = useState(() => Object.fromEntries((sesion.ejercicios || []).map((ejercicio, idx) => [idx, crearEstadoEjercicio(ejercicio)])));
   const panelId = useId();
   const { tono, texto, icono: Icono } = ESTADOS[sesion.estado];
 
-  const actualizarCampo = (index, campo, valor) => {
+  const actualizarCampo = (index, serieIndex, campo, valor) => {
     setEstado((actual) => ({
       ...actual,
-      [index]: { ...(actual[index] || {}), [campo]: valor },
+      [index]: (actual[index] || []).map((serie, idx) => (
+        idx === serieIndex ? { ...serie, [campo]: valor } : serie
+      )),
     }));
   };
 
   const guardarEjercicio = async (index) => {
-    const entrada = estado[index] || {};
-    const body = {
-      series: [
-        {
-          orden: 1,
-          peso: entrada.peso === '' ? null : Number(entrada.peso),
-          repeticiones: entrada.repeticionesRealizadas === '' ? null : Number(entrada.repeticionesRealizadas),
-          rir: entrada.rir === '' ? null : Number(entrada.rir),
-          nota: entrada.notas?.trim() || '',
-        },
-      ],
-    };
+    const series = (estado[index] || []).map((serie, serieIndex) => ({
+      orden: serieIndex + 1,
+      peso: serie.peso === '' ? null : Number(serie.peso),
+      repeticiones: serie.repeticiones === '' ? null : Number(serie.repeticiones),
+      rir: serie.rir === '' ? null : Number(serie.rir),
+      nota: serie.nota?.trim() || '',
+    }));
+
+    const body = { series };
 
     try {
       setGuardando(true);
@@ -113,60 +114,71 @@ export default function AcordeonSesion({ sesion, planId, semanaNumero }) {
               <span className="rounded-full bg-thead/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">#{i + 1}</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-              <label className="flex flex-col gap-1 text-[11px] font-medium text-ink-soft">
-                Peso (kg)
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  value={estado[i]?.peso ?? ''}
-                  onChange={(event) => actualizarCampo(i, 'peso', event.target.value)}
-                  className="rounded-lg border border-line bg-white px-2 py-2 text-sm text-ink outline-none ring-0 focus:border-primary"
-                  placeholder="0"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-[11px] font-medium text-ink-soft">
-                Reps
-                <input
-                  type="number"
-                  min="1"
-                  value={estado[i]?.repeticionesRealizadas ?? ''}
-                  onChange={(event) => actualizarCampo(i, 'repeticionesRealizadas', event.target.value)}
-                  className="rounded-lg border border-line bg-white px-2 py-2 text-sm text-ink outline-none ring-0 focus:border-primary"
-                  placeholder="8"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-[11px] font-medium text-ink-soft">
-                RIR
-                <input
-                  type="number"
-                  min="0"
-                  max="10"
-                  value={estado[i]?.rir ?? ''}
-                  onChange={(event) => actualizarCampo(i, 'rir', event.target.value)}
-                  className="rounded-lg border border-line bg-white px-2 py-2 text-sm text-ink outline-none ring-0 focus:border-primary"
-                  placeholder="2"
-                />
-              </label>
-              <div className="flex items-end">
-                <Button type="button" variant="primary" size="sm" onClick={() => guardarEjercicio(i)} disabled={guardando}>
+            <div className="space-y-3">
+              {Array.from({ length: ejercicio.series || 1 }, (_, serieIndex) => (
+                <div key={`${ejercicio.nombre}-serie-${serieIndex + 1}`} className="grid grid-cols-2 gap-2 rounded-lg border border-line bg-white/80 p-2 md:grid-cols-4">
+                  <div className="flex items-center justify-center rounded-md bg-soft px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-ink-muted">
+                    Serie {serieIndex + 1}
+                  </div>
+                  <label className="flex flex-col gap-1 text-[11px] font-medium text-ink-soft">
+                    Peso (kg)
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      value={estado[i]?.[serieIndex]?.peso ?? ''}
+                      onChange={(event) => actualizarCampo(i, serieIndex, 'peso', event.target.value)}
+                      className="rounded-lg border border-line bg-white px-2 py-2 text-sm text-ink outline-none ring-0 focus:border-primary"
+                      placeholder="0"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-[11px] font-medium text-ink-soft">
+                    Reps
+                    <input
+                      type="number"
+                      min="1"
+                      value={estado[i]?.[serieIndex]?.repeticiones ?? ''}
+                      onChange={(event) => actualizarCampo(i, serieIndex, 'repeticiones', event.target.value)}
+                      className="rounded-lg border border-line bg-white px-2 py-2 text-sm text-ink outline-none ring-0 focus:border-primary"
+                      placeholder="8"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-[11px] font-medium text-ink-soft">
+                    RIR
+                    <input
+                      type="number"
+                      min="0"
+                      max="10"
+                      value={estado[i]?.[serieIndex]?.rir ?? ''}
+                      onChange={(event) => actualizarCampo(i, serieIndex, 'rir', event.target.value)}
+                      className="rounded-lg border border-line bg-white px-2 py-2 text-sm text-ink outline-none ring-0 focus:border-primary"
+                      placeholder="2"
+                    />
+                  </label>
+                </div>
+              ))}
+
+              <div className="flex items-end justify-between gap-3 pt-1">
+                <label className="flex flex-1 flex-col gap-1 text-[11px] font-medium text-ink-soft">
+                  Nota opcional
+                  <textarea
+                    rows="2"
+                    value={estado[i]?.[0]?.nota ?? ''}
+                    onChange={(event) => {
+                      const siguiente = [...(estado[i] || [])];
+                      const base = siguiente.map((serie, idx) => ({ ...serie, nota: idx === 0 ? event.target.value : serie.nota ?? '' }));
+                      setEstado((actual) => ({ ...actual, [i]: base }));
+                    }}
+                    className="resize-none rounded-lg border border-line bg-white px-2 py-2 text-sm text-ink outline-none ring-0 focus:border-primary"
+                    placeholder="Cómo te sentiste, esfuerzo, cambios, etc."
+                  />
+                </label>
+                <Button type="button" variant="primary" size="sm" onClick={() => guardarEjercicio(i)} disabled={guardando} className="shrink-0">
                   <Save className="h-3.5 w-3.5" />
                   Guardar
                 </Button>
               </div>
             </div>
-
-            <label className="mt-3 flex flex-col gap-1 text-[11px] font-medium text-ink-soft">
-              Nota opcional
-              <textarea
-                rows="2"
-                value={estado[i]?.notas ?? ''}
-                onChange={(event) => actualizarCampo(i, 'notas', event.target.value)}
-                className="resize-none rounded-lg border border-line bg-white px-2 py-2 text-sm text-ink outline-none ring-0 focus:border-primary"
-                placeholder="Cómo te sentiste, esfuerzo, cambios, etc."
-              />
-            </label>
           </div>
         ))}
 

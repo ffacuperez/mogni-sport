@@ -44,6 +44,17 @@ export function getRolFromToken() {
   }
 }
 
+/** Email de la cuenta (el "sub" que firmó el backend), o null. */
+export function getEmailFromToken() {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    return leerPayload(token).sub ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** true si el usuario todavía tiene que cambiar la contraseña inicial (HU-248). */
 export function getDebeCambiarPasswordFromToken() {
   const token = getToken();

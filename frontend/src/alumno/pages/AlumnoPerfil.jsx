@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router';
-import { CircleAlert, CreditCard, LogOut, Mail, Phone, Target } from 'lucide-react';
+import { ChevronRight, CircleAlert, CreditCard, KeyRound, LogOut, Mail, Phone, Target } from 'lucide-react';
 
 import { obtenerMiPerfil } from '../services/alumnosService';
 import { desactivarPush } from '../../notificacion/services/pushService';
 import { formatearFecha } from '../../shared/services/texto';
 import { Badge, Cargando, Panel } from '../../shared/components/ui';
 import { FOCUS } from '../../shared/components/clases';
+import FormCambiarPassword from '../../auth/components/FormCambiarPassword';
 
 function Fila({ icono: Icono, etiqueta, valor, detalle, extra }) {
   return (
@@ -30,6 +31,8 @@ export default function AlumnoPerfil() {
   const { onLogout } = useOutletContext();
   const [alumno, setAlumno] = useState(null);
   const [error, setError] = useState(null);
+  // MOGNI-263: formulario de cambio de contraseña desplegado
+  const [cambiandoPassword, setCambiandoPassword] = useState(false);
 
   useEffect(() => {
     obtenerMiPerfil()
@@ -82,6 +85,31 @@ export default function AlumnoPerfil() {
             extra={inscripcion && <Badge tone={activa ? 'success' : 'error'}>{inscripcion.estado}</Badge>}
           />
         </ul>
+      </Panel>
+
+      {/* MOGNI-263: cambiar la contraseña desde el perfil */}
+      <Panel className="mb-6 mt-4 rounded-xl px-4">
+        <button
+          type="button"
+          onClick={() => setCambiandoPassword(!cambiandoPassword)}
+          aria-expanded={cambiandoPassword}
+          aria-controls="perfil-cambiar-password"
+          className={`flex w-full cursor-pointer items-center gap-3 py-3.5 text-left ${FOCUS}`}
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-error-bg text-primary">
+            <KeyRound className="h-5 w-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-medium text-ink-soft">Seguridad</span>
+            <span className="block text-sm font-semibold text-ink">Cambiar contraseña</span>
+          </span>
+          <ChevronRight className={`h-5 w-5 text-ink-muted transition-transform ${cambiandoPassword ? 'rotate-90' : ''}`} />
+        </button>
+        {cambiandoPassword && (
+          <div id="perfil-cambiar-password" className="border-t border-line-soft pb-4 pt-4">
+            <FormCambiarPassword onCancelar={() => setCambiandoPassword(false)} />
+          </div>
+        )}
       </Panel>
 
       <button

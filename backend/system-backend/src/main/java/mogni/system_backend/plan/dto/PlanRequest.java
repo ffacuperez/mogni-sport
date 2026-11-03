@@ -1,5 +1,6 @@
 package mogni.system_backend.plan.dto;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import jakarta.validation.Valid;
@@ -35,4 +36,8 @@ public class PlanRequest {
 
     @NotEmpty(message = "El plan tiene que tener al menos una sesión")
     private List<@Valid @NotNull(message = "Cada sesión tiene que tener al menos un ejercicio") SesionRequest> sesiones;
+
+    /** HU-266: último día del plan (inclusiva). Que sea posterior al inicio lo valida el servicio, que sabe qué día es hoy. */
+    @NotNull(message = "La fecha fin es obligatoria")
+    private LocalDate fechaFin;
 }

@@ -2,6 +2,8 @@ package mogni.system_backend.progreso.service;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -56,19 +58,28 @@ public class MiProgresoService {
     @Transactional(readOnly = true)
     public Optional<PlanDetalleResponse> obtenerPlanActivo(String email) {
         Alumno alumno = buscarAlumnoConAcceso(email);
-        return planRepository.findFirstByAlumnoIdAndEstado(alumno.getId(), EstadoPlanAsignado.ACTIVO)
-                .map(plan -> mapearDetalle(plan, ZonaHoraria.hoy()));
+        LocalDate hoy = ZonaHoraria.hoy();
+        return buscarPlanVigente(alumno.getId(), hoy).map(plan -> mapearDetalle(plan, hoy));
     }
 
     @Transactional(readOnly = true)
     public MisPlanesResponse listarPlanes(String email) {
         Long alumnoId = buscarAlumnoConAcceso(email).getId();
-        PlanResumenResponse activo = planRepository.findFirstByAlumnoIdAndEstado(alumnoId, EstadoPlanAsignado.ACTIVO)
-                .map(this::mapearResumen)
+        LocalDate hoy = ZonaHoraria.hoy();
+        Optional<PlanAsignado> activoEnLaBase = planRepository.findFirstByAlumnoIdAndEstado(alumnoId, EstadoPlanAsignado.ACTIVO);
+        PlanResumenResponse activo = activoEnLaBase
+                .filter(plan -> plan.estaVigente(hoy))
+                .map(plan -> mapearResumen(plan, hoy))
                 .orElse(null);
-        List<PlanResumenResponse> anteriores = planRepository
-                .findByAlumnoIdAndEstadoOrderByFechaFinalizacionDescIdDesc(alumnoId, EstadoPlanAsignado.FINALIZADO).stream()
-                .map(this::mapearResumen)
+        // HU-266: un plan vencido va a "Anteriores" como finalizado el día de su fecha fin, aunque en la base siga ACTIVO
+        List<PlanAsignado> terminados = new ArrayList<>(planRepository
+                .findByAlumnoIdAndEstadoOrderByFechaFinalizacionDescIdDesc(alumnoId, EstadoPlanAsignado.FINALIZADO));
+        activoEnLaBase.filter(plan -> plan.estaVencido(hoy)).ifPresent(terminados::add);
+        List<PlanResumenResponse> anteriores = terminados.stream()
+                .sorted(Comparator.comparing((PlanAsignado plan) -> plan.fechaFinalizacionAl(hoy),
+                                Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(PlanAsignado::getId, Comparator.reverseOrder()))
+                .map(plan -> mapearResumen(plan, hoy))
                 .toList();
         return new MisPlanesResponse(activo, anteriores);
     }
@@ -110,6 +121,12 @@ public class MiProgresoService {
                 registro.getEjercicios().stream().map(EjercicioRealizadoResponse::desde).toList());
     }
 
+    /** HU-266: el plan activo es el ACTIVO de la base, solo si no venció (misma regla que en todos lados). */
+    private Optional<PlanAsignado> buscarPlanVigente(Long alumnoId, LocalDate hoy) {
+        return planRepository.findFirstByAlumnoIdAndEstado(alumnoId, EstadoPlanAsignado.ACTIVO)
+                .filter(plan -> plan.estaVigente(hoy));
+    }
+
     private PlanAsignado buscarPlanDelAlumno(String email, Long planId) {
         Alumno alumno = buscarAlumnoConAcceso(email);
         return planRepository.findByIdAndAlumnoId(planId, alumno.getId())
@@ -132,7 +149,7 @@ public class MiProgresoService {
                 .collect(Collectors.toMap(r -> new ClaveSesion(r.getSemana(), r.getNumeroSesion()), Function.identity()));
 
         List<SemanaPlanResponse> semanas = IntStream.rangeClosed(1, cantidadSemanas)
-                .mapToObj(numero -> mapearSemana(plan, numero, registrosPorSesion))
+                .mapToObj(numero -> mapearSemana(plan, numero, registrosPorSesion, hoy))
                 .toList();
 
         return new PlanDetalleResponse(
@@ -141,9 +158,9 @@ public class MiProgresoService {
                 plan.getMetodo(),
                 plan.getMesociclo(),
                 plan.getObjetivoMesociclo(),
-                plan.getEstado(),
+                plan.estadoAl(hoy),
                 plan.getFechaAsignacion(),
-                fechaFin(plan, cantidadSemanas),
+                fechaFin(plan, cantidadSemanas, hoy),
                 cantidadSemanas,
                 semanaActual(plan, cantidadSemanas, hoy),
                 contarRegistradas(plan, cantidadSemanas, registros),
@@ -151,16 +168,16 @@ public class MiProgresoService {
                 semanas);
     }
 
-    private PlanResumenResponse mapearResumen(PlanAsignado plan) {
+    private PlanResumenResponse mapearResumen(PlanAsignado plan, LocalDate hoy) {
         int cantidadSemanas = cantidadSemanas(plan);
         return new PlanResumenResponse(
                 plan.getId(),
                 plan.getNombre(),
                 plan.getMetodo(),
                 plan.getMesociclo(),
-                plan.getEstado(),
+                plan.estadoAl(hoy),
                 plan.getFechaAsignacion(),
-                fechaFin(plan, cantidadSemanas),
+                fechaFin(plan, cantidadSemanas, hoy),
                 cantidadSemanas,
                 contarRegistradas(plan, cantidadSemanas, registroRepository.findByPlanId(plan.getId())),
                 plan.getSesiones().size() * cantidadSemanas);
@@ -174,19 +191,20 @@ public class MiProgresoService {
                 .count();
     }
 
-    private SemanaPlanResponse mapearSemana(PlanAsignado plan, int numero, Map<ClaveSesion, RegistroSesion> registros) {
+    private SemanaPlanResponse mapearSemana(PlanAsignado plan, int numero, Map<ClaveSesion, RegistroSesion> registros,
+                                            LocalDate hoy) {
         LocalDate desde = plan.getFechaAsignacion().plusWeeks(numero - 1L);
         return new SemanaPlanResponse(
                 numero,
                 desde,
                 desde.plusDays(6),
                 plan.getSesiones().stream()
-                        .map(sesion -> mapearSesion(plan, sesion, registros.get(new ClaveSesion(numero, sesion.getNumero()))))
+                        .map(sesion -> mapearSesion(plan, sesion, registros.get(new ClaveSesion(numero, sesion.getNumero())), hoy))
                         .toList());
     }
 
-    private SesionSemanaResponse mapearSesion(PlanAsignado plan, SesionPlan sesion, RegistroSesion registro) {
-        EstadoSesion sinRegistro = plan.estaActivo() ? EstadoSesion.PENDIENTE : EstadoSesion.NO_REGISTRADA;
+    private SesionSemanaResponse mapearSesion(PlanAsignado plan, SesionPlan sesion, RegistroSesion registro, LocalDate hoy) {
+        EstadoSesion sinRegistro = plan.estaVigente(hoy) ? EstadoSesion.PENDIENTE : EstadoSesion.NO_REGISTRADA;
         return new SesionSemanaResponse(
                 sesion.getNumero(),
                 registro == null ? sinRegistro : EstadoSesion.REGISTRADA,
@@ -200,14 +218,21 @@ public class MiProgresoService {
         return cantidad == null || cantidad < 1 ? 1 : cantidad;
     }
 
-    private static LocalDate fechaFin(PlanAsignado plan, int cantidadSemanas) {
-        return plan.estaActivo()
-                ? plan.getFechaAsignacion().plusWeeks(cantidadSemanas).minusDays(1)
-                : plan.getFechaFinalizacion();
+    /**
+     * Activo: la fecha fin real (HU-266) o, en los planes anteriores a esa regla, el fin previsto por semanas.
+     * Terminado: el día en que terminó (finalizado a mano o vencido).
+     */
+    private static LocalDate fechaFin(PlanAsignado plan, int cantidadSemanas, LocalDate hoy) {
+        if (!plan.estaVigente(hoy)) {
+            return plan.fechaFinalizacionAl(hoy);
+        }
+        return plan.getFechaFin() != null
+                ? plan.getFechaFin()
+                : plan.getFechaAsignacion().plusWeeks(cantidadSemanas).minusDays(1);
     }
 
     private static int semanaActual(PlanAsignado plan, int cantidadSemanas, LocalDate hoy) {
-        if (!plan.estaActivo()) {
+        if (!plan.estaVigente(hoy)) {
             return cantidadSemanas;
         }
         long semanasCompletas = ChronoUnit.WEEKS.between(plan.getFechaAsignacion(), hoy);

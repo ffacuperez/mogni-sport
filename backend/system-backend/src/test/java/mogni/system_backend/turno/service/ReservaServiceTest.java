@@ -271,7 +271,8 @@ class ReservaServiceTest {
 
     @Test
     void turnoDeHoyQueEmpiezaMasTardeSePuedeReservar() {
-        Turno turno = turno(MARTES, "10:31", 5);
+        // MOGNI-254: antes era el de las 10:31; ahora tiene que faltar al menos 1 hora
+        Turno turno = turno(MARTES, "12:00", 5);
 
         reservar(turno);
 
@@ -455,5 +456,159 @@ class ReservaServiceTest {
         Turno turno = turno(MARTES, "19:00", 5);
 
         assertEquals(EstadoReserva.RESERVADA, reservar(turno).getEstado());
+    }
+
+    // --- Anticipación mínima de 1 hora (MOGNI-254) ---
+
+    private static final String MENSAJE_ANTICIPACION =
+            "No podés reservar este turno porque falta menos de 1 hora para su inicio.";
+    /** Martes a las 23:45, para probar contra los turnos de la madrugada del miércoles. */
+    private static final LocalDateTime MARTES_23_45 = MARTES.atTime(23, 45);
+
+    private ReservaResponse reservarA(Turno turno, LocalDateTime ahora) {
+        return reservaService.reservar(EMAIL, turno.getId(), ahora);
+    }
+
+    private void rechazaPorAnticipacion(Turno turno, LocalDateTime ahora) {
+        RegistroInvalidoException ex = assertThrows(RegistroInvalidoException.class, () -> reservarA(turno, ahora));
+        assertEquals(MENSAJE_ANTICIPACION, ex.getMessage());
+        assertTrue(reservas.isEmpty());
+        verify(reservaRepository, never()).save(any());
+    }
+
+    @Test
+    void conMasDeUnaHoraDeAnticipacionSePuedeReservar() {
+        // 10:30 → 11:31: faltan 61 minutos
+        Turno turno = turno(MARTES, "11:31", 5);
+
+        assertEquals(EstadoReserva.RESERVADA, reservarA(turno, MARTES_10_30).getEstado());
+        assertEquals(1, reservas.size());
+    }
+
+    @Test
+    void conExactamenteUnaHoraDeAnticipacionSePuedeReservar() {
+        Turno turno = turno(MARTES, "11:30", 5);
+
+        assertEquals(EstadoReserva.RESERVADA, reservarA(turno, MARTES_10_30).getEstado());
+    }
+
+    @Test
+    void conUnSegundoMenosDeUnaHoraNoSePuedeReservar() {
+        // 10:30:01 → 11:30: faltan 59 minutos 59 segundos
+        Turno turno = turno(MARTES, "11:30", 5);
+
+        rechazaPorAnticipacion(turno, MARTES_10_30.plusSeconds(1));
+    }
+
+    @Test
+    void conTreintaMinutosDeAnticipacionNoSePuedeReservar() {
+        Turno turno = turno(MARTES, "11:00", 5);
+
+        rechazaPorAnticipacion(turno, MARTES_10_30);
+    }
+
+    @Test
+    void unTurnoQueYaEmpezoSigueDandoSuMensajePropio() {
+        // El chequeo de "ya empezó" va antes que el de anticipación, así el alumno ve el motivo más claro
+        Turno turno = turno(MARTES, "10:00", 5);
+
+        RegistroInvalidoException ex = assertThrows(RegistroInvalidoException.class,
+                () -> reservarA(turno, MARTES_10_30));
+        assertEquals("Este turno ya empezó, elegí uno más tarde.", ex.getMessage());
+        assertTrue(reservas.isEmpty());
+    }
+
+    @Test
+    void aLas23_45ElTurnoDeManianaALas00_30NoSePuedeReservar() {
+        // Se compara fecha y hora completas: solo por la hora (00:30 < 23:45) no alcanzaría
+        Turno turno = turno(MIERCOLES, "00:30", 5);
+
+        rechazaPorAnticipacion(turno, MARTES_23_45);
+    }
+
+    @Test
+    void aLas23_45ElTurnoDeManianaALas09_00SePuedeReservar() {
+        Turno turno = turno(MIERCOLES, "09:00", 5);
+
+        assertEquals(EstadoReserva.RESERVADA, reservarA(turno, MARTES_23_45).getEstado());
+    }
+
+    @Test
+    void elRechazoPorAnticipacionNoUsaLaClaseExtraNiOcupaLugar() {
+        // Límite semanal agotado y una clase extra vigente: igual se rechaza antes de tocarla
+        alumno = alumno(10L, true, 1);
+        yaReservado(alumno, turno(MARTES.minusDays(1), "08:00", 5), EstadoReserva.RESERVADA);
+        Turno turno = turno(MARTES, "11:00", 5);
+        ClaseExtra claseExtra = new ClaseExtra(alumno, 90L, MARTES.minusDays(1), MARTES.plusDays(12));
+        lenient().when(claseExtraRepository.buscarDisponiblesConBloqueo(alumno.getId(), MARTES))
+                .thenReturn(List.of(claseExtra));
+
+        assertThrows(RegistroInvalidoException.class, () -> reservarA(turno, MARTES_10_30));
+
+        assertEquals(1, reservas.size());
+        assertEquals(0, reservaRepository.countByTurnoIdAndEstado(turno.getId(), EstadoReserva.RESERVADA));
+        assertEquals(null, claseExtra.getReservaUsoId());
+        verify(claseExtraRepository, never()).buscarDisponiblesConBloqueo(anyLong(), any());
+        verify(claseExtraRepository, never()).save(any());
+        verify(reservaRepository, never()).save(any());
+    }
+
+    // --- Regresión de las reglas existentes que no tenían test propio ---
+
+    /** Simula la consulta real: solo clases extra sin usar y vigentes en la fecha del turno. */
+    private void conClasesExtra(ClaseExtra... clases) {
+        lenient().when(claseExtraRepository.buscarDisponiblesConBloqueo(anyLong(), any(LocalDate.class)))
+                .thenAnswer(inv -> {
+                    LocalDate fecha = inv.getArgument(1);
+                    return List.of(clases).stream()
+                            .filter(c -> c.getReservaUsoId() == null)
+                            .filter(c -> !c.getVigenteDesde().isAfter(fecha) && !c.getVigenteHasta().isBefore(fecha))
+                            .toList();
+                });
+    }
+
+    @Test
+    void conLaClaseExtraVencidaYElLimiteAgotadoNoSePuedeReservar() {
+        alumno = alumno(10L, true, 1);
+        yaReservado(alumno, turno(MARTES.minusDays(1), "08:00", 5), EstadoReserva.RESERVADA);
+        // Venció el domingo: no sirve para el martes
+        ClaseExtra vencida = new ClaseExtra(alumno, 90L, MARTES.minusDays(10), MARTES.minusDays(2));
+        conClasesExtra(vencida);
+        Turno turno = turno(MARTES, "19:00", 5);
+
+        ConflictoException ex = assertThrows(ConflictoException.class, () -> reservar(turno));
+        assertEquals("Ya usaste todos los turnos de tu membresía en esta semana.", ex.getMessage());
+        assertEquals(null, vencida.getReservaUsoId());
+        verify(claseExtraRepository, never()).save(any());
+    }
+
+    @Test
+    void conLimiteDisponibleNoSeConsumeLaClaseExtra() {
+        ClaseExtra claseExtra = new ClaseExtra(alumno, 90L, MARTES.minusDays(1), MARTES.plusDays(12));
+        conClasesExtra(claseExtra);
+        Turno turno = turno(MARTES, "19:00", 5);
+
+        reservar(turno);
+
+        assertEquals(null, claseExtra.getReservaUsoId());
+        verify(claseExtraRepository, never()).buscarDisponiblesConBloqueo(anyLong(), any());
+        verify(claseExtraRepository, never()).save(any());
+    }
+
+    @Test
+    void despuesDeReservarQuedaReservadaDelAlumnoYDelTurnoYHayUnLugarMenos() {
+        Turno turno = turno(MARTES, "19:00", 5);
+        yaReservado(otroAlumno(20L), turno, EstadoReserva.RESERVADA);
+        long ocupadosAntes = reservaRepository.countByTurnoIdAndEstado(turno.getId(), EstadoReserva.RESERVADA);
+
+        ReservaResponse response = reservar(turno);
+
+        Reserva guardada = reservas.stream().filter(r -> r.getId().equals(response.getId())).findFirst().orElseThrow();
+        assertEquals(EstadoReserva.RESERVADA, guardada.getEstado());
+        assertEquals(alumno, guardada.getAlumno());
+        assertEquals(turno, guardada.getTurno());
+        long ocupadosDespues = reservaRepository.countByTurnoIdAndEstado(turno.getId(), EstadoReserva.RESERVADA);
+        assertEquals(ocupadosAntes + 1, ocupadosDespues);
+        assertEquals(3, turno.getCupoMaximo() - ocupadosDespues);
     }
 }

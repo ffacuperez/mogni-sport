@@ -428,6 +428,41 @@ class ConsultaTurnosServiceTest {
         assertFalse(response.isBloqueadoPorMora());
     }
 
+    // --- Anticipación mínima de 1 hora (MOGNI-254) ---
+
+    @Test
+    void losTurnosDeHoyConMenosDeUnaHoraSeMuestranPeroNoSePuedenElegir() {
+        turno(MARTES, "11:00", 5); // faltan 30 minutos
+        turno(MARTES, "11:30", 5); // falta exactamente 1 hora
+        turno(MARTES, "11:31", 5); // faltan 61 minutos
+
+        TurnosDisponiblesResponse response = consultar(MARTES, MARTES_10_30);
+
+        assertEquals(List.of("11:00", "11:30", "11:31"),
+                response.getTurnos().stream().map(TurnoDisponibleResponse::getHoraInicio).toList());
+        TurnoDisponibleResponse enTreintaMinutos = buscar(response, "11:00");
+        assertEquals(EstadoTurnoAlumno.DISPONIBLE, enTreintaMinutos.getEstado());
+        assertTrue(enTreintaMinutos.isFaltaMenosDeUnaHora());
+        assertFalse(enTreintaMinutos.isSeleccionable());
+        assertFalse(buscar(response, "11:30").isFaltaMenosDeUnaHora());
+        assertTrue(buscar(response, "11:30").isSeleccionable());
+        assertTrue(buscar(response, "11:31").isSeleccionable());
+    }
+
+    @Test
+    void aLas23_45ElTurnoDeManianaALas00_30NoSePuedeElegir() {
+        LocalDateTime martesALas23_45 = MARTES.atTime(23, 45);
+        turno(MIERCOLES, "00:30", 5);
+        turno(MIERCOLES, "09:00", 5);
+
+        TurnosDisponiblesResponse response = consultar(MIERCOLES, martesALas23_45);
+
+        assertTrue(buscar(response, "00:30").isFaltaMenosDeUnaHora());
+        assertFalse(buscar(response, "00:30").isSeleccionable());
+        assertFalse(buscar(response, "09:00").isFaltaMenosDeUnaHora());
+        assertTrue(buscar(response, "09:00").isSeleccionable());
+    }
+
     @Test
     void alumnoVencidoNoEstaBloqueado() {
         alumno.buscarInscripcionActiva().orElseThrow().agregarCuota(MARTES.minusDays(31)); // venció ayer

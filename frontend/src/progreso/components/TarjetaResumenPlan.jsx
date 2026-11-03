@@ -29,7 +29,12 @@ export default function TarjetaResumenPlan({ plan }) {
       </div>
 
       {plan.objetivoMesociclo && <Dato icono={Target}>Objetivo: {plan.objetivoMesociclo}</Dato>}
-      <Dato icono={Calendar}>{activo ? `Inicio: ${formatearFecha(plan.fechaInicio)}` : textoRangoPlan(plan)}</Dato>
+      {/* HU-266: el alumno ve hasta cuándo dura su plan (la fecha fin real, o la prevista por semanas en los planes viejos) */}
+      <Dato icono={Calendar}>
+        {activo
+          ? `Inicio: ${formatearFecha(plan.fechaInicio)}${plan.fechaFin ? ` · Fin: ${formatearFecha(plan.fechaFin)}` : ''}`
+          : textoRangoPlan(plan)}
+      </Dato>
 
       <div className="flex items-center justify-between gap-2 border-t border-line pt-2.5">
         <p className="whitespace-nowrap text-sm font-bold text-ink">

@@ -88,7 +88,8 @@ export default function PlanAsignadoDetalle({ planId, onVolver, onModificar, onA
       <Panel className="p-5">
         <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2 text-xs text-ink-soft">
           <p>
-            Asignado el {textoFecha(plan.fechaAsignacion)}
+            Inicio: {textoFecha(plan.fechaAsignacion)}
+            {plan.fechaFin && ` · Fin: ${textoFecha(plan.fechaFin)}`}
             {plan.fechaFinalizacion && ` · Finalizado el ${textoFecha(plan.fechaFinalizacion)}`}
             {' · '}{plan.plantillaOrigenId ? 'Copiado de una plantilla' : 'Armado desde cero'}
           </p>

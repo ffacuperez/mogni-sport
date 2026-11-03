@@ -74,6 +74,21 @@ public class PlanAsignado {
     /** Null mientras está ACTIVO. */
     private LocalDate fechaFinalizacion;
 
+    /** HU-270: null en los planes que no lo tienen cargado, igual que los tres campos siguientes. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private MetodoPlan metodo;
+
+    /** Hipertrofia, Fuerza, Reset/Técnica... La lista es abierta. */
+    @Column(length = 60)
+    private String mesociclo;
+
+    @Column(length = 150)
+    private String objetivoMesociclo;
+
+    /** Las sesiones del plan se repiten igual cada semana. */
+    private Integer cantidadSemanas;
+
     @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("numero ASC")
     private List<SesionPlan> sesiones = new ArrayList<>();

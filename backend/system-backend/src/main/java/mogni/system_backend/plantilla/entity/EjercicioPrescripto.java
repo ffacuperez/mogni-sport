@@ -59,6 +59,10 @@ public abstract class EjercicioPrescripto {
     /** RIR objetivo (repeticiones en reserva); null si no se indica. */
     private Integer rirObjetivo;
 
+    /** HU-270: aclaración del profe ("Tempo 2-1-3", "Superserie con Gemelos"); null si no hay. */
+    @Column(length = 200)
+    private String indicaciones;
+
     protected EjercicioPrescripto(Ejercicio ejercicio, int series, int repeticiones, Integer repeticionesMax,
             BigDecimal descansoMinutos, BigDecimal pesoSugerido, Integer rirObjetivo) {
         this.ejercicio = ejercicio;
@@ -75,5 +79,6 @@ public abstract class EjercicioPrescripto {
     protected EjercicioPrescripto(EjercicioPrescripto origen) {
         this(origen.ejercicio, origen.series, origen.repeticiones, origen.repeticionesMax, origen.descansoMinutos,
                 origen.pesoSugerido, origen.rirObjetivo);
+        this.indicaciones = origen.indicaciones;
     }
 }

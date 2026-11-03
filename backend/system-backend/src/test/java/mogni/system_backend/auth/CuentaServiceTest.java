@@ -86,4 +86,30 @@ class CuentaServiceTest {
         assertEquals("La contraseña nueva debe ser distinta de la actual", ex.getMessage());
         verify(cuentaRepository, never()).save(any());
     }
+
+    // MOGNI-263: cambiar contraseña desde el perfil, con confirmación
+
+    @Test
+    void rechazaConfirmacionDistintaDeLaNueva() {
+        CambiarPasswordRequest request = pedido("30111222", "nuevaSegura1");
+        request.setPasswordConfirmacion("otraCosa123");
+
+        RegistroInvalidoException ex = assertThrows(RegistroInvalidoException.class,
+                () -> cuentaService.cambiarPassword("lucia@mail.com", request));
+
+        assertEquals("La confirmación no coincide con la contraseña nueva", ex.getMessage());
+        verify(cuentaRepository, never()).save(any());
+    }
+
+    @Test
+    void conConfirmacionIgualCambiaLaContrasenia() {
+        CambiarPasswordRequest request = pedido("30111222", "nuevaSegura1");
+        request.setPasswordConfirmacion("nuevaSegura1");
+        when(passwordEncoder.matches("30111222", "hash-dni")).thenReturn(true);
+        when(passwordEncoder.matches("nuevaSegura1", "hash-dni")).thenReturn(false);
+        when(passwordEncoder.encode("nuevaSegura1")).thenReturn("hash-nueva");
+        when(cuentaRepository.save(any(Cuenta.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertEquals("hash-nueva", cuentaService.cambiarPassword("lucia@mail.com", request).getPassword());
+    }
 }

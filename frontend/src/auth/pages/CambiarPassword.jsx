@@ -39,7 +39,7 @@ export default function CambiarPassword({ onSuccess, onLogout }) {
 
     setIsLoading(true);
     try {
-      await cambiarPassword(actual, nueva);
+      await cambiarPassword(actual, nueva, confirmacion);
       onSuccess();
     } catch (err) {
       setError(err.message);

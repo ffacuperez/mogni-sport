@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
-import { Calendar, ClipboardList, Clock, CreditCard, Dumbbell, Home as IconHome, LogOut, Users, Wallet } from 'lucide-react';
+import { Calendar, ClipboardList, Clock, CreditCard, Dumbbell, Home as IconHome, LogOut, UserCog, Users, Wallet } from 'lucide-react';
 
 import Home from './home/pages/Home';
 import Login from './auth/pages/Login';
 import CambiarPassword from './auth/pages/CambiarPassword';
+import MiCuenta from './auth/pages/MiCuenta';
+import RecuperarPassword from './auth/pages/RecuperarPassword';
+import RestablecerPassword from './auth/pages/RestablecerPassword';
 import AlumnosList from './alumno/pages/AlumnosList';
 import AlumnoForm from './alumno/pages/AlumnoForm';
 import AlumnoDetalle from './alumno/pages/AlumnoDetalle';
@@ -29,6 +32,12 @@ import RegistrarPagoModal from './cuota/pages/RegistrarPagoModal';
 import HistorialPagosModal from './cuota/pages/HistorialPagosModal';
 import HorariosGimnasio from './turno/pages/HorariosGimnasio';
 import TurnosAlumno from './turno/pages/TurnosAlumno';
+import DetallePlanAnterior from './progreso/pages/DetallePlanAnterior';
+import DetalleSesion from './progreso/pages/DetalleSesion';
+import MiProgreso from './progreso/pages/MiProgreso';
+import PlanActual from './progreso/pages/PlanActual';
+import TabPlanes from './progreso/pages/TabPlanes';
+import TabSesiones from './progreso/pages/TabSesiones';
 import Agenda from './turno/pages/Agenda';
 import ConfirmModal from './shared/components/ConfirmModal';
 import Toast from './shared/components/Toast';
@@ -459,6 +468,8 @@ function MainApp({ onLogout }) {
     ...(esPropietario ? [{ to: '/cuotas', label: 'Cuotas', icon: Wallet, onClick: () => setSelectedCuotaId(null) }] : []),
     // Franjas horarias y cupo (HU-252): solo el propietario
     ...(esPropietario ? [{ to: '/horarios', label: 'Horarios', icon: Clock }] : []),
+    // MOGNI-263: datos de la cuenta y cambio de contraseña (todo el personal)
+    { to: '/cuenta', label: 'Mi cuenta', icon: UserCog },
   ];
   const seccionActual = navItems.find(item => pathname.startsWith(item.to))?.label ?? 'Panel';
   
@@ -719,6 +730,8 @@ function MainApp({ onLogout }) {
             ? <HorariosGimnasio onToast={displayToast} />
             : <Navigate to="/alumnos" replace />} />
 
+          <Route path="cuenta" element={<MiCuenta />} />
+
           <Route path="*" element={<Navigate to="/alumnos" replace />} />
         </Routes>
 
@@ -845,6 +858,10 @@ export default function App() {
           : <Login onLogin={handleLogin} onBack={() => navigate('/')} />
       } />
 
+      {/* Recuperar contraseña: sin sesión (se llega desde el login y desde el link del mail) */}
+      <Route path="/recuperar-password" element={<RecuperarPassword />} />
+      <Route path="/restablecer-password" element={<RestablecerPassword />} />
+
       {/* App del alumno: solo rol ALUMNO */}
       <Route path="/mi-cuenta" element={
         <RequiereRol sesion={authSession} permitido={esAlumno}>
@@ -855,6 +872,13 @@ export default function App() {
         <Route path="inicio" element={<SeccionProximamente titulo="Inicio" />} />
         <Route path="turnos" element={<TurnosAlumno />} />
         <Route path="rutinas" element={<MiEntrenamiento />} />
+        <Route path="progreso" element={<MiProgreso />}>
+          <Route index element={<PlanActual />} />
+          <Route path="planes" element={<TabPlanes />} />
+          <Route path="sesiones" element={<TabSesiones />} />
+        </Route>
+        <Route path="progreso/planes/:id" element={<DetallePlanAnterior />} />
+        <Route path="progreso/sesiones/:id" element={<DetalleSesion />} />
         <Route path="perfil" element={<AlumnoPerfil />} />
         <Route path="notificaciones" element={<Notificaciones />} />
         <Route path="*" element={<Navigate to="perfil" replace />} />

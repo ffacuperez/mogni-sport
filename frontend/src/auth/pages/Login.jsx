@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router';
 
 import { ArrowLeft, ChevronRight, Eye, EyeOff, Lock, Mail, ShieldCheck, Smartphone, UserPlus } from 'lucide-react';
 
@@ -9,6 +10,7 @@ import { Button, Logo } from '../../shared/components/ui';
 import { FOCUS, inputClass, labelClass } from '../../shared/components/clases';
 
 export default function Login({ onLogin, onBack }) {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -93,8 +95,15 @@ export default function Login({ onLogin, onBack }) {
               <UserPlus className="h-5 w-5" /> Registrarse
             </Button>
 
-            <p className="pt-2 text-center text-xs text-ink-soft">
-              ¿Olvidó su contraseña? Contacte al administrador para restablecer su contraseña.
+            {/* Recuperar contraseña: link por mail (Brevo) */}
+            <p className="pt-2 text-center text-sm">
+              <button
+                type="button"
+                onClick={() => navigate('/recuperar-password')}
+                className={`cursor-pointer rounded font-semibold text-primary hover:underline ${FOCUS}`}
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
             </p>
           </form>
         </div>

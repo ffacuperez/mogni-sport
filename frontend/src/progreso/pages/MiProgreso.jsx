@@ -6,7 +6,7 @@ import ControlSegmentado from '../components/ControlSegmentado';
 export default function MiProgreso() {
   return (
     <div className="animate-fade-in">
-      <h1 className="mb-5 text-2xl font-bold text-ink">Mi progreso</h1>
+      <h1 className="mb-5 text-2xl font-bold text-ink">Mi rutina</h1>
       <ControlSegmentado />
       <Outlet />
     </div>

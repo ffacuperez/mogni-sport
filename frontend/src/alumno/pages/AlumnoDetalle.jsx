@@ -78,7 +78,9 @@ function SeccionPlan({ alumnoId, isActivo, onVerPlan, onAsignarPlan }) {
           <Dato label="Plan" ancho>{plan.nombre}</Dato>
           <Dato label="Nivel">{textoNivel(plan.nivel)}</Dato>
           <Dato label="Objetivo">{textoObjetivo(plan.objetivo)}</Dato>
-          <Dato label="Fecha de asignación" mono>{formatearFecha(plan.fechaAsignacion)}</Dato>
+          <Dato label="Fecha de inicio" mono>{formatearFecha(plan.fechaAsignacion)}</Dato>
+          {/* HU-266: los planes asignados antes de la fecha fin no la tienen */}
+          <Dato label="Fecha fin" mono>{plan.fechaFin ? formatearFecha(plan.fechaFin) : 'Sin fecha fin'}</Dato>
         </dl>
       )}
     </Seccion>

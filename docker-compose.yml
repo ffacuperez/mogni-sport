@@ -37,6 +37,10 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en el .env}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      # Recuperar contraseña (HU-263): sin API key no se manda el mail y el link queda en el log del back
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      BREVO_SENDER_EMAIL: ${BREVO_SENDER_EMAIL:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
     # Tampoco publica puertos: solo le llega lo que Caddy le pasa por /api
 
   web:

@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
-import { Calendar, ClipboardList, Clock, CreditCard, Dumbbell, Home as IconHome, LogOut, Users, Wallet } from 'lucide-react';
+import { Calendar, ClipboardList, Clock, CreditCard, Dumbbell, Home as IconHome, LogOut, UserCog, Users, Wallet } from 'lucide-react';
 
 import Home from './home/pages/Home';
 import Login from './auth/pages/Login';
 import CambiarPassword from './auth/pages/CambiarPassword';
+import MiCuenta from './auth/pages/MiCuenta';
+import RecuperarPassword from './auth/pages/RecuperarPassword';
+import RestablecerPassword from './auth/pages/RestablecerPassword';
 import AlumnosList from './alumno/pages/AlumnosList';
 import AlumnoForm from './alumno/pages/AlumnoForm';
 import AlumnoDetalle from './alumno/pages/AlumnoDetalle';
@@ -464,6 +467,8 @@ function MainApp({ onLogout }) {
     ...(esPropietario ? [{ to: '/cuotas', label: 'Cuotas', icon: Wallet, onClick: () => setSelectedCuotaId(null) }] : []),
     // Franjas horarias y cupo (HU-252): solo el propietario
     ...(esPropietario ? [{ to: '/horarios', label: 'Horarios', icon: Clock }] : []),
+    // MOGNI-263: datos de la cuenta y cambio de contraseña (todo el personal)
+    { to: '/cuenta', label: 'Mi cuenta', icon: UserCog },
   ];
   const seccionActual = navItems.find(item => pathname.startsWith(item.to))?.label ?? 'Panel';
   
@@ -504,7 +509,7 @@ function MainApp({ onLogout }) {
               );
             })}
             <li className="md:mt-4 md:border-t md:border-sidebar-hover md:pt-4">
-              <button type="button" onClick={() => navigate('/')} className={itemClass(false)}>
+              <button type="button" onClick={() => navigate('/sitio')} className={itemClass(false)}>
                 <IconHome className={iconClass(false)} /> Sitio web
               </button>
             </li>
@@ -724,6 +729,8 @@ function MainApp({ onLogout }) {
             ? <HorariosGimnasio onToast={displayToast} />
             : <Navigate to="/alumnos" replace />} />
 
+          <Route path="cuenta" element={<MiCuenta />} />
+
           <Route path="*" element={<Navigate to="/alumnos" replace />} />
         </Routes>
 
@@ -837,7 +844,13 @@ export default function App() {
 
   return (
     <Routes>
+      {/* La app arranca en el login, para todos los perfiles; con sesión iniciada va directo a su pantalla */}
       <Route path="/" element={
+        <Navigate to={authSession.isAuthenticated ? rutaInicial(authSession.rol) : '/login'} replace />
+      } />
+
+      {/* La landing sigue disponible, pero ya no es la página de entrada */}
+      <Route path="/sitio" element={
         <Home
           isAuthenticated={authSession.isAuthenticated}
           onLogin={() => navigate(authSession.isAuthenticated ? rutaInicial(authSession.rol) : '/login')}
@@ -847,8 +860,12 @@ export default function App() {
       <Route path="/login" element={
         authSession.isAuthenticated
           ? <Navigate to={rutaInicial(authSession.rol)} replace />
-          : <Login onLogin={handleLogin} onBack={() => navigate('/')} />
+          : <Login onLogin={handleLogin} />
       } />
+
+      {/* Recuperar contraseña: sin sesión (se llega desde el login y desde el link del mail) */}
+      <Route path="/recuperar-password" element={<RecuperarPassword />} />
+      <Route path="/restablecer-password" element={<RestablecerPassword />} />
 
       {/* App del alumno: solo rol ALUMNO */}
       <Route path="/mi-cuenta" element={

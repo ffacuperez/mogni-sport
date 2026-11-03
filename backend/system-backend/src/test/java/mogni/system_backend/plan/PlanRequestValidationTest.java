@@ -2,6 +2,7 @@ package mogni.system_backend.plan;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -11,6 +12,7 @@ import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import mogni.system_backend.plan.dto.AsignarPlanDesdeCeroRequest;
 import mogni.system_backend.plan.dto.AsignarPlanDesdePlantillaRequest;
+import mogni.system_backend.plan.dto.PlanRequest;
 import mogni.system_backend.plantilla.dto.EjercicioSesionRequest;
 import mogni.system_backend.plantilla.dto.SesionRequest;
 import mogni.system_backend.plantilla.entity.NivelPlantilla;
@@ -34,6 +36,7 @@ class PlanRequestValidationTest {
         request.setNivel(NivelPlantilla.PRINCIPIANTE);
         request.setObjetivo(ObjetivoPlantilla.FUERZA);
         request.setSesiones(new ArrayList<>(List.of(sesion)));
+        request.setFechaFin(LocalDate.of(2099, 12, 31));
         return request;
     }
 
@@ -76,5 +79,31 @@ class PlanRequestValidationTest {
         AsignarPlanDesdePlantillaRequest request = new AsignarPlanDesdePlantillaRequest();
         assertTrue(tieneError(request, "Elegí el alumno al que le vas a asignar el plan"));
         assertTrue(tieneError(request, "Elegí la plantilla que le vas a asignar"));
+    }
+
+    // --- HU-266: fecha fin obligatoria al asignar (desde cero, desde plantilla) y al modificar ---
+
+    @Test
+    void planDesdeCeroSinFechaFinFalla() {
+        AsignarPlanDesdeCeroRequest request = requestValido();
+        request.setFechaFin(null);
+        assertTrue(tieneError(request, "La fecha fin es obligatoria"));
+    }
+
+    @Test
+    void desdePlantillaSinFechaFinFalla() {
+        AsignarPlanDesdePlantillaRequest request = new AsignarPlanDesdePlantillaRequest();
+        request.setAlumnoId(7L);
+        request.setPlantillaId(5L);
+        assertTrue(tieneError(request, "La fecha fin es obligatoria"));
+        request.setFechaFin(LocalDate.of(2099, 12, 31));
+        assertTrue(validator.validate(request).isEmpty());
+    }
+
+    @Test
+    void modificarUnPlanSinFechaFinFalla() {
+        PlanRequest cambios = requestValido();
+        cambios.setFechaFin(null);
+        assertTrue(tieneError(cambios, "La fecha fin es obligatoria"));
     }
 }

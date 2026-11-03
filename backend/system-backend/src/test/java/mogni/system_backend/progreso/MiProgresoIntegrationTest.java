@@ -686,4 +686,71 @@ class MiProgresoIntegrationTest {
         assertEquals(403, respuesta.status());
         assertEquals("Tu cuenta está inactiva.", respuesta.cuerpo().path("error").asString());
     }
+
+    // --- HU-266: fecha fin real y planes vencidos ---
+
+    private PlanAsignado planConFin(Alumno alumno, LocalDate inicio, int semanas, LocalDate fechaFin) {
+        PlanAsignado plan = planDeSemanas(alumno, inicio, semanas);
+        plan.setFechaFin(fechaFin);
+        return planRepository.save(plan);
+    }
+
+    @Test
+    void con_fecha_fin_real_el_plan_activo_informa_esa_y_no_la_calculada_por_semanas() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate inicio = ZonaHoraria.hoy().minusDays(8);
+        // Por semanas terminaría el día 34; la fecha fin real manda
+        planConFin(alumno, inicio, 5, inicio.plusDays(50));
+
+        assertEquals(inicio.plusDays(50).toString(), planActivoDe(alumno).cuerpo().path("fechaFin").asString());
+        assertEquals(inicio.plusDays(50).toString(), planesDe(alumno).cuerpo().path("activo").path("fechaFin").asString());
+    }
+
+    @Test
+    void el_dia_de_la_fecha_fin_sigue_siendo_el_plan_actual() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate hoy = ZonaHoraria.hoy();
+        PlanAsignado plan = planConFin(alumno, hoy.minusWeeks(4), 4, hoy);
+
+        Respuesta activo = planActivoDe(alumno);
+
+        assertEquals(200, activo.status());
+        assertEquals(plan.getId(), activo.cuerpo().path("id").asLong());
+        assertEquals("ACTIVO", activo.cuerpo().path("estado").asString());
+    }
+
+    @Test
+    void un_plan_vencido_pasa_a_anteriores_como_finalizado_el_dia_de_su_fecha_fin() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate hoy = ZonaHoraria.hoy();
+        PlanAsignado finalizado = planFinalizado(alumno, hoy.minusWeeks(20), 3, hoy.minusWeeks(17));
+        PlanAsignado vencido = planConFin(alumno, hoy.minusWeeks(4), 4, hoy.minusDays(1));
+
+        assertEquals(204, planActivoDe(alumno).status());
+        JsonNode cuerpo = planesDe(alumno).cuerpo();
+        assertTrue(cuerpo.path("activo").isNull());
+        JsonNode anteriores = cuerpo.path("anteriores");
+        assertEquals(2, anteriores.size());
+        // El vencido terminó ayer, así que va antes que el finalizado hace 17 semanas
+        assertEquals(vencido.getId(), anteriores.get(0).path("id").asLong());
+        assertEquals("FINALIZADO", anteriores.get(0).path("estado").asString());
+        assertEquals(hoy.minusDays(1).toString(), anteriores.get(0).path("fechaFin").asString());
+        assertEquals(finalizado.getId(), anteriores.get(1).path("id").asLong());
+    }
+
+    @Test
+    void en_un_plan_vencido_lo_que_no_se_hizo_figura_como_no_registrada() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate hoy = ZonaHoraria.hoy();
+        PlanAsignado vencido = planConFin(alumno, hoy.minusWeeks(2), 2, hoy.minusDays(1));
+        registrar(vencido, 2, 1, hoy.minusDays(3));
+
+        JsonNode detalle = planDe(alumno, vencido.getId()).cuerpo();
+
+        assertEquals("FINALIZADO", detalle.path("estado").asString());
+        assertEquals(2, detalle.path("semanaActual").asInt());
+        JsonNode ultimaSemana = detalle.path("semanas").get(1).path("sesiones");
+        assertEquals("REGISTRADA", ultimaSemana.get(0).path("estado").asString());
+        assertEquals("NO_REGISTRADA", ultimaSemana.get(1).path("estado").asString());
+    }
 }

@@ -1,5 +1,7 @@
 package mogni.system_backend.plan.dto;
 
+import java.time.LocalDate;
+
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,4 +17,8 @@ public class AsignarPlanDesdePlantillaRequest {
 
     @NotNull(message = "Elegí la plantilla que le vas a asignar")
     private Long plantillaId;
+
+    /** HU-266: la plantilla no tiene fecha fin; se elige al asignarla. */
+    @NotNull(message = "La fecha fin es obligatoria")
+    private LocalDate fechaFin;
 }

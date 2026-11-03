@@ -105,7 +105,8 @@ public class ConsultaTurnosService {
         boolean puedeElegir = !tieneReservaEnElDia && turnosRestantes > 0 && !bloqueadoPorMora;
         List<TurnoDisponibleResponse> turnos = turnosAMostrar.stream()
                 .map(turno -> mapearTurno(turno, ocupados.getOrDefault(turno.getId(), 0L),
-                        turnosReservadosEnElDia.contains(turno.getId()), puedeElegir))
+                        turnosReservadosEnElDia.contains(turno.getId()), puedeElegir,
+                        ReservaService.faltaMenosDeUnaHora(turno, ahora)))
                 .toList();
 
         // Hoy y mañana se habilitan solo si tienen turnos: un día sin franjas (por ejemplo, un sábado sin clases) no se puede elegir
@@ -145,7 +146,7 @@ public class ConsultaTurnosService {
     }
 
     private TurnoDisponibleResponse mapearTurno(Turno turno, long reservasActivas, boolean reservadoPorElAlumno,
-                                                boolean puedeElegir) {
+                                                boolean puedeElegir, boolean faltaMenosDeUnaHora) {
         int lugaresLibres = (int) Math.max(0, turno.getCupoMaximo() - reservasActivas);
         EstadoTurnoAlumno estado;
         if (turno.getEstado() == EstadoTurno.CANCELADO) {
@@ -163,6 +164,7 @@ public class ConsultaTurnosService {
                 FranjaHorariaService.formatearHora(turno.getHoraFin()),
                 lugaresLibres,
                 estado,
-                estado == EstadoTurnoAlumno.DISPONIBLE && puedeElegir);
+                estado == EstadoTurnoAlumno.DISPONIBLE && puedeElegir && !faltaMenosDeUnaHora,
+                faltaMenosDeUnaHora);
     }
 }

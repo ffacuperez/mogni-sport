@@ -15,4 +15,10 @@ public class CambiarPasswordRequest {
     @NotBlank(message = "La contraseña nueva es obligatoria")
     @Size(min = 8, message = "La contraseña nueva debe tener al menos 8 caracteres")
     private String passwordNueva;
+
+    /**
+     * MOGNI-263: confirmación de la contraseña nueva. Opcional para no romper clientes viejos: si viene, tiene que
+     * coincidir con la nueva (el frontend la manda siempre).
+     */
+    private String passwordConfirmacion;
 }

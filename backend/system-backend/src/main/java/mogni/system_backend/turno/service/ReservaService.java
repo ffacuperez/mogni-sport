@@ -1,6 +1,7 @@
 package mogni.system_backend.turno.service;
 
 import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.TemporalAdjusters;
@@ -34,6 +35,9 @@ import mogni.system_backend.turno.repository.ClaseExtraRepository;
  */
 @Service
 public class ReservaService {
+
+    /** MOGNI-254: anticipación mínima para reservar un turno. */
+    static final Duration ANTICIPACION_MINIMA = Duration.ofHours(1);
 
     private final AlumnoRepository alumnoRepository;
     private final TurnoRepository turnoRepository;
@@ -92,7 +96,7 @@ public class ReservaService {
                 restantes);
     }
 
-    /** Fecha (hoy o mañana), que no haya empezado y que el gimnasio no lo haya cancelado. */
+    /** Fecha (hoy o mañana), que el gimnasio no lo haya cancelado, que no haya empezado y que falte al menos 1 hora. */
     private void validarTurno(Turno turno, LocalDateTime ahora) {
         LocalDate hoy = ahora.toLocalDate();
         if (!turno.getFecha().equals(hoy) && !turno.getFecha().equals(hoy.plusDays(1))) {
@@ -104,6 +108,19 @@ public class ReservaService {
         if (turno.getFecha().equals(hoy) && !turno.getHoraInicio().isAfter(ahora.toLocalTime())) {
             throw new RegistroInvalidoException("Este turno ya empezó, elegí uno más tarde.");
         }
+        if (faltaMenosDeUnaHora(turno, ahora)) {
+            throw new RegistroInvalidoException(
+                    "No podés reservar este turno porque falta menos de 1 hora para su inicio.");
+        }
+    }
+
+    /**
+     * MOGNI-254: se reserva hasta 1 hora antes del inicio (con exactamente 60 minutos todavía se puede). Compara fecha
+     * y hora completas: a las 23:45, el turno de mañana a las 00:30 también queda afuera.
+     */
+    static boolean faltaMenosDeUnaHora(Turno turno, LocalDateTime ahora) {
+        LocalDateTime limite = LocalDateTime.of(turno.getFecha(), turno.getHoraInicio()).minus(ANTICIPACION_MINIMA);
+        return ahora.isAfter(limite);
     }
 
     /** Mismo turno, un solo turno por día y tope semanal de la membresía. Devuelve las reservas de la semana. */

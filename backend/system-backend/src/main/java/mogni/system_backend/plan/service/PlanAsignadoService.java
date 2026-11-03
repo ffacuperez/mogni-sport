@@ -1,5 +1,7 @@
 package mogni.system_backend.plan.service;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -33,8 +35,10 @@ import mogni.system_backend.plantilla.repository.PlantillaPlanRepository;
 import mogni.system_backend.plantilla.service.CatalogoEjercicios;
 
 /**
- * HU-266: asignar un plan de entrenamiento a un alumno, copiando una plantilla o armándolo desde cero.
- * Un alumno tiene como mucho un plan ACTIVO: para asignarle otro hay que finalizar el actual.
+ * HU-266: asignar un plan de entrenamiento a un alumno, copiando una plantilla o armándolo desde cero, con una fecha
+ * fin. Un alumno tiene como mucho un plan activo (ACTIVO y sin vencer, ver {@link PlanAsignado#estaVigente}): para
+ * asignarle otro hay que finalizar el actual o esperar a que venza.
+ * Los métodos públicos usan el día de hoy en Argentina; los que reciben "hoy" son para probarlos con cualquier fecha.
  */
 @Service
 public class PlanAsignadoService {
@@ -55,92 +59,180 @@ public class PlanAsignadoService {
     /** El plan activo del alumno, si tiene. Lo usa la pantalla para avisar antes de armar uno nuevo. */
     @Transactional(readOnly = true)
     public Optional<PlanAsignadoResponse> obtenerPlanActivo(Long alumnoId) {
+        return obtenerPlanActivo(alumnoId, ZonaHoraria.hoy());
+    }
+
+    public Optional<PlanAsignadoResponse> obtenerPlanActivo(Long alumnoId, LocalDate hoy) {
         if (!alumnoRepository.existsById(alumnoId)) {
             throw new RecursoNoEncontradoException("No existe un alumno con id " + alumnoId);
         }
-        return planRepository.findFirstByAlumnoIdAndEstado(alumnoId, EstadoPlanAsignado.ACTIVO).map(this::mapearAResponse);
+        return buscarPlanVigente(alumnoId, hoy).map(plan -> mapearAResponse(plan, hoy));
     }
 
     @Transactional(readOnly = true)
     public PlanAsignadoResponse obtenerPlan(Long id) {
-        return mapearAResponse(buscarPlanOLanzarError(id));
+        return mapearAResponse(buscarPlanOLanzarError(id), ZonaHoraria.hoy());
     }
 
     /** Copia profunda de la plantilla: el plan del alumno y la plantilla quedan independientes. */
     @Transactional
     public PlanAsignadoResponse asignarDesdePlantilla(AsignarPlanDesdePlantillaRequest request) {
-        Alumno alumno = alumnoSinPlanActivo(request.getAlumnoId());
+        return asignarDesdePlantilla(request, ZonaHoraria.hoy());
+    }
+
+    public PlanAsignadoResponse asignarDesdePlantilla(AsignarPlanDesdePlantillaRequest request, LocalDate hoy) {
+        validarFechaFinAlAsignar(request.getFechaFin(), hoy);
+        Alumno alumno = alumnoSinPlanActivo(request.getAlumnoId(), hoy);
         PlantillaPlan plantilla = plantillaRepository.findByIdAndActivaTrue(request.getPlantillaId())
                 .orElseThrow(() -> new RecursoNoEncontradoException(
                         "No existe una plantilla con id " + request.getPlantillaId()));
 
-        PlanAsignado plan = planRepository.save(PlanAsignado.copiaDe(plantilla, alumno, ZonaHoraria.hoy()));
+        PlanAsignado copia = PlanAsignado.copiaDe(plantilla, alumno, hoy);
+        copia.setFechaFin(request.getFechaFin());
+        PlanAsignado plan = planRepository.save(copia);
         plantillaRepository.sumarAsignacion(plantilla.getId());
-        return mapearAResponse(plan);
+        return mapearAResponse(plan, hoy);
     }
 
     /** Plan armado a mano para el alumno; no queda guardado como plantilla. */
     @Transactional
     public PlanAsignadoResponse asignarDesdeCero(AsignarPlanDesdeCeroRequest request) {
-        Alumno alumno = alumnoSinPlanActivo(request.getAlumnoId());
-        PlanAsignado plan = new PlanAsignado(alumno, ZonaHoraria.hoy());
-        aplicarDatos(plan, request, Set.of());
-        return mapearAResponse(planRepository.save(plan));
+        return asignarDesdeCero(request, ZonaHoraria.hoy());
     }
 
-    /** Reemplaza nombre, nivel, objetivo y sesiones del plan. No toca la plantilla de la que salió. */
+    public PlanAsignadoResponse asignarDesdeCero(AsignarPlanDesdeCeroRequest request, LocalDate hoy) {
+        validarFechaFinAlAsignar(request.getFechaFin(), hoy);
+        Alumno alumno = alumnoSinPlanActivo(request.getAlumnoId(), hoy);
+        PlanAsignado plan = new PlanAsignado(alumno, hoy);
+        aplicarDatos(plan, request, Set.of());
+        plan.setFechaFin(request.getFechaFin());
+        return mapearAResponse(planRepository.save(plan), hoy);
+    }
+
+    /**
+     * Reemplaza nombre, nivel, objetivo, sesiones y fecha fin del plan. No toca la plantilla de la que salió.
+     * Solo el plan activo: uno finalizado o vencido ya no se modifica.
+     */
     @Transactional
     public PlanAsignadoResponse actualizarPlan(Long id, PlanRequest request) {
+        return actualizarPlan(id, request, ZonaHoraria.hoy());
+    }
+
+    public PlanAsignadoResponse actualizarPlan(Long id, PlanRequest request, LocalDate hoy) {
         PlanAsignado plan = buscarPlanOLanzarError(id);
-        if (!plan.estaActivo()) {
+        if (!plan.estaVigente(hoy)) {
             throw new ConflictoException("El plan está finalizado y ya no se puede modificar");
         }
+        validarFechaFinAlModificar(request.getFechaFin(), plan.getFechaAsignacion(), hoy);
         // Un ejercicio que se dio de baja del catálogo puede quedar en el plan si ya estaba
         Set<Long> ejerciciosQueYaTenia = plan.getSesiones().stream()
                 .flatMap(sesion -> sesion.getEjercicios().stream())
                 .map(ejercicioSesion -> ejercicioSesion.getEjercicio().getId())
                 .collect(Collectors.toSet());
         aplicarDatos(plan, request, ejerciciosQueYaTenia);
-        return mapearAResponse(planRepository.save(plan));
+        plan.setFechaFin(request.getFechaFin());
+        return mapearAResponse(planRepository.save(plan), hoy);
     }
 
     /** Deja al alumno sin plan activo, para poder asignarle otro. */
     @Transactional
     public PlanAsignadoResponse finalizarPlan(Long id) {
-        PlanAsignado plan = buscarPlanOLanzarError(id);
-        if (!plan.estaActivo()) {
-            throw new ConflictoException("El plan ya está finalizado");
-        }
-        return mapearAResponse(finalizar(plan));
+        return finalizarPlan(id, ZonaHoraria.hoy());
     }
 
-    /** Al dar de baja a un alumno, su plan activo (si tiene) se finaliza. Corre en la transacción de la baja. */
+    public PlanAsignadoResponse finalizarPlan(Long id, LocalDate hoy) {
+        PlanAsignado plan = buscarPlanOLanzarError(id);
+        if (!plan.estaVigente(hoy)) {
+            throw new ConflictoException("El plan ya está finalizado");
+        }
+        return mapearAResponse(finalizar(plan, hoy), hoy);
+    }
+
+    /**
+     * Al dar de baja a un alumno, su plan activo (si tiene) se finaliza. Si ya estaba vencido, queda cerrado con su
+     * fecha fin. Corre en la transacción de la baja.
+     */
     @Transactional
     public void finalizarPlanActivoDe(Long alumnoId) {
-        planRepository.findFirstByAlumnoIdAndEstado(alumnoId, EstadoPlanAsignado.ACTIVO).ifPresent(this::finalizar);
+        LocalDate hoy = ZonaHoraria.hoy();
+        planRepository.findFirstByAlumnoIdAndEstado(alumnoId, EstadoPlanAsignado.ACTIVO)
+                .ifPresent(plan -> cerrar(plan, hoy));
+    }
+
+    /**
+     * Puesta al día: los planes vencidos (ACTIVO con la fecha fin ya pasada) quedan FINALIZADO con su fecha fin y
+     * liberan la plantilla. No cambia lo que se ve, que ya se calcula con la fecha; deja prolijos la base y el
+     * contador de asignaciones de la plantilla (que no deja eliminarla). Es idempotente. Devuelve cuántos cerró.
+     */
+    @Transactional
+    public int cerrarVencidos(LocalDate hoy) {
+        List<PlanAsignado> vencidos = planRepository.findByEstado(EstadoPlanAsignado.ACTIVO).stream()
+                .filter(plan -> plan.estaVencido(hoy))
+                .toList();
+        vencidos.forEach(plan -> finalizar(plan, plan.getFechaFin()));
+        return vencidos.size();
     }
 
     // --- Auxiliares ---
 
-    private PlanAsignado finalizar(PlanAsignado plan) {
-        plan.finalizar(ZonaHoraria.hoy());
+    /** El único plan activo del alumno: el ACTIVO de la base, solo si no venció. */
+    private Optional<PlanAsignado> buscarPlanVigente(Long alumnoId, LocalDate hoy) {
+        return planRepository.findFirstByAlumnoIdAndEstado(alumnoId, EstadoPlanAsignado.ACTIVO)
+                .filter(plan -> plan.estaVigente(hoy));
+    }
+
+    /** Un plan vencido terminó el día de su fecha fin; uno vigente, hoy. */
+    private void cerrar(PlanAsignado plan, LocalDate hoy) {
+        finalizar(plan, plan.estaVencido(hoy) ? plan.getFechaFin() : hoy);
+    }
+
+    private PlanAsignado finalizar(PlanAsignado plan, LocalDate fecha) {
+        plan.finalizar(fecha);
         if (plan.getPlantillaOrigen() != null) {
             plantillaRepository.restarAsignacion(plan.getPlantillaOrigen().getId());
         }
         return planRepository.save(plan);
     }
 
+    /** La fecha de inicio es la de la asignación (hoy), así que la fecha fin tiene que ser de mañana en adelante. */
+    private static void validarFechaFinAlAsignar(LocalDate fechaFin, LocalDate hoy) {
+        if (fechaFin == null) {
+            throw new RegistroInvalidoException("La fecha fin es obligatoria");
+        }
+        if (!fechaFin.isAfter(hoy)) {
+            throw new RegistroInvalidoException("La fecha fin tiene que ser posterior a la fecha de inicio");
+        }
+    }
+
+    /** Al modificar: posterior al inicio del plan y no anterior a hoy (puede ser hoy). */
+    private static void validarFechaFinAlModificar(LocalDate fechaFin, LocalDate fechaInicio, LocalDate hoy) {
+        if (fechaFin == null) {
+            throw new RegistroInvalidoException("La fecha fin es obligatoria");
+        }
+        if (!fechaFin.isAfter(fechaInicio)) {
+            throw new RegistroInvalidoException("La fecha fin tiene que ser posterior a la fecha de inicio");
+        }
+        if (fechaFin.isBefore(hoy)) {
+            throw new RegistroInvalidoException("La fecha fin no puede ser anterior a hoy");
+        }
+    }
+
     /**
      * El alumno, bloqueado hasta el fin de la transacción: dos asignaciones al mismo alumno a la vez se hacen una
-     * detrás de otra, así la segunda ya ve el plan activo de la primera y no quedan dos.
+     * detrás de otra, así la segunda ya ve el plan activo de la primera y no quedan dos. Si su plan venció, se cierra
+     * acá (con su fecha fin), para que nunca haya dos planes ACTIVO del mismo alumno en la base.
      */
-    private Alumno alumnoSinPlanActivo(Long alumnoId) {
+    private Alumno alumnoSinPlanActivo(Long alumnoId, LocalDate hoy) {
         Alumno alumno = alumnoRepository.findByIdConBloqueo(alumnoId)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No existe un alumno con id " + alumnoId));
         if (alumno.getCuenta() != null && !alumno.getCuenta().isActiva()) {
             throw new RegistroInvalidoException("No se puede asignar un plan a un alumno dado de baja");
         }
         planRepository.findFirstByAlumnoIdAndEstado(alumnoId, EstadoPlanAsignado.ACTIVO).ifPresent(activo -> {
+            if (activo.estaVencido(hoy)) {
+                finalizar(activo, activo.getFechaFin());
+                return;
+            }
             throw new ConflictoException(alumno.getNombre() + " ya tiene un plan activo (\"" + activo.getNombre()
                     + "\"). Para asignarle uno nuevo, primero finalizá su plan actual");
         });
@@ -178,7 +270,8 @@ public class PlanAsignadoService {
                 .orElseThrow(() -> new RecursoNoEncontradoException("No existe un plan asignado con id " + id));
     }
 
-    private PlanAsignadoResponse mapearAResponse(PlanAsignado plan) {
+    /** Estado y fecha de finalización como los ve la gente: un plan vencido figura FINALIZADO el día de su fecha fin. */
+    private PlanAsignadoResponse mapearAResponse(PlanAsignado plan, LocalDate hoy) {
         Alumno alumno = plan.getAlumno();
         return new PlanAsignadoResponse(
                 plan.getId(),
@@ -187,10 +280,12 @@ public class PlanAsignadoService {
                 plan.getNombre(),
                 plan.getNivel(),
                 plan.getObjetivo(),
-                plan.getEstado(),
+                plan.estadoAl(hoy),
                 plan.getPlantillaOrigen() == null ? null : plan.getPlantillaOrigen().getId(),
                 plan.getFechaAsignacion(),
-                plan.getFechaFinalizacion(),
+                plan.fechaFinalizacionAl(hoy),
+                plan.getFechaFin(),
+                plan.getCantidadSemanas(),
                 plan.getSesiones().stream().map(this::mapearSesion).toList());
     }
 

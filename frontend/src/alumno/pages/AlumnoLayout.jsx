@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router';
-import { Bell, CalendarDays, ChartLine, House, User } from 'lucide-react';
+import { Bell, CalendarDays, Dumbbell, House, User } from 'lucide-react';
 
 import { Logo } from '../../shared/components/ui';
 import BotonInstalarApp from '../../shared/components/BotonInstalarApp';
@@ -9,7 +9,8 @@ import { contarSinLeer, listarNotificaciones } from '../../notificacion/services
 const SECCIONES = [
   { to: 'inicio', label: 'Inicio', icono: House },
   { to: 'turnos', label: 'Turnos', icono: CalendarDays },
-  { to: 'progreso', label: 'Progreso', icono: ChartLine },
+  // HU-270: abre la misma pantalla (plan actual e historial); solo cambian el nombre y el ícono
+  { to: 'progreso', label: 'Rutina', icono: Dumbbell },
   { to: 'perfil', label: 'Perfil', icono: User },
 ];
 

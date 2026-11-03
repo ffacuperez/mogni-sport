@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CalendarDays, CalendarX, Check, ChevronRight, CircleAlert, Info, Lock } from 'lucide-react';
+import { CalendarDays, CalendarX, Check, ChevronRight, CircleAlert, Clock, Info, Lock } from 'lucide-react';
 
 import { Button, Cargando, Panel } from '../../shared/components/ui';
 import { cx, FOCUS } from '../../shared/components/clases';
@@ -69,6 +69,13 @@ function TarjetaTurno({ turno, elegido, onElegir }) {
     detalle = <span className="font-medium text-error">Cancelado por el gimnasio</span>;
   } else if (estado === 'COMPLETO') {
     detalle = <span>Completo</span>;
+  } else if (turno.faltaMenosDeUnaHora) {
+    // MOGNI-254: se reserva hasta 1 hora antes; el turno se sigue viendo, pero ya no se puede elegir
+    detalle = (
+      <span className="flex items-center gap-1 text-right">
+        <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> Falta menos de 1 h, ya no se puede reservar
+      </span>
+    );
   } else {
     const pocos = turno.lugaresLibres === 1;
     detalle = (

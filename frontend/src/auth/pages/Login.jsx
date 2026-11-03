@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router';
 
-import { ArrowLeft, ChevronRight, Eye, EyeOff, Lock, Mail, ShieldCheck, Smartphone, UserPlus } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Eye, EyeOff, Lock, Mail, ShieldCheck, Smartphone } from 'lucide-react';
 
 import { login } from '../services/authService';
 import Toast from '../../shared/components/Toast';
@@ -9,6 +10,7 @@ import { Button, Logo } from '../../shared/components/ui';
 import { FOCUS, inputClass, labelClass } from '../../shared/components/clases';
 
 export default function Login({ onLogin, onBack }) {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -32,11 +34,6 @@ export default function Login({ onLogin, onBack }) {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // No hay registro público: las cuentas de alumnos las crea el personal al inscribirlos
-  const handleRegister = () => {
-    mostrarToast('Las cuentas las crea el gimnasio al inscribirte. Tu contraseña inicial es tu DNI.', 'info');
   };
 
   return (
@@ -89,12 +86,15 @@ export default function Login({ onLogin, onBack }) {
                 : <>Iniciar sesión <ChevronRight className="h-4 w-4" /></>}
             </Button>
 
-            <Button onClick={handleRegister} disabled={isLoading} size="lg" className="w-full">
-              <UserPlus className="h-5 w-5" /> Registrarse
-            </Button>
-
-            <p className="pt-2 text-center text-xs text-ink-soft">
-              ¿Olvidó su contraseña? Contacte al administrador para restablecer su contraseña.
+            {/* Recuperar contraseña: link por mail (Brevo) */}
+            <p className="pt-2 text-center text-sm">
+              <button
+                type="button"
+                onClick={() => navigate('/recuperar-password')}
+                className={`cursor-pointer rounded font-semibold text-primary hover:underline ${FOCUS}`}
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
             </p>
           </form>
         </div>

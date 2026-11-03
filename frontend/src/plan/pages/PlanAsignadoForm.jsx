@@ -7,7 +7,10 @@ import { cx, FOCUS } from '../../shared/components/clases';
 import { listarEjercicios } from '../../ejercicio/services/ejerciciosService';
 import { DatosPlan, EditorSesiones } from '../../plantilla/components/EditorPlan';
 import { aFormulario, validarFormulario } from '../../plantilla/components/formularioPlan';
-import { actualizarPlan, obtenerPlan } from '../services/planesService';
+import {
+  actualizarPlan, fechaFinPorSemanas, hoyIso, obtenerPlan, sumarDias, validarFechaFin,
+} from '../services/planesService';
+import VigenciaPlan from '../components/VigenciaPlan';
 
 /** HU-266: modificación del plan de un alumno. Solo cambia su copia, no la plantilla de la que salió. */
 export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast }) {
@@ -18,6 +21,10 @@ export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast
   const [error, setError] = useState(null);
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  // HU-266: la fecha fin se puede cambiar mientras el plan está activo (no anterior a hoy)
+  const [hoy] = useState(hoyIso);
+  const [fechaFin, setFechaFin] = useState('');
+  const [errorFechaFin, setErrorFechaFin] = useState(null);
 
   useEffect(() => {
     Promise.all([listarEjercicios(), obtenerPlan(planId)])
@@ -25,6 +32,9 @@ export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast
         setCatalogo(ejercicios);
         setPlan(cargado);
         setForm(aFormulario(cargado));
+        // Un plan viejo no tiene fecha fin: si tiene cantidad de semanas, se sugiere el último día de la última semana
+        setFechaFin(cargado.fechaFin
+          ?? (cargado.cantidadSemanas ? fechaFinPorSemanas(cargado.fechaAsignacion, cargado.cantidadSemanas) : ''));
         // Ejercicios dados de baja que ya estaban en el plan: se pueden conservar
         setIdsPermitidosInactivos(new Set(cargado.sesiones.flatMap(s => s.ejercicios.map(e => String(e.ejercicioId)))));
       })
@@ -59,19 +69,29 @@ export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast
       onToast(mensaje, true);
       return;
     }
+    const mensajeFecha = validarFechaFin(fechaFin, { inicio: plan.fechaAsignacion, hoy, alModificar: true });
+    setErrorFechaFin(mensajeFecha);
+    if (mensajeFecha) {
+      onToast(mensajeFecha, true);
+      return;
+    }
     setConfirmando(true);
   };
+
+  // No anterior a hoy y posterior al inicio
+  const minimoFechaFin = [hoy, sumarDias(plan.fechaAsignacion, 1)].sort().at(-1);
 
   const guardar = async () => {
     setConfirmando(false);
     setEnviando(true);
     try {
-      await actualizarPlan(planId, form);
+      await actualizarPlan(planId, form, fechaFin);
       onToast('Plan modificado correctamente.');
       onGuardado();
     } catch (err) {
       onToast(err.message, true);
       setEnviando(false);
+      if (err.status === 400 && /fecha fin/i.test(err.message)) setErrorFechaFin(err.message);
     }
   };
 
@@ -88,6 +108,13 @@ export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast
       <Panel as="form" onSubmit={handleSubmit} className="p-6 md:p-8" noValidate>
         <h2 className="mb-4 text-base font-semibold text-ink">Datos del plan</h2>
         <DatosPlan form={form} setForm={setForm} idPrefijo="plan" />
+
+        <div className="mt-8 border-t border-line pt-6">
+          <h2 className="mb-4 text-base font-semibold text-ink">Vigencia del plan</h2>
+          <VigenciaPlan inicio={plan.fechaAsignacion} fechaFin={fechaFin}
+            onCambiarFechaFin={(valor) => { setFechaFin(valor); setErrorFechaFin(null); }}
+            minimo={minimoFechaFin} error={errorFechaFin} idPrefijo="plan" />
+        </div>
 
         <div className="mt-8 border-t border-line pt-6">
           <EditorSesiones form={form} setForm={setForm} catalogo={catalogo}

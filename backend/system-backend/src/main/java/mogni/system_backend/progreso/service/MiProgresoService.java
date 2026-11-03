@@ -23,16 +23,23 @@ import mogni.system_backend.plan.entity.EstadoPlanAsignado;
 import mogni.system_backend.plan.entity.PlanAsignado;
 import mogni.system_backend.plan.entity.SesionPlan;
 import mogni.system_backend.plan.repository.PlanAsignadoRepository;
+import jakarta.validation.Valid;
+import mogni.system_backend.exception.RegistroInvalidoException;
 import mogni.system_backend.progreso.dto.EjercicioIndicadoResponse;
 import mogni.system_backend.progreso.dto.EjercicioRealizadoResponse;
 import mogni.system_backend.progreso.dto.EstadoSesion;
 import mogni.system_backend.progreso.dto.MisPlanesResponse;
 import mogni.system_backend.progreso.dto.PlanDetalleResponse;
 import mogni.system_backend.progreso.dto.PlanResumenResponse;
+import mogni.system_backend.progreso.dto.RegistroEjercicioRequest;
+import mogni.system_backend.progreso.dto.RegistroSesionRequest;
+import mogni.system_backend.progreso.dto.RegistroSesionResponse;
 import mogni.system_backend.progreso.dto.SemanaPlanResponse;
 import mogni.system_backend.progreso.dto.SesionDetalleResponse;
 import mogni.system_backend.progreso.dto.SesionRegistradaResponse;
 import mogni.system_backend.progreso.dto.SesionSemanaResponse;
+import mogni.system_backend.progreso.entity.RegistroEjercicio;
+import mogni.system_backend.progreso.entity.RegistroSerie;
 import mogni.system_backend.progreso.entity.RegistroSesion;
 import mogni.system_backend.progreso.repository.RegistroSesionRepository;
 
@@ -119,6 +126,91 @@ public class MiProgresoService {
                 plan.getMetodo(),
                 plan.getMesociclo(),
                 registro.getEjercicios().stream().map(EjercicioRealizadoResponse::desde).toList());
+    }
+
+    @Transactional
+    public RegistroSesionResponse iniciarSesion(String email, Long planId, RegistroSesionRequest request) {
+        PlanAsignado plan = buscarPlanDelAlumno(email, planId);
+        if (!plan.estaVigente(ZonaHoraria.hoy())) {
+            throw new RegistroInvalidoException("No podés registrar una sesión en un plan que ya no está vigente");
+        }
+        int semana = request.getSemana();
+        int numeroSesion = request.getNumeroSesion();
+        if (semana < 1 || semana > cantidadSemanas(plan)) {
+            throw new RegistroInvalidoException("La semana indicada no corresponde a este plan");
+        }
+        if (numeroSesion < 1 || numeroSesion > plan.getSesiones().size()) {
+            throw new RegistroInvalidoException("La sesión indicada no existe en este plan");
+        }
+        return registroRepository.findByPlanId(plan.getId()).stream()
+                .filter(registro -> registro.getSemana() == semana && registro.getNumeroSesion() == numeroSesion)
+                .findFirst()
+                .map(registro -> new RegistroSesionResponse(
+                        registro.getId(), registro.getSemana(), registro.getNumeroSesion(), registro.getFecha(), registro.isCompletada()))
+                .orElseGet(() -> {
+                    SesionPlan sesionPlan = plan.getSesiones().get(numeroSesion - 1);
+                    RegistroSesion registro = new RegistroSesion(plan, semana, numeroSesion, ZonaHoraria.hoy());
+                    registro.agregarEjercicios(sesionPlan.getEjercicios().stream()
+                            .map(indicado -> {
+                                RegistroEjercicio ejercicio = new RegistroEjercicio(indicado);
+                                ejercicio.agregarSeries(IntStream.rangeClosed(1, indicado.getSeries())
+                                        .mapToObj(i -> new RegistroSerie(null, null, null, null))
+                                        .toList());
+                                return ejercicio;
+                            })
+                            .toList());
+                    RegistroSesion guardado = registroRepository.save(registro);
+                    return new RegistroSesionResponse(
+                            guardado.getId(), guardado.getSemana(), guardado.getNumeroSesion(), guardado.getFecha(), guardado.isCompletada());
+                });
+    }
+
+    @Transactional
+    public RegistroSesionResponse guardarEjercicio(String email, Long registroId, int orden, RegistroEjercicioRequest request) {
+        Alumno alumno = buscarAlumnoConAcceso(email);
+        RegistroSesion registro = registroRepository.findByIdAndPlanAlumnoId(registroId, alumno.getId())
+                .orElseThrow(() -> new RecursoNoEncontradoException("No encontramos esa sesión"));
+        RegistroEjercicio ejercicio = registro.getEjercicios().stream()
+                .filter(item -> item.getOrden() == orden)
+                .findFirst()
+                .orElseThrow(() -> new RecursoNoEncontradoException("No encontramos ese ejercicio en la sesión"));
+
+        if (request.getSeries() == null || request.getSeries().isEmpty()) {
+            throw new RegistroInvalidoException("Debes completar al menos una serie del ejercicio");
+        }
+
+        List<RegistroSerie> nuevas = request.getSeries().stream()
+                .map(serieRequest -> {
+                    RegistroSerie serie = ejercicio.getSeriesRegistradas().stream()
+                            .filter(item -> item.getOrden() == serieRequest.getOrden())
+                            .findFirst()
+                            .orElse(new RegistroSerie(null, null, null, null));
+                    serie.actualizar(serieRequest.getPeso(), serieRequest.getRepeticiones(), serieRequest.getRir(), serieRequest.getNota());
+                    return serie;
+                })
+                .toList();
+
+        ejercicio.actualizarSeries(nuevas);
+        ejercicio.recalcularEstado();
+        registro.setCompletada(registro.getEjercicios().stream().allMatch(RegistroEjercicio::isCompleto));
+        registroRepository.save(registro);
+        return new RegistroSesionResponse(registro.getId(), registro.getSemana(), registro.getNumeroSesion(), registro.getFecha(), registro.isCompletada());
+    }
+
+    @Transactional
+    public RegistroSesionResponse completarSesion(String email, Long registroId) {
+        Alumno alumno = buscarAlumnoConAcceso(email);
+        RegistroSesion registro = registroRepository.findByIdAndPlanAlumnoId(registroId, alumno.getId())
+                .orElseThrow(() -> new RecursoNoEncontradoException("No encontramos esa sesión"));
+
+        boolean todosCompletos = registro.getEjercicios().stream().allMatch(RegistroEjercicio::isCompleto);
+        if (!todosCompletos) {
+            throw new RegistroInvalidoException("Antes de cerrar la sesión, completá todos los ejercicios");
+        }
+
+        registro.setCompletada(true);
+        registroRepository.save(registro);
+        return new RegistroSesionResponse(registro.getId(), registro.getSemana(), registro.getNumeroSesion(), registro.getFecha(), true);
     }
 
     /** HU-266: el plan activo es el ACTIVO de la base, solo si no venció (misma regla que en todos lados). */

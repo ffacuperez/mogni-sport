@@ -52,6 +52,9 @@ public class RegistroSesion {
     @Column(nullable = false)
     private LocalDate fecha;
 
+    @Column(nullable = false)
+    private boolean completada = false;
+
     @OneToMany(mappedBy = "registro", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("orden ASC")
     private List<RegistroEjercicio> ejercicios = new ArrayList<>();

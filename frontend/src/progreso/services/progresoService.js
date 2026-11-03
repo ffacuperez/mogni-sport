@@ -17,6 +17,13 @@ const ejercicioFromApi = (e) => ({
   rirObjetivo: e.rirObjetivo ?? null,
   descansoMinutos: e.descansoMinutos ?? null,
   indicaciones: e.indicaciones ?? null,
+  kgUsados: e.kgUsados ?? null,
+  repeticionesRealizadas: e.repeticionesRealizadas ?? null,
+  rirReal: e.rirReal ?? null,
+  notas: e.notas ?? null,
+  rmEstimado: e.rmEstimado ?? null,
+  completo: e.completo ?? false,
+  diferenciaRir: e.diferenciaRir ?? null,
 });
 
 const sesionFromApi = (s) => ({
@@ -79,6 +86,27 @@ export async function consultarPlan(id) {
   return planFromApi(await request(`${BASE_PATH}/planes/${id}`));
 }
 
+/** Crea o devuelve la sesión de un plan para la semana y número indicados. */
+export async function iniciarSesion(planId, semana, numeroSesion) {
+  return request(`${BASE_PATH}/planes/${planId}/sesiones`, {
+    method: 'POST',
+    body: { semana, numeroSesion },
+  });
+}
+
+/** Guarda los datos del ejercicio dentro de la sesión. */
+export async function guardarEjercicioSesion(registroId, orden, ejercicio) {
+  return request(`${BASE_PATH}/sesiones/${registroId}/ejercicios/${orden}`, {
+    method: 'PUT',
+    body: ejercicio,
+  });
+}
+
+/** Cierra la sesión si todos los ejercicios ya fueron cargados. */
+export async function completarSesion(registroId) {
+  return request(`${BASE_PATH}/sesiones/${registroId}/completar`, { method: 'POST' });
+}
+
 /** Las sesiones registradas del plan, ya ordenadas por el backend. */
 export async function consultarSesiones(planId) {
   return request(`${BASE_PATH}/planes/${planId}/sesiones`);
@@ -92,13 +120,7 @@ export async function consultarSesion(id) {
     numeroSesion: s.numeroSesion,
     fecha: s.fecha,
     plan: { nombre: s.nombrePlan, metodo: s.metodo ?? null, mesociclo: s.mesociclo ?? null },
-    ejercicios: s.ejercicios.map((e) => ({
-      ...ejercicioFromApi(e),
-      kgUsados: e.kgUsados ?? null,
-      rirReal: e.rirReal ?? null,
-      notas: e.notas ?? null,
-      diferenciaRir: e.diferenciaRir ?? null,
-    })),
+    ejercicios: s.ejercicios.map((e) => ejercicioFromApi(e)),
   };
 }
 

@@ -28,6 +28,11 @@ export default function ComparativaEjercicio({ ejercicio }) {
         <div className="flex flex-col gap-0.5 rounded-lg bg-error-bg px-3 py-2.5">
           <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Realizado</p>
           <p className="text-xl font-bold text-ink">{ejercicio.kgUsados != null ? textoKg(ejercicio.kgUsados) : '—'}</p>
+          {ejercicio.rmEstimado != null && (
+            <p className="text-sm font-semibold text-ink">
+              1RM {textoKg(ejercicio.rmEstimado)}
+            </p>
+          )}
           {ejercicio.rirReal != null && (
             <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
               RIR {ejercicio.rirReal}

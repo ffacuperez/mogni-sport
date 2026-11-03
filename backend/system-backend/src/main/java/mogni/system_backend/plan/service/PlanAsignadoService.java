@@ -35,8 +35,8 @@ import mogni.system_backend.plantilla.repository.PlantillaPlanRepository;
 import mogni.system_backend.plantilla.service.CatalogoEjercicios;
 
 /**
- * HU-266: asignar un plan de entrenamiento a un alumno, copiando una plantilla o armándolo desde cero, con una fecha
- * fin. Un alumno tiene como mucho un plan activo (ACTIVO y sin vencer, ver {@link PlanAsignado#estaVigente}): para
+ * HU-266: asignar un plan de entrenamiento a un alumno, copiando una plantilla o armándolo desde cero, por una
+ * cantidad de semanas (de ahí sale la fecha fin). Un alumno tiene como mucho un plan activo (ACTIVO y sin vencer, ver {@link PlanAsignado#estaVigente}): para
  * asignarle otro hay que finalizar el actual o esperar a que venza.
  * Los métodos públicos usan el día de hoy en Argentina; los que reciben "hoy" son para probarlos con cualquier fecha.
  */
@@ -81,14 +81,14 @@ public class PlanAsignadoService {
     }
 
     public PlanAsignadoResponse asignarDesdePlantilla(AsignarPlanDesdePlantillaRequest request, LocalDate hoy) {
-        validarFechaFinAlAsignar(request.getFechaFin(), hoy);
+        validarSemanas(request.getCantidadSemanas(), 1);
         Alumno alumno = alumnoSinPlanActivo(request.getAlumnoId(), hoy);
         PlantillaPlan plantilla = plantillaRepository.findByIdAndActivaTrue(request.getPlantillaId())
                 .orElseThrow(() -> new RecursoNoEncontradoException(
                         "No existe una plantilla con id " + request.getPlantillaId()));
 
         PlanAsignado copia = PlanAsignado.copiaDe(plantilla, alumno, hoy);
-        copia.setFechaFin(request.getFechaFin());
+        copia.definirDuracion(request.getCantidadSemanas());
         PlanAsignado plan = planRepository.save(copia);
         plantillaRepository.sumarAsignacion(plantilla.getId());
         return mapearAResponse(plan, hoy);
@@ -101,16 +101,16 @@ public class PlanAsignadoService {
     }
 
     public PlanAsignadoResponse asignarDesdeCero(AsignarPlanDesdeCeroRequest request, LocalDate hoy) {
-        validarFechaFinAlAsignar(request.getFechaFin(), hoy);
+        validarSemanas(request.getCantidadSemanas(), 1);
         Alumno alumno = alumnoSinPlanActivo(request.getAlumnoId(), hoy);
         PlanAsignado plan = new PlanAsignado(alumno, hoy);
         aplicarDatos(plan, request, Set.of());
-        plan.setFechaFin(request.getFechaFin());
+        plan.definirDuracion(request.getCantidadSemanas());
         return mapearAResponse(planRepository.save(plan), hoy);
     }
 
     /**
-     * Reemplaza nombre, nivel, objetivo, sesiones y fecha fin del plan. No toca la plantilla de la que salió.
+     * Reemplaza nombre, nivel, objetivo, sesiones y semanas (y con ellas la fecha fin) del plan. No toca la plantilla de la que salió.
      * Solo el plan activo: uno finalizado o vencido ya no se modifica.
      */
     @Transactional
@@ -123,14 +123,15 @@ public class PlanAsignadoService {
         if (!plan.estaVigente(hoy)) {
             throw new ConflictoException("El plan está finalizado y ya no se puede modificar");
         }
-        validarFechaFinAlModificar(request.getFechaFin(), plan.getFechaAsignacion(), hoy);
+        // La semana en curso no se puede recortar: el plan termina, como pronto, al final de esta semana
+        validarSemanas(request.getCantidadSemanas(), plan.semanaEn(hoy));
         // Un ejercicio que se dio de baja del catálogo puede quedar en el plan si ya estaba
         Set<Long> ejerciciosQueYaTenia = plan.getSesiones().stream()
                 .flatMap(sesion -> sesion.getEjercicios().stream())
                 .map(ejercicioSesion -> ejercicioSesion.getEjercicio().getId())
                 .collect(Collectors.toSet());
         aplicarDatos(plan, request, ejerciciosQueYaTenia);
-        plan.setFechaFin(request.getFechaFin());
+        plan.definirDuracion(request.getCantidadSemanas());
         return mapearAResponse(planRepository.save(plan), hoy);
     }
 
@@ -194,26 +195,20 @@ public class PlanAsignadoService {
         return planRepository.save(plan);
     }
 
-    /** La fecha de inicio es la de la asignación (hoy), así que la fecha fin tiene que ser de mañana en adelante. */
-    private static void validarFechaFinAlAsignar(LocalDate fechaFin, LocalDate hoy) {
-        if (fechaFin == null) {
-            throw new RegistroInvalidoException("La fecha fin es obligatoria");
+    /** Entre el mínimo (1 al asignar, la semana en curso al modificar) y un año. */
+    private static void validarSemanas(Integer semanas, int minimo) {
+        if (semanas == null) {
+            throw new RegistroInvalidoException("La cantidad de semanas es obligatoria");
         }
-        if (!fechaFin.isAfter(hoy)) {
-            throw new RegistroInvalidoException("La fecha fin tiene que ser posterior a la fecha de inicio");
+        if (semanas < 1) {
+            throw new RegistroInvalidoException("El plan tiene que durar al menos una semana");
         }
-    }
-
-    /** Al modificar: posterior al inicio del plan y no anterior a hoy (puede ser hoy). */
-    private static void validarFechaFinAlModificar(LocalDate fechaFin, LocalDate fechaInicio, LocalDate hoy) {
-        if (fechaFin == null) {
-            throw new RegistroInvalidoException("La fecha fin es obligatoria");
+        if (semanas < minimo) {
+            throw new RegistroInvalidoException("El plan ya va por la semana " + minimo
+                    + ": no puede durar menos de " + minimo + " semanas");
         }
-        if (!fechaFin.isAfter(fechaInicio)) {
-            throw new RegistroInvalidoException("La fecha fin tiene que ser posterior a la fecha de inicio");
-        }
-        if (fechaFin.isBefore(hoy)) {
-            throw new RegistroInvalidoException("La fecha fin no puede ser anterior a hoy");
+        if (semanas > PlanAsignado.MAXIMO_SEMANAS) {
+            throw new RegistroInvalidoException("El plan no puede durar más de 52 semanas");
         }
     }
 

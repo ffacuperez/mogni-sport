@@ -337,6 +337,36 @@ class MiProgresoIntegrationTest {
     }
 
     @Test
+    void con_fecha_fin_las_semanas_salen_del_rango_de_fechas() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate inicio = ZonaHoraria.hoy();
+        PlanAsignado plan = planBasico(alumno, inicio);
+        plan.setFechaFin(inicio.plusDays(20));
+        planRepository.save(plan);
+
+        JsonNode cuerpo = planActivoDe(alumno).cuerpo();
+
+        assertEquals(3, cuerpo.path("cantidadSemanas").asInt());
+        assertEquals(3, cuerpo.path("semanas").size());
+        assertEquals(6, cuerpo.path("sesionesTotales").asInt());
+    }
+
+    @Test
+    void si_la_fecha_fin_no_cierra_una_semana_la_ultima_queda_incompleta() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate inicio = ZonaHoraria.hoy();
+        PlanAsignado plan = planBasico(alumno, inicio);
+        plan.setFechaFin(inicio.plusDays(21));
+        planRepository.save(plan);
+
+        JsonNode semanas = planActivoDe(alumno).cuerpo().path("semanas");
+
+        assertEquals(4, semanas.size());
+        assertEquals(inicio.plusDays(21).toString(), semanas.get(3).path("desde").asString());
+        assertEquals(inicio.plusDays(21).toString(), semanas.get(3).path("hasta").asString());
+    }
+
+    @Test
     void cada_alumno_ve_solo_su_plan() throws Exception {
         Alumno conPlan = alumno();
         planDeSemanas(conPlan, ZonaHoraria.hoy(), 5);

@@ -2,7 +2,6 @@ package mogni.system_backend.plan;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,7 +35,7 @@ class PlanRequestValidationTest {
         request.setNivel(NivelPlantilla.PRINCIPIANTE);
         request.setObjetivo(ObjetivoPlantilla.FUERZA);
         request.setSesiones(new ArrayList<>(List.of(sesion)));
-        request.setFechaFin(LocalDate.of(2099, 12, 31));
+        request.setCantidadSemanas(8);
         return request;
     }
 
@@ -81,29 +80,40 @@ class PlanRequestValidationTest {
         assertTrue(tieneError(request, "Elegí la plantilla que le vas a asignar"));
     }
 
-    // --- HU-266: fecha fin obligatoria al asignar (desde cero, desde plantilla) y al modificar ---
+    // --- HU-266: semanas de vigencia obligatorias al asignar (desde cero, desde plantilla) y al modificar ---
 
     @Test
-    void planDesdeCeroSinFechaFinFalla() {
+    void planDesdeCeroSinSemanasFalla() {
         AsignarPlanDesdeCeroRequest request = requestValido();
-        request.setFechaFin(null);
-        assertTrue(tieneError(request, "La fecha fin es obligatoria"));
+        request.setCantidadSemanas(null);
+        assertTrue(tieneError(request, "La cantidad de semanas es obligatoria"));
     }
 
     @Test
-    void desdePlantillaSinFechaFinFalla() {
+    void desdePlantillaSinSemanasFalla() {
         AsignarPlanDesdePlantillaRequest request = new AsignarPlanDesdePlantillaRequest();
         request.setAlumnoId(7L);
         request.setPlantillaId(5L);
-        assertTrue(tieneError(request, "La fecha fin es obligatoria"));
-        request.setFechaFin(LocalDate.of(2099, 12, 31));
+        assertTrue(tieneError(request, "La cantidad de semanas es obligatoria"));
+        request.setCantidadSemanas(8);
         assertTrue(validator.validate(request).isEmpty());
     }
 
     @Test
-    void modificarUnPlanSinFechaFinFalla() {
+    void modificarUnPlanSinSemanasFalla() {
         PlanRequest cambios = requestValido();
-        cambios.setFechaFin(null);
-        assertTrue(tieneError(cambios, "La fecha fin es obligatoria"));
+        cambios.setCantidadSemanas(null);
+        assertTrue(tieneError(cambios, "La cantidad de semanas es obligatoria"));
+    }
+
+    @Test
+    void semanasFueraDeRangoFallan() {
+        AsignarPlanDesdeCeroRequest request = requestValido();
+        request.setCantidadSemanas(0);
+        assertTrue(tieneError(request, "El plan tiene que durar al menos una semana"));
+        request.setCantidadSemanas(53);
+        assertTrue(tieneError(request, "El plan no puede durar más de 52 semanas"));
+        request.setCantidadSemanas(52);
+        assertTrue(validator.validate(request).isEmpty());
     }
 }

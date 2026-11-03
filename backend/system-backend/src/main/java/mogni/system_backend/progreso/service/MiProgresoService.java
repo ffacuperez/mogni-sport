@@ -194,10 +194,14 @@ public class MiProgresoService {
     private SemanaPlanResponse mapearSemana(PlanAsignado plan, int numero, Map<ClaveSesion, RegistroSesion> registros,
                                             LocalDate hoy) {
         LocalDate desde = plan.getFechaAsignacion().plusWeeks(numero - 1L);
+        LocalDate hasta = desde.plusDays(6);
+        if (plan.getFechaFin() != null && plan.getFechaFin().isBefore(hasta)) {
+            hasta = plan.getFechaFin();
+        }
         return new SemanaPlanResponse(
                 numero,
                 desde,
-                desde.plusDays(6),
+                hasta,
                 plan.getSesiones().stream()
                         .map(sesion -> mapearSesion(plan, sesion, registros.get(new ClaveSesion(numero, sesion.getNumero())), hoy))
                         .toList());
@@ -212,10 +216,21 @@ public class MiProgresoService {
                 sesion.getEjercicios().stream().map(EjercicioIndicadoResponse::desde).toList());
     }
 
-    /** Un plan sin la cantidad cargada se toma como de una sola semana. */
+    /**
+     * La cantidad cargada. Los planes que se asignaron eligiendo una fecha fin suelta no la tienen: para esos, las
+     * semanas de 7 días que cubren del inicio al fin inclusive (si sobran días, la última queda incompleta).
+     * Sin ninguna de las dos, una sola semana.
+     */
     private static int cantidadSemanas(PlanAsignado plan) {
         Integer cantidad = plan.getCantidadSemanas();
-        return cantidad == null || cantidad < 1 ? 1 : cantidad;
+        if (cantidad != null && cantidad >= 1) {
+            return cantidad;
+        }
+        if (plan.getFechaFin() != null) {
+            long dias = ChronoUnit.DAYS.between(plan.getFechaAsignacion(), plan.getFechaFin()) + 1;
+            return (int) Math.max(1, Math.ceilDiv(dias, 7));
+        }
+        return 1;
     }
 
     /**
@@ -235,8 +250,7 @@ public class MiProgresoService {
         if (!plan.estaVigente(hoy)) {
             return cantidadSemanas;
         }
-        long semanasCompletas = ChronoUnit.WEEKS.between(plan.getFechaAsignacion(), hoy);
-        return Math.clamp(semanasCompletas + 1, 1, cantidadSemanas);
+        return Math.clamp(plan.semanaEn(hoy), 1, cantidadSemanas);
     }
 
     private record ClaveSesion(int semana, int numeroSesion) {

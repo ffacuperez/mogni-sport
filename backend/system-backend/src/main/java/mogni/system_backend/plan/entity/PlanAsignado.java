@@ -1,6 +1,7 @@
 package mogni.system_backend.plan.entity;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,6 +37,9 @@ import mogni.system_backend.plantilla.entity.PlantillaPlan;
 @Setter
 @NoArgsConstructor
 public class PlanAsignado {
+
+    /** Un año: tope para que un error de tipeo no deje un plan vigente por décadas. */
+    public static final int MAXIMO_SEMANAS = 52;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -92,7 +96,10 @@ public class PlanAsignado {
     @Column(length = 150)
     private String objetivoMesociclo;
 
-    /** Las sesiones del plan se repiten igual cada semana. */
+    /**
+     * Las sesiones del plan se repiten igual cada semana. Desde que la vigencia se elige en semanas, se guarda junto
+     * con la fecha fin (ver {@link #definirDuracion}); los planes asignados antes pueden tener solo la fecha fin.
+     */
     private Integer cantidadSemanas;
 
     @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -146,6 +153,17 @@ public class PlanAsignado {
     public void finalizar(LocalDate fecha) {
         estado = EstadoPlanAsignado.FINALIZADO;
         fechaFinalizacion = fecha;
+    }
+
+    /** El plan dura semanas completas: la fecha fin es el último día de la última semana. */
+    public void definirDuracion(int semanas) {
+        cantidadSemanas = semanas;
+        fechaFin = fechaAsignacion.plusWeeks(semanas).minusDays(1);
+    }
+
+    /** En qué semana del plan cae ese día: la 1 va del día de la asignación a seis días después. */
+    public int semanaEn(LocalDate dia) {
+        return (int) ChronoUnit.WEEKS.between(fechaAsignacion, dia) + 1;
     }
 
     /** Reemplaza todas las sesiones y las numera 1, 2, 3... en el orden recibido. */

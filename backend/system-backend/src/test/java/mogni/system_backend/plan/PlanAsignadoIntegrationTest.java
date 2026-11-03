@@ -172,14 +172,17 @@ class PlanAsignadoIntegrationTest {
         return plan;
     }
 
-    /** HU-266: fecha fin válida para asignar o modificar (las plantillas no la tienen). */
-    private static final String FIN_PLAN = ZonaHoraria.hoy().plusWeeks(8).toString();
+    /** HU-266: semanas de vigencia para asignar o modificar (las plantillas no las tienen). */
+    private static final int SEMANAS_PLAN = 8;
 
-    /** Datos de un plan asignado (para asignarlo desde cero o modificarlo): los de una plantilla más la fecha fin. */
+    /** La fecha fin que corresponde a SEMANAS_PLAN en un plan asignado hoy. */
+    private static final String FIN_PLAN = ZonaHoraria.hoy().plusWeeks(SEMANAS_PLAN).minusDays(1).toString();
+
+    /** Datos de un plan asignado (para asignarlo desde cero o modificarlo): los de una plantilla más las semanas. */
     @SafeVarargs
     private static Map<String, Object> datosPlanAsignado(String nombre, Map<String, Object>... sesiones) {
         Map<String, Object> plan = datosPlan(nombre, sesiones);
-        plan.put("fechaFin", FIN_PLAN);
+        plan.put("cantidadSemanas", SEMANAS_PLAN);
         return plan;
     }
 
@@ -194,7 +197,7 @@ class PlanAsignadoIntegrationTest {
         Map<String, Object> pedido = new HashMap<>();
         pedido.put("alumnoId", alumnoId);
         pedido.put("plantillaId", plantillaId);
-        pedido.put("fechaFin", FIN_PLAN);
+        pedido.put("cantidadSemanas", SEMANAS_PLAN);
         return pedido;
     }
 
@@ -493,8 +496,8 @@ class PlanAsignadoIntegrationTest {
         for (Map.Entry<String, Map<String, Object>> caso : invalidos.entrySet()) {
             Map<String, Object> plan = new HashMap<>(caso.getValue());
             plan.put("alumnoId", alumno);
-            // Con fecha fin válida: así el plan se rechaza por lo mismo que la plantilla y no por faltar la fecha
-            plan.put("fechaFin", FIN_PLAN);
+            // Con semanas válidas: así el plan se rechaza por lo mismo que la plantilla y no por faltar la vigencia
+            plan.put("cantidadSemanas", SEMANAS_PLAN);
             assertEquals(400, pedir(post("/planes-asignados/desde-cero"), plan).status(), "plan: " + caso.getKey());
             assertEquals(400, pedir(post("/plantillas"), caso.getValue()).status(), "plantilla: " + caso.getKey());
         }
@@ -851,7 +854,7 @@ class PlanAsignadoIntegrationTest {
     }
 
     @Test
-    void pa7_asignar_un_plan_con_una_fecha_fin_valida_pasa_y_el_inicio_es_hoy() throws Exception {
+    void pa7_asignar_un_plan_por_semanas_pasa_el_inicio_es_hoy_y_la_fecha_fin_se_calcula() throws Exception {
         Long alumno = alumno();
 
         Respuesta creado = pedir(post("/planes-asignados/desde-cero"),
@@ -860,38 +863,38 @@ class PlanAsignadoIntegrationTest {
         assertEquals(201, creado.status(), creado.cuerpo().toString());
         assertEquals(HOY.toString(), creado.cuerpo().path("fechaAsignacion").asString());
         assertEquals(FIN_PLAN, creado.cuerpo().path("fechaFin").asString());
+        assertEquals(SEMANAS_PLAN, creado.cuerpo().path("cantidadSemanas").asInt());
         assertEquals(FIN_PLAN, jdbc.queryForObject("select fecha_fin from planes_asignados where id = ?",
                 LocalDate.class, id(creado.cuerpo())).toString());
     }
 
     @Test
-    void pa8_asignar_un_plan_sin_fecha_fin_falla_desde_plantilla_y_desde_cero() throws Exception {
+    void pa8_asignar_un_plan_sin_semanas_falla_desde_plantilla_y_desde_cero() throws Exception {
         Long alumno = alumno();
         Map<String, Object> plantilla = desdePlantilla(alumno, id(plantillaCompleta()));
-        plantilla.remove("fechaFin");
+        plantilla.remove("cantidadSemanas");
         Map<String, Object> cero = desdeCero(alumno, "Sin fin", sesion(null, ejercicioSimple(ejercicio())));
-        cero.remove("fechaFin");
+        cero.remove("cantidadSemanas");
 
         Respuesta desdePlantilla = pedir(post("/planes-asignados/desde-plantilla"), plantilla);
         Respuesta desdeCero = pedir(post("/planes-asignados/desde-cero"), cero);
 
         assertEquals(400, desdePlantilla.status());
         assertEquals(400, desdeCero.status());
-        assertTrue(desdePlantilla.cuerpo().toString().contains("La fecha fin es obligatoria"), desdePlantilla.cuerpo().toString());
-        assertTrue(desdeCero.cuerpo().toString().contains("La fecha fin es obligatoria"), desdeCero.cuerpo().toString());
+        assertTrue(desdePlantilla.cuerpo().toString().contains("La cantidad de semanas es obligatoria"), desdePlantilla.cuerpo().toString());
+        assertTrue(desdeCero.cuerpo().toString().contains("La cantidad de semanas es obligatoria"), desdeCero.cuerpo().toString());
         assertEquals(0, planesDe(alumno));
     }
 
     @Test
-    void pa9_asignar_un_plan_con_fecha_fin_igual_o_anterior_a_la_de_inicio_falla() throws Exception {
+    void pa9_asignar_un_plan_de_cero_semanas_o_de_mas_de_un_anio_falla() throws Exception {
         Long alumno = alumno();
-        for (LocalDate fin : List.of(HOY, HOY.minusDays(1))) {
+        for (int semanas : List.of(0, 53)) {
             Map<String, Object> cero = desdeCero(alumno, "Mal fin", sesion(null, ejercicioSimple(ejercicio())));
-            cero.put("fechaFin", fin.toString());
+            cero.put("cantidadSemanas", semanas);
             Respuesta respuesta = pedir(post("/planes-asignados/desde-cero"), cero);
 
-            assertEquals(400, respuesta.status(), "fin " + fin);
-            assertEquals("La fecha fin tiene que ser posterior a la fecha de inicio", respuesta.cuerpo().path("error").asString());
+            assertEquals(400, respuesta.status(), "semanas " + semanas);
         }
         assertEquals(0, planesDe(alumno));
     }
@@ -942,23 +945,26 @@ class PlanAsignadoIntegrationTest {
     }
 
     @Test
-    void modificar_la_fecha_fin_de_un_plan_activo_pasa_y_a_una_anterior_a_hoy_falla() throws Exception {
+    void modificar_las_semanas_de_un_plan_activo_pasa_y_a_menos_que_la_semana_en_curso_falla() throws Exception {
         Long alumno = alumno();
         JsonNode plan = asignar(alumno, id(plantillaCompleta()));
-        // Asignado hace 10 días: así "ayer" es posterior al inicio y solo falla por ser anterior a hoy
-        jdbc.update("update planes_asignados set fecha_asignacion = ? where id = ?", HOY.minusDays(10), id(plan));
+        // Asignado hace 10 días: va por la semana 2
+        LocalDate inicio = HOY.minusDays(10);
+        jdbc.update("update planes_asignados set fecha_asignacion = ? where id = ?", inicio, id(plan));
         Map<String, Object> cambios = datosPlanAsignado("Con otro fin", sesion(null, ejercicioSimple(ejercicio())));
 
-        cambios.put("fechaFin", HOY.plusWeeks(12).toString());
-        Respuesta futura = pedir(put("/planes-asignados/" + id(plan)), cambios);
-        cambios.put("fechaFin", HOY.minusDays(1).toString());
-        Respuesta pasada = pedir(put("/planes-asignados/" + id(plan)), cambios);
+        cambios.put("cantidadSemanas", 12);
+        Respuesta mas = pedir(put("/planes-asignados/" + id(plan)), cambios);
+        cambios.put("cantidadSemanas", 1);
+        Respuesta menos = pedir(put("/planes-asignados/" + id(plan)), cambios);
 
-        assertEquals(200, futura.status(), futura.cuerpo().toString());
-        assertEquals(HOY.plusWeeks(12).toString(), futura.cuerpo().path("fechaFin").asString());
-        assertEquals(400, pasada.status());
-        assertEquals("La fecha fin no puede ser anterior a hoy", pasada.cuerpo().path("error").asString());
-        assertEquals(HOY.plusWeeks(12).toString(), plan(id(plan)).path("fechaFin").asString());
+        String finDeDoce = inicio.plusWeeks(12).minusDays(1).toString();
+        assertEquals(200, mas.status(), mas.cuerpo().toString());
+        assertEquals(finDeDoce, mas.cuerpo().path("fechaFin").asString());
+        assertEquals(12, mas.cuerpo().path("cantidadSemanas").asInt());
+        assertEquals(400, menos.status());
+        assertEquals("El plan ya va por la semana 2: no puede durar menos de 2 semanas", menos.cuerpo().path("error").asString());
+        assertEquals(finDeDoce, plan(id(plan)).path("fechaFin").asString());
     }
 
     @Test

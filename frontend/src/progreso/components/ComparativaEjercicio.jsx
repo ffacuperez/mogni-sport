@@ -11,13 +11,6 @@ export default function ComparativaEjercicio({ ejercicio }) {
   const hayDiferencia = ejercicio.diferenciaRir != null;
   const indicado = [textoSeriesRepeticiones(ejercicio), ejercicio.rirObjetivo != null && `RIR ${ejercicio.rirObjetivo}`].filter(Boolean).join(' · ');
   const descanso = [ejercicio.descansoMinutos != null && textoDescansoSegundos(ejercicio.descansoMinutos), ejercicio.indicaciones].filter(Boolean).join(' · ');
-  const series = ejercicio.seriesRealizadas?.length ? ejercicio.seriesRealizadas : [{
-    orden: 1,
-    peso: ejercicio.kgUsados,
-    repeticiones: ejercicio.repeticionesRealizadas,
-    rir: ejercicio.rirReal,
-    rmEstimado: ejercicio.rmEstimado,
-  }];
 
   return (
     <Panel as="article" className="flex flex-col gap-2.5 px-4 py-3.5">
@@ -47,22 +40,6 @@ export default function ComparativaEjercicio({ ejercicio }) {
             </p>
           )}
         </div>
-      </div>
-
-      <div className="space-y-2">
-        {series.map((serie, index) => (
-          <div key={`${ejercicio.nombre}-serie-${serie.orden ?? index + 1}`} className="rounded-lg border border-line bg-soft/50 px-3 py-2">
-            <div className="flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-wide text-ink-muted">
-              <span>Serie {serie.orden ?? index + 1}</span>
-              {serie.rmEstimado != null && <span>1RM {textoKg(serie.rmEstimado)}</span>}
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm font-semibold text-ink">
-              {serie.peso != null && <span>{textoKg(serie.peso)}</span>}
-              {serie.repeticiones != null && <span>· {serie.repeticiones} reps</span>}
-              {serie.rir != null && <span>· RIR {serie.rir}</span>}
-            </div>
-          </div>
-        ))}
       </div>
 
       {ejercicio.notas && (

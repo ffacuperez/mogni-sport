@@ -24,15 +24,6 @@ const ejercicioFromApi = (e) => ({
   rmEstimado: e.rmEstimado ?? null,
   completo: e.completo ?? false,
   diferenciaRir: e.diferenciaRir ?? null,
-  seriesRealizadas: (e.seriesRealizadas ?? []).map((serie) => ({
-    orden: serie.orden,
-    peso: serie.peso ?? null,
-    repeticiones: serie.repeticiones ?? null,
-    rir: serie.rir ?? null,
-    nota: serie.nota ?? null,
-    rmEstimado: serie.rmEstimado ?? null,
-    completo: serie.completo ?? false,
-  })),
 });
 
 const sesionFromApi = (s) => ({

@@ -28,4 +28,15 @@ class ConfiguracionBaseTest {
         assertEquals("false", leer("application.properties").getProperty("spring.jpa.show-sql"));
         assertEquals("true", leer("application-local.properties").getProperty("spring.jpa.show-sql"));
     }
+
+    /** M-3: Swagger apagado salvo en el perfil local (producción corre con el perfil "prod"). */
+    @Test
+    void swagger_solo_esta_encendido_en_el_perfil_local() throws IOException {
+        Properties base = leer("application.properties");
+        Properties local = leer("application-local.properties");
+        for (String propiedad : new String[] {"springdoc.api-docs.enabled", "springdoc.swagger-ui.enabled"}) {
+            assertEquals("false", base.getProperty(propiedad), propiedad);
+            assertEquals("true", local.getProperty(propiedad), propiedad);
+        }
+    }
 }

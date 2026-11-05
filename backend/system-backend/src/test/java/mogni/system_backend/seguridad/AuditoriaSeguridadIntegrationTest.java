@@ -691,4 +691,18 @@ class AuditoriaSeguridadIntegrationTest {
     void la_zona_horaria_de_la_aplicacion_es_buenos_aires() {
         assertEquals("America/Argentina/Buenos_Aires", ZonaHoraria.ZONA);
     }
+
+    // ===================================================================================================
+    // 5. Configuración
+    // ===================================================================================================
+
+    /** M-3: fuera del perfil local, Swagger y la documentación de la API no se publican. */
+    @Test
+    void swagger_y_la_documentacion_de_la_api_no_son_publicos() throws Exception {
+        for (String ruta : List.of("/v3/api-docs", "/swagger-ui/index.html", "/swagger-ui.html")) {
+            int status = ejecutar(get(ruta), null).status();
+            assertNotEquals(200, status, ruta);
+            assertNotEquals(302, status, ruta);
+        }
+    }
 }

@@ -20,7 +20,7 @@ public class MembresiaRequest {
     private Double precioActual;
 
     @NotNull(message = "Los días por semana son obligatorios")
-    @Min(value = 1, message = "Los días por semana deben ser al menos 1")
+    @Min(value = 3, message = "Los días por semana deben ser al menos 3")
     @Max(value = 5, message = "Los días por semana no pueden ser más de 5")
     private Integer frecuenciaSemanal;
 

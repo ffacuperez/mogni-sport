@@ -546,7 +546,6 @@ class AuditoriaSeguridadIntegrationTest {
     }
 
     @Test
-    @Disabled("HALLAZGO B-2: la membresía acepta 1 o 2 días por semana (el requisito es 3 a 5)")
     void la_membresia_exige_entre_3_y_5_dias() throws Exception {
         assertEquals(400, ejecutar(post("/membresias"), tokenDe(Rol.PROPIETARIO),
                 "{\"nombre\":\"Corta" + SECUENCIA.incrementAndGet() + "\",\"precioActual\":10,\"frecuenciaSemanal\":1}").status());

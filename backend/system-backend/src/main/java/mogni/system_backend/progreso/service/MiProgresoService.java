@@ -68,14 +68,66 @@ public class MiProgresoService {
 
     @Transactional(readOnly = true)
     public Optional<PlanDetalleResponse> obtenerPlanActivo(String email) {
-        Alumno alumno = buscarAlumnoConAcceso(email);
-        LocalDate hoy = ZonaHoraria.hoy();
-        return buscarPlanVigente(alumno.getId(), hoy).map(plan -> mapearDetalle(plan, hoy));
+        return planActivo(buscarAlumnoConAcceso(email).getId(), true);
     }
 
     @Transactional(readOnly = true)
     public MisPlanesResponse listarPlanes(String email) {
-        Long alumnoId = buscarAlumnoConAcceso(email).getId();
+        return planes(buscarAlumnoConAcceso(email).getId());
+    }
+
+    /** 404 también si el plan es de otro alumno: no se revela que existe. */
+    @Transactional(readOnly = true)
+    public PlanDetalleResponse obtenerPlan(String email, Long planId) {
+        return mapearDetalle(buscarPlanDelAlumno(email, planId), ZonaHoraria.hoy(), true);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SesionRegistradaResponse> listarSesionesRegistradas(String email, Long planId) {
+        return sesionesRegistradas(buscarPlanDelAlumno(email, planId));
+    }
+
+    /** 404 también si la sesión es de otro alumno: no se revela que existe. */
+    @Transactional(readOnly = true)
+    public SesionDetalleResponse obtenerSesion(String email, Long registroId) {
+        return detalleSesion(buscarAlumnoConAcceso(email).getId(), registroId);
+    }
+
+    // MOGNI-268: lo mismo, de un alumno cualquiera y de solo lectura, para el entrenador o el propietario (ver
+    // SecurityConfig). 404 si el alumno no existe, o si el plan o la sesión no son de ese alumno.
+
+    @Transactional(readOnly = true)
+    public Optional<PlanDetalleResponse> obtenerPlanActivoDeAlumno(Long alumnoId) {
+        return planActivo(buscarAlumno(alumnoId).getId(), false);
+    }
+
+    @Transactional(readOnly = true)
+    public MisPlanesResponse listarPlanesDeAlumno(Long alumnoId) {
+        return planes(buscarAlumno(alumnoId).getId());
+    }
+
+    @Transactional(readOnly = true)
+    public PlanDetalleResponse obtenerPlanDeAlumno(Long alumnoId, Long planId) {
+        return mapearDetalle(buscarPlanDe(buscarAlumno(alumnoId), planId), ZonaHoraria.hoy(), false);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SesionRegistradaResponse> listarSesionesRegistradasDeAlumno(Long alumnoId, Long planId) {
+        return sesionesRegistradas(buscarPlanDe(buscarAlumno(alumnoId), planId));
+    }
+
+    @Transactional(readOnly = true)
+    public SesionDetalleResponse obtenerSesionDeAlumno(Long alumnoId, Long registroId) {
+        return detalleSesion(buscarAlumno(alumnoId).getId(), registroId);
+    }
+
+    /** registrable: false en la vista del personal, que no registra sesiones por el alumno. */
+    private Optional<PlanDetalleResponse> planActivo(Long alumnoId, boolean registrable) {
+        LocalDate hoy = ZonaHoraria.hoy();
+        return buscarPlanVigente(alumnoId, hoy).map(plan -> mapearDetalle(plan, hoy, registrable));
+    }
+
+    private MisPlanesResponse planes(Long alumnoId) {
         LocalDate hoy = ZonaHoraria.hoy();
         Optional<PlanAsignado> activoEnLaBase = planRepository.findFirstByAlumnoIdAndEstado(alumnoId, EstadoPlanAsignado.ACTIVO);
         PlanResumenResponse activo = activoEnLaBase
@@ -95,15 +147,8 @@ public class MiProgresoService {
         return new MisPlanesResponse(activo, anteriores);
     }
 
-    /** 404 también si el plan es de otro alumno: no se revela que existe. */
-    @Transactional(readOnly = true)
-    public PlanDetalleResponse obtenerPlan(String email, Long planId) {
-        return mapearDetalle(buscarPlanDelAlumno(email, planId), ZonaHoraria.hoy());
-    }
-
-    @Transactional(readOnly = true)
-    public List<SesionRegistradaResponse> listarSesionesRegistradas(String email, Long planId) {
-        PlanAsignado plan = buscarPlanDelAlumno(email, planId);
+    /** Solo las finalizadas, de la más reciente a la más antigua. */
+    private List<SesionRegistradaResponse> sesionesRegistradas(PlanAsignado plan) {
         return registroRepository.findByPlanIdAndCompletadaTrueOrderBySemanaDescFechaDescIdDesc(plan.getId()).stream()
                 .map(registro -> new SesionRegistradaResponse(
                         registro.getId(),
@@ -114,11 +159,8 @@ public class MiProgresoService {
                 .toList();
     }
 
-    /** 404 también si la sesión es de otro alumno: no se revela que existe. */
-    @Transactional(readOnly = true)
-    public SesionDetalleResponse obtenerSesion(String email, Long registroId) {
-        Alumno alumno = buscarAlumnoConAcceso(email);
-        RegistroSesion registro = registroRepository.findByIdAndPlanAlumnoId(registroId, alumno.getId())
+    private SesionDetalleResponse detalleSesion(Long alumnoId, Long registroId) {
+        RegistroSesion registro = registroRepository.findByIdAndPlanAlumnoId(registroId, alumnoId)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No encontramos esa sesión"));
         PlanAsignado plan = registro.getPlan();
         return new SesionDetalleResponse(
@@ -146,7 +188,7 @@ public class MiProgresoService {
         RegistroSesion registro = registroRepository
                 .findByPlanIdAndSemanaAndNumeroSesion(plan.getId(), semana, sesion.getNumero())
                 .orElseGet(() -> crearRegistro(plan, semana, sesion.getNumero(), hoy));
-        return mapearSesion(plan, semana, sesion.getNumero(), sesion.getEjercicios(), registro, hoy);
+        return mapearSesion(plan, semana, sesion.getNumero(), sesion.getEjercicios(), registro, hoy, true);
     }
 
     /**
@@ -241,9 +283,18 @@ public class MiProgresoService {
     }
 
     private PlanAsignado buscarPlanDelAlumno(String email, Long planId) {
-        Alumno alumno = buscarAlumnoConAcceso(email);
+        return buscarPlanDe(buscarAlumnoConAcceso(email), planId);
+    }
+
+    private PlanAsignado buscarPlanDe(Alumno alumno, Long planId) {
         return planRepository.findByIdAndAlumnoId(planId, alumno.getId())
                 .orElseThrow(() -> new RecursoNoEncontradoException("No encontramos ese plan"));
+    }
+
+    /** MOGNI-268: también los dados de baja, para ver su historial. */
+    private Alumno buscarAlumno(Long alumnoId) {
+        return alumnoRepository.findById(alumnoId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No encontramos ese alumno"));
     }
 
     private Alumno buscarAlumnoConAcceso(String email) {
@@ -255,19 +306,22 @@ public class MiProgresoService {
         return alumno;
     }
 
-    private PlanDetalleResponse mapearDetalle(PlanAsignado plan, LocalDate hoy) {
+    /** registrable: si el que consulta puede registrar sus sesiones (el alumno sí; el personal, no). */
+    private PlanDetalleResponse mapearDetalle(PlanAsignado plan, LocalDate hoy, boolean registrable) {
         int cantidadSemanas = cantidadSemanas(plan);
         List<RegistroSesion> registros = registroRepository.findByPlanId(plan.getId());
         Map<ClaveSesion, RegistroSesion> registrosPorSesion = registros.stream()
                 .collect(Collectors.toMap(r -> new ClaveSesion(r.getSemana(), r.getNumeroSesion()), Function.identity()));
 
         List<SemanaPlanResponse> semanas = IntStream.rangeClosed(1, cantidadSemanas)
-                .mapToObj(numero -> mapearSemana(plan, numero, registrosPorSesion, hoy))
+                .mapToObj(numero -> mapearSemana(plan, numero, registrosPorSesion, hoy, registrable))
                 .toList();
 
         return new PlanDetalleResponse(
                 plan.getId(),
                 plan.getNombre(),
+                plan.getNivel(),
+                plan.getObjetivo(),
                 plan.getMetodo(),
                 plan.getMesociclo(),
                 plan.getObjetivoMesociclo(),
@@ -286,6 +340,8 @@ public class MiProgresoService {
         return new PlanResumenResponse(
                 plan.getId(),
                 plan.getNombre(),
+                plan.getNivel(),
+                plan.getObjetivo(),
                 plan.getMetodo(),
                 plan.getMesociclo(),
                 plan.estadoAl(hoy),
@@ -309,7 +365,7 @@ public class MiProgresoService {
     }
 
     private SemanaPlanResponse mapearSemana(PlanAsignado plan, int numero, Map<ClaveSesion, RegistroSesion> registros,
-                                            LocalDate hoy) {
+                                            LocalDate hoy, boolean registrable) {
         LocalDate desde = plan.getFechaAsignacion().plusWeeks(numero - 1L);
         LocalDate hasta = desde.plusDays(6);
         if (plan.getFechaFin() != null && plan.getFechaFin().isBefore(hasta)) {
@@ -321,13 +377,14 @@ public class MiProgresoService {
                 hasta,
                 plan.getSesiones().stream()
                         .map(sesion -> mapearSesion(plan, numero, sesion.getNumero(), sesion.getEjercicios(),
-                                registros.get(new ClaveSesion(numero, sesion.getNumero())), hoy))
+                                registros.get(new ClaveSesion(numero, sesion.getNumero())), hoy, registrable))
                         .toList());
     }
 
-    /** Una sesión ya empezada; sus ejercicios salen de la copia que se guardó al empezarla. */
+    /** Una sesión ya empezada; sus ejercicios salen de la copia que se guardó al empezarla. Solo la usa el alumno. */
     private SesionSemanaResponse mapearRegistro(RegistroSesion registro, LocalDate hoy) {
-        return mapearSesion(registro.getPlan(), registro.getSemana(), registro.getNumeroSesion(), List.of(), registro, hoy);
+        return mapearSesion(registro.getPlan(), registro.getSemana(), registro.getNumeroSesion(), List.of(), registro,
+                hoy, true);
     }
 
     /**
@@ -335,7 +392,7 @@ public class MiProgresoService {
      * indica hoy el plan. Una sesión sin terminar de un plan que ya terminó cuenta como no registrada.
      */
     private SesionSemanaResponse mapearSesion(PlanAsignado plan, int semana, int numero,
-            List<? extends EjercicioPrescripto> delPlan, RegistroSesion registro, LocalDate hoy) {
+            List<? extends EjercicioPrescripto> delPlan, RegistroSesion registro, LocalDate hoy, boolean registrable) {
         boolean vigente = plan.estaVigente(hoy);
         RegistroSesion visible = registro != null && (registro.isCompletada() || vigente) ? registro : null;
         EstadoSesion estado;
@@ -352,7 +409,7 @@ public class MiProgresoService {
                 estado,
                 visible == null ? null : visible.getFecha(),
                 visible == null ? null : visible.getId(),
-                estado != EstadoSesion.REGISTRADA && esSemanaRegistrable(plan, semana, hoy),
+                registrable && estado != EstadoSesion.REGISTRADA && esSemanaRegistrable(plan, semana, hoy),
                 ejercicios);
     }
 

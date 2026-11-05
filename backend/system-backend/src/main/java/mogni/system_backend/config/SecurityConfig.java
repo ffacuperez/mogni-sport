@@ -67,6 +67,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/alumnos/*/pagos").hasRole("PROPIETARIO")
                 // Vista previa de la renovación (MOGNI-45): es parte del registro de pago, solo el propietario
                 .requestMatchers(HttpMethod.GET, "/alumnos/*/renovacion").hasRole("PROPIETARIO")
+                // Progreso de un alumno (MOGNI-268): lo sigue el entrenador (el propietario también); de solo lectura
+                .requestMatchers("/alumnos/*/progreso/**").hasAnyRole("PROPIETARIO", "ENTRENADOR")
                 .requestMatchers("/alumnos/**", "/membresias/**")
                     .hasAnyRole("PROPIETARIO", "ENTRENADOR", "NUTRICIONISTA")
                 // Cobranzas: solo el propietario

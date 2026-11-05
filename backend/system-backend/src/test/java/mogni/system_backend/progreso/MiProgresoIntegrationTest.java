@@ -56,6 +56,7 @@ import mogni.system_backend.plantilla.entity.ObjetivoPlantilla;
 import mogni.system_backend.progreso.entity.RegistroEjercicio;
 import mogni.system_backend.progreso.entity.RegistroSesion;
 import mogni.system_backend.progreso.repository.RegistroSesionRepository;
+import mogni.system_backend.progreso.service.MigracionRmEstimado;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -928,11 +929,12 @@ class MiProgresoIntegrationTest {
     }
 
     @Test
-    void registrar_todas_las_series_marca_el_ejercicio_y_guarda_el_mayor_1rm() throws Exception {
+    void registrar_todas_las_series_marca_el_ejercicio_y_guarda_un_unico_1rm_de_la_serie_de_mas_peso() throws Exception {
         Alumno alumno = alumno();
         PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
         long registroId = iniciarYObtenerId(alumno, plan, 1, 1);
-        // 1RM = peso x (1 + (reps + RIR) / 30): 133,33 / 132,00 / 126,00 / 133,00
+        // 1RM = peso x (1 + (reps + RIR) / 30). La de más peso es la 2 (110 kg x 5, RIR 1): 132,00. La regla anterior
+        // (el mayor 1RM entre las series) hubiera elegido la 1: 133,33.
         String cuerpo = "{\"notas\":\"  Buenas sensaciones  \",\"series\":[" + String.join(",",
                 serie(1, "100", "8", "2"), serie(2, "110", "5", "1"), serie(3, "90", "10", "2"), serie(4, "105", "6", "2")) + "]}";
 
@@ -941,18 +943,60 @@ class MiProgresoIntegrationTest {
         assertEquals(200, respuesta.status(), respuesta.cuerpo().toString());
         JsonNode ejercicio = respuesta.cuerpo().path("ejercicios").get(0);
         assertTrue(ejercicio.path("completo").asBoolean());
-        assertEquals(0, new BigDecimal("133.33").compareTo(ejercicio.path("rmEstimado").decimalValue()));
+        assertEquals(0, new BigDecimal("132.00").compareTo(ejercicio.path("rmEstimado").decimalValue()));
         assertEquals("Buenas sensaciones", ejercicio.path("notas").asString());
         JsonNode realizadas = ejercicio.path("seriesRealizadas");
         assertEquals(4, realizadas.size());
-        assertEquals(0, new BigDecimal("132.00").compareTo(realizadas.get(1).path("rmEstimado").decimalValue()));
+        // Un solo 1RM por ejercicio: las series ya no informan el suyo
+        realizadas.forEach(serie -> assertTrue(serie.path("rmEstimado").isMissingNode(), serie.toString()));
         assertEquals("EN_CURSO", respuesta.cuerpo().path("estado").asString());
-        // El detalle de HU-270 toma kg y RIR de la serie de mayor 1RM
+        // El detalle de HU-270 toma kg y RIR de la misma serie
         JsonNode detalle = sesionDe(alumno, registroId).cuerpo().path("ejercicios").get(0);
-        assertEquals(0, new BigDecimal("100").compareTo(detalle.path("kgUsados").decimalValue()));
-        assertEquals(2, detalle.path("rirReal").asInt());
-        assertEquals(0, new BigDecimal("133.33").compareTo(detalle.path("rmEstimado").decimalValue()));
+        assertEquals(0, new BigDecimal("110").compareTo(detalle.path("kgUsados").decimalValue()));
+        assertEquals(1, detalle.path("rirReal").asInt());
+        assertEquals(0, new BigDecimal("132.00").compareTo(detalle.path("rmEstimado").decimalValue()));
         assertEquals(4, detalle.path("seriesRealizadas").size());
+        detalle.path("seriesRealizadas").forEach(serie -> assertTrue(serie.path("rmEstimado").isMissingNode()));
+    }
+
+    @Test
+    void con_el_mismo_peso_el_1rm_sale_de_la_serie_de_mas_repeticiones() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        long registroId = iniciarYObtenerId(alumno, plan, 1, 2);
+        // Las tres con 100 kg. La de más repeticiones es la 3 (8, RIR 0): 126,67. Por mayor 1RM hubiera sido la 2
+        // (6 + RIR 4): 133,33.
+        String cuerpo = "{\"series\":[" + String.join(",",
+                serie(1, "100", "5", "1"), serie(2, "100", "6", "4"), serie(3, "100", "8", "0")) + "]}";
+
+        Respuesta respuesta = registrarEjercicio(alumno, registroId, 1, cuerpo);
+
+        assertEquals(200, respuesta.status(), respuesta.cuerpo().toString());
+        assertEquals(0, new BigDecimal("126.67").compareTo(
+                respuesta.cuerpo().path("ejercicios").get(0).path("rmEstimado").decimalValue()));
+        JsonNode detalle = sesionDe(alumno, registroId).cuerpo().path("ejercicios").get(0);
+        assertEquals(0, detalle.path("rirReal").asInt());
+    }
+
+    @Test
+    void al_arrancar_se_recalcula_el_1rm_de_los_ejercicios_registrados_con_la_regla_anterior() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        long registroId = iniciarYObtenerId(alumno, plan, 1, 1);
+        registrarEjercicio(alumno, registroId, 1, "{\"series\":[" + String.join(",",
+                serie(1, "100", "8", "2"), serie(2, "110", "5", "1"), serie(3, "90", "10", "2"), serie(4, "105", "6", "2")) + "]}");
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        // Como lo hubiera guardado la regla anterior: el mayor 1RM (serie 1)
+        String delEjercicio = " where registro_sesion_id = ? and orden = 1";
+        jdbc.update("update registros_ejercicio set rm_estimado = 133.33, kg_usados = 100, rir_real = 2" + delEjercicio, registroId);
+
+        new MigracionRmEstimado(jdbc).run(null);
+
+        assertEquals(0, new BigDecimal("132.00").compareTo(jdbc.queryForObject(
+                "select rm_estimado from registros_ejercicio" + delEjercicio, BigDecimal.class, registroId)));
+        assertEquals(0, new BigDecimal("110").compareTo(jdbc.queryForObject(
+                "select kg_usados from registros_ejercicio" + delEjercicio, BigDecimal.class, registroId)));
+        assertEquals(1, jdbc.queryForObject("select rir_real from registros_ejercicio" + delEjercicio, Integer.class, registroId));
     }
 
     @Test

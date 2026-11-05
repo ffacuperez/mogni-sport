@@ -27,4 +27,9 @@ public class TurnosDisponiblesResponse {
      * hasta que regularice el pago.
      */
     private boolean bloqueadoPorMora;
+    /**
+     * MOGNI-281: le queda una clase extra para fechaSeleccionada. Con la semana completa igual puede reservar ese día
+     * (los turnos vienen seleccionables), como lo permite la reserva.
+     */
+    private boolean tieneClaseExtra;
 }

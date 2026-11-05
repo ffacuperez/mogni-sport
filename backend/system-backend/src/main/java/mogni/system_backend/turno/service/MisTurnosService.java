@@ -3,6 +3,7 @@ package mogni.system_backend.turno.service;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,8 +45,17 @@ public class MisTurnosService {
         Alumno alumno = alumnoRepository.findByCuentaEmailIgnoreCase(email)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No hay un alumno asociado a esta cuenta"));
         ConsultaTurnosService.validarAcceso(alumno);
+        return new MisTurnosResponse(ahora.toLocalDate(), proximos(alumno, ahora));
+    }
 
-        List<MiTurnoResponse> turnos = reservaRepository
+    /** MOGNI-281: el primero de Mis turnos, o vacío si no tiene ninguno por delante. */
+    public Optional<MiTurnoResponse> proximoTurno(Alumno alumno, LocalDateTime ahora) {
+        return proximos(alumno, ahora).stream().findFirst();
+    }
+
+    /** Las reservas activas que no terminaron, de la más cercana a la más lejana. */
+    private List<MiTurnoResponse> proximos(Alumno alumno, LocalDateTime ahora) {
+        return reservaRepository
                 .findByAlumnoIdAndEstadoAndTurnoFechaGreaterThanEqual(
                         alumno.getId(), EstadoReserva.RESERVADA, ahora.toLocalDate())
                 .stream()
@@ -54,7 +64,6 @@ public class MisTurnosService {
                         .thenComparing(r -> r.getTurno().getHoraInicio()))
                 .map(reserva -> mapear(reserva, ahora))
                 .toList();
-        return new MisTurnosResponse(ahora.toLocalDate(), turnos);
     }
 
     /** Un turno de hoy se muestra mientras no terminó: cuando llega su hora de fin ya no. */

@@ -44,6 +44,7 @@ import mogni.system_backend.turno.entity.EstadoReserva;
 import mogni.system_backend.turno.entity.EstadoTurno;
 import mogni.system_backend.turno.entity.Reserva;
 import mogni.system_backend.turno.entity.Turno;
+import mogni.system_backend.turno.repository.ClaseExtraRepository;
 import mogni.system_backend.turno.repository.ReservaRepository;
 
 /**
@@ -67,6 +68,10 @@ class ConsultaTurnosServiceTest {
 
     @Mock
     private GeneracionTurnosService generacionTurnosService;
+
+    // Sin configurar no le queda ninguna clase extra (existeDisponible devuelve false)
+    @Mock
+    private ClaseExtraRepository claseExtraRepository;
 
     @InjectMocks
     private ConsultaTurnosService consultaTurnosService;
@@ -363,6 +368,22 @@ class ConsultaTurnosServiceTest {
         assertEquals(0, response.getTurnosRestantesSemana());
         assertEquals(EstadoTurnoAlumno.DISPONIBLE, response.getTurnos().get(0).getEstado());
         assertFalse(response.getTurnos().get(0).isSeleccionable());
+    }
+
+    // MOGNI-281: igual que la reserva, con la semana completa una clase extra deja elegir los turnos
+    @Test
+    void conElContadorEnCeroYUnaClaseExtraSePuedeElegir() {
+        alumno = alumno(10L, true, 1);
+        Turno lunes = turno(MARTES.minusDays(1), "08:00", 5);
+        reservar(alumno, lunes, EstadoReserva.RESERVADA);
+        turno(MIERCOLES, "08:00", 5);
+        lenient().when(claseExtraRepository.existeDisponible(10L, MIERCOLES)).thenReturn(true);
+
+        TurnosDisponiblesResponse response = consultar(MIERCOLES, MARTES_10_30);
+
+        assertEquals(0, response.getTurnosRestantesSemana());
+        assertTrue(response.isTieneClaseExtra());
+        assertTrue(response.getTurnos().get(0).isSeleccionable());
     }
 
     // Prueba 18: un domingo, el lunes ya es otra semana

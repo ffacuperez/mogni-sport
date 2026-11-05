@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -13,6 +14,7 @@ import lombok.Setter;
 public class MembresiaRequest {
 
     @NotBlank(message = "El nombre de la membresía es obligatorio")
+    @Size(max = 100, message = "El nombre de la membresía puede tener hasta 100 caracteres")
     private String nombre;
 
     @NotNull(message = "El precio es obligatorio")
@@ -24,5 +26,6 @@ public class MembresiaRequest {
     @Max(value = 5, message = "Los días por semana no pueden ser más de 5")
     private Integer frecuenciaSemanal;
 
+    @Size(max = 2000, message = "La descripción puede tener hasta 2000 caracteres")
     private String descripcion;
 }

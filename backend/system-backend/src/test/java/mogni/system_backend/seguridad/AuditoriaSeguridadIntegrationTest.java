@@ -552,13 +552,21 @@ class AuditoriaSeguridadIntegrationTest {
     }
 
     @Test
-    @Disabled("HALLAZGO B-3: textos libres sin largo máximo; uno muy largo termina en 500 en vez de 400")
     void un_texto_libre_demasiado_largo_se_rechaza_con_400() throws Exception {
         long membresiaId = membresia("20000", 3);
         String largo = "x".repeat(10_000);
-        Respuesta r = ejecutar(post("/alumnos"), tokenDe(Rol.PROPIETARIO),
-                cuerpoAlumno(SECUENCIA.incrementAndGet(), membresiaId, "").replace("\"Asma\"", "\"" + largo + "\""));
-        assertEquals(400, r.status(), r.texto());
+        String propietario = tokenDe(Rol.PROPIETARIO);
+        // Un texto TEXT (antecedentes) y uno varchar(255) (nombre), que antes terminaba en 500
+        for (String campo : List.of("\"Asma\"", "\"Ana\"")) {
+            Respuesta r = ejecutar(post("/alumnos"), propietario,
+                    cuerpoAlumno(SECUENCIA.incrementAndGet(), membresiaId, "").replace(campo, "\"" + largo + "\""));
+            assertEquals(400, r.status(), r.texto());
+            assertTrue(r.cuerpo().path("error").asString().contains("caracteres"), r.texto());
+        }
+        assertEquals(400, ejecutar(post("/membresias"), propietario,
+                "{\"nombre\":\"" + largo + "\",\"precioActual\":10,\"frecuenciaSemanal\":3}").status());
+        assertEquals(400, ejecutar(post("/ejercicios"), propietario,
+                "{\"nombre\":\"Press\",\"grupoMuscular\":\"Pecho\",\"descripcion\":\"" + largo + "\",\"activo\":true}").status());
     }
 
     /** Contra el servidor HTTP real (embebido): MockMvc no pasa por la página de error de Spring Boot. */
@@ -574,7 +582,8 @@ class AuditoriaSeguridadIntegrationTest {
                         .POST(HttpRequest.BodyPublishers.ofString(cuerpo)).build(),
                 HttpResponse.BodyHandlers.ofString());
 
-        assertEquals(500, r.statusCode(), r.body());
+        // Antes era un 500 de la base; desde B-3 lo frena la validación. En los dos casos, sin detalles internos
+        assertTrue(r.statusCode() >= 400, r.body());
         for (String filtrado : List.of("Exception", "at mogni.", "org.hibernate", "SQL", "insert into", "trace", "varying")) {
             assertFalse(r.body().contains(filtrado), "la respuesta expone '" + filtrado + "': " + r.body());
         }

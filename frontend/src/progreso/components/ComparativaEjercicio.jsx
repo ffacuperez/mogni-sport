@@ -5,7 +5,7 @@ import { textoDescansoSegundos, textoDiferenciaRir, textoKg, textoSeriesRepetici
 
 /**
  * Un ejercicio de la sesión con lo indicado y lo realizado lado a lado. Si el RIR real difiere del objetivo se avisa en
- * azul: es información para el alumno, no un error. HU-269: con el 1RM estimado y lo hecho en cada serie.
+ * azul: es información para el alumno, no un error. HU-269: con lo hecho en cada serie y un único 1RM estimado del ejercicio (MOGNI-269).
  */
 export default function ComparativaEjercicio({ ejercicio }) {
   const hayDiferencia = ejercicio.diferenciaRir != null;
@@ -42,10 +42,7 @@ export default function ComparativaEjercicio({ ejercicio }) {
       {ejercicio.seriesRealizadas.length > 0 && (
         <ol className="flex flex-col gap-1 text-sm text-ink-soft tabular-nums">
           {ejercicio.seriesRealizadas.map((serie) => (
-            <li key={serie.orden} className="flex justify-between gap-2">
-              <span>Serie {serie.orden}: {textoKg(serie.peso)} × {serie.repeticiones} · RIR {serie.rir}</span>
-              <span className="text-ink-muted">1RM {textoKg(serie.rmEstimado)}</span>
-            </li>
+            <li key={serie.orden}>Serie {serie.orden}: {textoKg(serie.peso)} × {serie.repeticiones} · RIR {serie.rir}</li>
           ))}
         </ol>
       )}

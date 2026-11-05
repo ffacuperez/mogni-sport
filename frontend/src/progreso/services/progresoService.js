@@ -24,7 +24,6 @@ const serieFromApi = (s) => ({
   peso: s.peso,
   repeticiones: s.repeticiones,
   rir: s.rir,
-  rmEstimado: s.rmEstimado,
 });
 
 // HU-269: en una sesión ya empezada, cada ejercicio trae también lo que cargó el alumno
@@ -118,6 +117,16 @@ export async function completarSesion(registroId) {
 export function calcularRm(peso, repeticiones, rir) {
   const posibles = repeticiones + rir;
   return posibles <= 1 ? peso : peso * (1 + posibles / 30);
+}
+
+/**
+ * MOGNI-269: la serie de la que sale el único 1RM del ejercicio: la de más peso; si empatan, la de más repeticiones; si
+ * también, la primera. La misma regla que el backend. Recibe series con peso, repeticiones y rir numéricos.
+ */
+export function serieDeReferencia(series) {
+  return series.reduce((mejor, serie) => (
+    serie.peso > mejor.peso || (serie.peso === mejor.peso && serie.repeticiones > mejor.repeticiones) ? serie : mejor
+  ));
 }
 
 /** Las sesiones registradas del plan, ya ordenadas por el backend. */

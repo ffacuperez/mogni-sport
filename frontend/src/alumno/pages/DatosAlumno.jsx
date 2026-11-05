@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, ArrowRight, Pencil, Power, RefreshCw, TrendingUp, UserPlus } from 'lucide-react';
+import { ArrowRight, Pencil, Power, RefreshCw, UserPlus } from 'lucide-react';
 
 import { formatearFecha } from '../../shared/services/texto';
-import { Badge, Button, PageHeader, Panel } from '../../shared/components/ui';
+import { Badge, Button, Panel } from '../../shared/components/ui';
 import { obtenerPlanActivo } from '../../plan/services/planesService';
 import { textoNivel, textoObjetivo } from '../../plantilla/services/plantillasService';
 
@@ -13,7 +13,7 @@ const TONO_ESTADO_INSCRIPCION = {
 
 function Dato({ label, children, ancho = false, mono = false }) {
   return (
-    <div className={ancho ? 'md:col-span-2' : ''}>
+    <div className={ancho ? 'sm:col-span-2' : ''}>
       <dt className="text-xs font-medium text-ink-soft">{label}</dt>
       <dd className={`mt-1 break-words text-ink ${mono ? 'tabular-nums' : ''}`}>{children || '—'}</dd>
     </div>
@@ -40,7 +40,7 @@ function Seccion({ titulo, badge, accion, children }) {
  * puede ser anterior a la última asignación. La baja finaliza el plan, así que se vuelve a consultar al cambiar el estado.
  * Un alumno dado de baja antes de esa regla puede tener todavía un plan activo: se puede ver y finalizar.
  */
-function SeccionPlan({ alumnoId, isActivo, onVerPlan, onAsignarPlan, onVerProgreso }) {
+function SeccionPlan({ alumnoId, isActivo, onVerPlan, onAsignarPlan }) {
   // undefined: cargando; null: no tiene plan activo
   const [plan, setPlan] = useState(undefined);
   const [error, setError] = useState(null);
@@ -53,37 +53,28 @@ function SeccionPlan({ alumnoId, isActivo, onVerPlan, onAsignarPlan, onVerProgre
     return () => { vigente = false; };
   }, [alumnoId, isActivo]);
 
-  let accionPlan = null;
+  let accion = null;
   if (plan) {
-    accionPlan = (
+    accion = (
       <Button variant="secondary" size="sm" onClick={() => onVerPlan(plan.id)}>
         Ver plan <ArrowRight className="h-3.5 w-3.5" />
       </Button>
     );
   } else if (plan === null && isActivo) {
-    accionPlan = (
+    accion = (
       <Button variant="secondary" size="sm" onClick={onAsignarPlan}>
         <UserPlus className="h-3.5 w-3.5" /> Asignar plan
       </Button>
     );
   }
-  // MOGNI-268: siempre, también sin plan activo: el historial puede tener planes anteriores y sesiones
-  const acciones = (
-    <div className="flex flex-wrap gap-2">
-      <Button variant="secondary" size="sm" onClick={onVerProgreso}>
-        <TrendingUp className="h-3.5 w-3.5" /> Ver progreso
-      </Button>
-      {accionPlan}
-    </div>
-  );
 
   return (
-    <Seccion titulo="Plan de entrenamiento" accion={acciones}>
+    <Seccion titulo="Plan de entrenamiento" accion={accion}>
       {error && <p role="alert" className="text-sm text-error">No se pudo consultar el plan: {error}</p>}
       {!error && plan === undefined && <p className="text-sm text-ink-soft">Cargando plan...</p>}
       {plan === null && <p className="text-sm text-ink-soft">Sin plan activo.</p>}
       {plan && (
-        <dl className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Dato label="Plan" ancho>{plan.nombre}</Dato>
           <Dato label="Nivel">{textoNivel(plan.nivel)}</Dato>
           <Dato label="Objetivo">{textoObjetivo(plan.objetivo)}</Dato>
@@ -96,57 +87,44 @@ function SeccionPlan({ alumnoId, isActivo, onVerPlan, onAsignarPlan, onVerProgre
   );
 }
 
-export default function AlumnoDetalle({ alumno, onBack, onEdit, onEditMembresia, onToggleStatus, puedeVerPlanes, onVerPlan, onAsignarPlan, onVerProgreso }) {
+/**
+ * Tab "Datos" de la ficha: datos personales a la izquierda; membresía y plan a la derecha. Las acciones del alumno
+ * (modificar, dar de baja o activar) van en sus datos, porque el encabezado de la ficha solo muestra el estado.
+ */
+export default function DatosAlumno({ alumno, onEdit, onEditMembresia, onToggleStatus, puedeVerPlanes, onVerPlan, onAsignarPlan }) {
   const isActivo = alumno.estado === 'Activo';
   const inscripcion = alumno.inscripcion;
-  const iniciales = `${alumno.nombre?.[0] ?? ''}${alumno.apellido?.[0] ?? ''}`;
 
   return (
-    <div className="mx-auto max-w-4xl animate-fade-in">
-      <Button variant="ghost" size="sm" onClick={onBack} className="-ml-3 mb-4">
-        <ArrowLeft className="h-4 w-4" /> Volver al listado
-      </Button>
-
-      <PageHeader
-        eyebrow={`Alumno · DNI ${alumno.dni}`}
-        title={`${alumno.nombre} ${alumno.apellido}`}
-        actions={
-          <Button variant={isActivo ? 'danger' : 'primary'} onClick={onToggleStatus}>
-            <Power className="h-4 w-4" /> {isActivo ? 'Dar de baja' : 'Activar'}
-          </Button>
-        }
-      >
-        <div className="mt-3 flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-error-bg font-bold text-primary">
-            {iniciales}
-          </span>
-          <Badge tone={isActivo ? 'success' : 'error'}>Alumno {alumno.estado.toLowerCase()}</Badge>
-        </div>
-      </PageHeader>
-
-      <div className="grid grid-cols-1 gap-6">
-        <Seccion
-          titulo="Datos personales"
-          accion={
+    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+      <Seccion
+        titulo="Datos personales"
+        accion={
+          <div className="flex flex-wrap gap-2">
             <Button variant="secondary" size="sm" onClick={onEdit}>
               <Pencil className="h-3.5 w-3.5" /> Modificar alumno
             </Button>
-          }
-        >
-          <dl className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <Dato label="Nombre">{alumno.nombre}</Dato>
-            <Dato label="Apellido">{alumno.apellido}</Dato>
-            <Dato label="DNI" mono>{alumno.dni}</Dato>
-            <Dato label="Email">{alumno.email}</Dato>
-            <Dato label="Fecha de nacimiento" mono>{formatearFecha(alumno.fechaNacimiento)}</Dato>
-            <Dato label="Edad">{alumno.edad != null ? `${alumno.edad} años` : ''}</Dato>
-            <Dato label="Teléfono" mono>{alumno.telefono}</Dato>
-            <Dato label="Sexo">{alumno.sexo}</Dato>
-            <Dato label="Objetivo" ancho>{alumno.objetivo}</Dato>
-            <Dato label="Antecedentes de salud" ancho>{alumno.antecedentes}</Dato>
-          </dl>
-        </Seccion>
+            <Button variant={isActivo ? 'danger' : 'primary'} size="sm" onClick={onToggleStatus}>
+              <Power className="h-3.5 w-3.5" /> {isActivo ? 'Dar de baja' : 'Activar'}
+            </Button>
+          </div>
+        }
+      >
+        <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <Dato label="Nombre">{alumno.nombre}</Dato>
+          <Dato label="Apellido">{alumno.apellido}</Dato>
+          <Dato label="DNI" mono>{alumno.dni}</Dato>
+          <Dato label="Email">{alumno.email}</Dato>
+          <Dato label="Fecha de nacimiento" mono>{formatearFecha(alumno.fechaNacimiento)}</Dato>
+          <Dato label="Edad">{alumno.edad != null ? `${alumno.edad} años` : ''}</Dato>
+          <Dato label="Teléfono" mono>{alumno.telefono}</Dato>
+          <Dato label="Sexo">{alumno.sexo}</Dato>
+          <Dato label="Objetivo" ancho>{alumno.objetivo}</Dato>
+          <Dato label="Antecedentes de salud" ancho>{alumno.antecedentes}</Dato>
+        </dl>
+      </Seccion>
 
+      <div className="grid grid-cols-1 gap-6">
         <Seccion
           titulo="Membresía"
           badge={inscripcion && (
@@ -162,7 +140,7 @@ export default function AlumnoDetalle({ alumno, onBack, onEdit, onEditMembresia,
           )}
         >
           {inscripcion ? (
-            <dl className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <Dato label="Membresía" ancho>{inscripcion.membresia}</Dato>
               {alumno.membresiaProgramada && (
                 <Dato label="Próxima membresía (ya pagada)" ancho>
@@ -179,7 +157,7 @@ export default function AlumnoDetalle({ alumno, onBack, onEdit, onEditMembresia,
         </Seccion>
 
         {puedeVerPlanes && (
-          <SeccionPlan alumnoId={alumno.id} isActivo={isActivo} onVerPlan={onVerPlan} onAsignarPlan={onAsignarPlan} onVerProgreso={onVerProgreso} />
+          <SeccionPlan alumnoId={alumno.id} isActivo={isActivo} onVerPlan={onVerPlan} onAsignarPlan={onAsignarPlan} />
         )}
       </div>
     </div>

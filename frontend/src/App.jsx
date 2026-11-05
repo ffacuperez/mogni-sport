@@ -10,7 +10,7 @@ import RecuperarPassword from './auth/pages/RecuperarPassword';
 import RestablecerPassword from './auth/pages/RestablecerPassword';
 import AlumnosList from './alumno/pages/AlumnosList';
 import AlumnoForm from './alumno/pages/AlumnoForm';
-import AlumnoDetalle from './alumno/pages/AlumnoDetalle';
+import FichaAlumno from './alumno/pages/FichaAlumno';
 import AlumnoMembresiaForm from './alumno/pages/AlumnoMembresiaForm';
 import ReactivarAlumnoModal from './alumno/pages/ReactivarAlumnoModal';
 import AlumnoLayout from './alumno/pages/AlumnoLayout';
@@ -35,7 +35,6 @@ import DetallePlanAnterior from './progreso/pages/DetallePlanAnterior';
 import DetalleSesion from './progreso/pages/DetalleSesion';
 import MiProgreso from './progreso/pages/MiProgreso';
 import PlanActual from './progreso/pages/PlanActual';
-import ProgresoAlumno from './progreso/pages/ProgresoAlumno';
 import TabPlanes from './progreso/pages/TabPlanes';
 import TabSesiones from './progreso/pages/TabSesiones';
 import Agenda from './turno/pages/Agenda';
@@ -472,7 +471,10 @@ function MainApp({ onLogout }) {
     { to: '/cuenta', label: 'Mi cuenta', icon: UserCog },
   ];
   const seccionActual = navItems.find(item => pathname.startsWith(item.to))?.label ?? 'Panel';
-  
+  // En la ficha de un alumno, la miga suma su nombre: Panel / Alumnos / Nombre Apellido
+  const idAlumnoEnRuta = pathname.match(/^\/alumnos\/(\d+)(\/|$)/)?.[1];
+  const alumnoEnRuta = idAlumnoEnRuta && alumnos.find(a => String(a.id) === idAlumnoEnRuta);
+
   // Guía 4.5: ítems de 44px, activo con borde izquierdo rojo de 3px sobre #3A3A3A
   const itemClass = (activo) => `group flex h-11 w-full shrink-0 cursor-pointer items-center gap-3 whitespace-nowrap border-l-3 px-4 text-sm font-medium text-on-dark transition-colors ${FOCUS} ${
     activo ? 'border-primary bg-sidebar-hover' : 'border-transparent hover:bg-sidebar-hover'
@@ -524,9 +526,18 @@ function MainApp({ onLogout }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="sticky top-0 z-20 hidden h-14 items-center border-b border-line bg-card px-8 md:flex">
-          <p className="text-sm text-ink-soft">
-            Panel <span className="text-ink-muted">/</span> <span className="font-semibold text-ink">{seccionActual}</span>
-          </p>
+          {alumnoEnRuta ? (
+            <p className="text-sm text-ink-soft">
+              Panel <span className="text-ink-muted">/</span>{' '}
+              <button type="button" onClick={() => navigate('/alumnos')} className={`cursor-pointer rounded hover:text-ink hover:underline ${FOCUS}`}>Alumnos</button>{' '}
+              <span className="text-ink-muted">/</span>{' '}
+              <span className="font-semibold text-ink">{alumnoEnRuta.nombre} {alumnoEnRuta.apellido}</span>
+            </p>
+          ) : (
+            <p className="text-sm text-ink-soft">
+              Panel <span className="text-ink-muted">/</span> <span className="font-semibold text-ink">{seccionActual}</span>
+            </p>
+          )}
         </div>
 
       <main className="mx-auto w-full max-w-[1200px] flex-1 p-4 md:p-8">
@@ -553,32 +564,23 @@ function MainApp({ onLogout }) {
             />
           } />
 
-          <Route path="alumnos/:id" element={
+          {/* Ficha del alumno con sus pestañas (Datos y, MOGNI-268, Progreso para el entrenador y el propietario) */}
+          <Route path="alumnos/:id/*" element={
             <ConAlumno alumnos={alumnos} cargado={cargado} onCargar={cargarAlumno}>
               {(alumno) => (
-                <AlumnoDetalle
+                <FichaAlumno
                   alumno={alumno}
-                  onBack={() => navigate('/alumnos')}
+                  puedeVerPlanes={puedeVerPlanes}
                   onEdit={() => navigate(`/alumnos/${alumno.id}/editar`)}
                   onEditMembresia={() => navigate(`/alumnos/${alumno.id}/membresia`)}
                   onToggleStatus={() => handleToggleEstadoAlumno(alumno)}
-                  puedeVerPlanes={puedeVerPlanes}
                   onVerPlan={(planId) => navigate(`/planes/asignados/${planId}`)}
-                  onVerProgreso={() => navigate(`/alumnos/${alumno.id}/progreso`)}
                   onAsignarPlan={() => navigate(`/planes/asignar?alumno=${alumno.id}`)}
+                  onVolver={() => navigate(`/alumnos/${alumno.id}`)}
                 />
               )}
             </ConAlumno>
           } />
-
-          {/* MOGNI-268: el progreso del alumno, para el entrenador y el propietario */}
-          {puedeVerPlanes && (
-            <Route path="alumnos/:id/progreso/*" element={
-              <ConAlumno alumnos={alumnos} cargado={cargado} onCargar={cargarAlumno}>
-                {(alumno) => <ProgresoAlumno alumno={alumno} onVolver={() => navigate(`/alumnos/${alumno.id}`)} />}
-              </ConAlumno>
-            } />
-          )}
 
           <Route path="alumnos/:id/editar" element={
             <ConAlumno alumnos={alumnos} cargado={cargado} onCargar={cargarAlumno}>

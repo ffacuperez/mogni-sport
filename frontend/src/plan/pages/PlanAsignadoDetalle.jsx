@@ -91,7 +91,7 @@ export default function PlanAsignadoDetalle({ planId, onVolver, onModificar, onA
             Inicio: {textoFecha(plan.fechaAsignacion)}
             {plan.fechaFin && ` · Fin: ${textoFecha(plan.fechaFin)}`}
             {plan.fechaFinalizacion && ` · Finalizado el ${textoFecha(plan.fechaFinalizacion)}`}
-            {' · '}{plan.plantillaOrigenId ? 'Copiado de una plantilla' : 'Armado desde cero'}
+            {' · '}{plan.plantillaOrigenId ? 'Copiado de una plantilla' : 'Plan personalizado'}
           </p>
           <p className="tabular-nums">
             {plural(plan.sesiones.length, 'sesión', 'sesiones')} · {plural(cantidadEjercicios(plan), 'ejercicio', 'ejercicios')}

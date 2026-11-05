@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, ArrowRight, Pencil, Power, RefreshCw, UserPlus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Pencil, Power, RefreshCw, TrendingUp, UserPlus } from 'lucide-react';
 
 import { formatearFecha } from '../../shared/services/texto';
 import { Badge, Button, PageHeader, Panel } from '../../shared/components/ui';
@@ -40,7 +40,7 @@ function Seccion({ titulo, badge, accion, children }) {
  * puede ser anterior a la última asignación. La baja finaliza el plan, así que se vuelve a consultar al cambiar el estado.
  * Un alumno dado de baja antes de esa regla puede tener todavía un plan activo: se puede ver y finalizar.
  */
-function SeccionPlan({ alumnoId, isActivo, onVerPlan, onAsignarPlan }) {
+function SeccionPlan({ alumnoId, isActivo, onVerPlan, onAsignarPlan, onVerProgreso }) {
   // undefined: cargando; null: no tiene plan activo
   const [plan, setPlan] = useState(undefined);
   const [error, setError] = useState(null);
@@ -53,23 +53,32 @@ function SeccionPlan({ alumnoId, isActivo, onVerPlan, onAsignarPlan }) {
     return () => { vigente = false; };
   }, [alumnoId, isActivo]);
 
-  let accion = null;
+  let accionPlan = null;
   if (plan) {
-    accion = (
+    accionPlan = (
       <Button variant="secondary" size="sm" onClick={() => onVerPlan(plan.id)}>
         Ver plan <ArrowRight className="h-3.5 w-3.5" />
       </Button>
     );
   } else if (plan === null && isActivo) {
-    accion = (
+    accionPlan = (
       <Button variant="secondary" size="sm" onClick={onAsignarPlan}>
         <UserPlus className="h-3.5 w-3.5" /> Asignar plan
       </Button>
     );
   }
+  // MOGNI-268: siempre, también sin plan activo: el historial puede tener planes anteriores y sesiones
+  const acciones = (
+    <div className="flex flex-wrap gap-2">
+      <Button variant="secondary" size="sm" onClick={onVerProgreso}>
+        <TrendingUp className="h-3.5 w-3.5" /> Ver progreso
+      </Button>
+      {accionPlan}
+    </div>
+  );
 
   return (
-    <Seccion titulo="Plan de entrenamiento" accion={accion}>
+    <Seccion titulo="Plan de entrenamiento" accion={acciones}>
       {error && <p role="alert" className="text-sm text-error">No se pudo consultar el plan: {error}</p>}
       {!error && plan === undefined && <p className="text-sm text-ink-soft">Cargando plan...</p>}
       {plan === null && <p className="text-sm text-ink-soft">Sin plan activo.</p>}
@@ -87,7 +96,7 @@ function SeccionPlan({ alumnoId, isActivo, onVerPlan, onAsignarPlan }) {
   );
 }
 
-export default function AlumnoDetalle({ alumno, onBack, onEdit, onEditMembresia, onToggleStatus, puedeVerPlanes, onVerPlan, onAsignarPlan }) {
+export default function AlumnoDetalle({ alumno, onBack, onEdit, onEditMembresia, onToggleStatus, puedeVerPlanes, onVerPlan, onAsignarPlan, onVerProgreso }) {
   const isActivo = alumno.estado === 'Activo';
   const inscripcion = alumno.inscripcion;
   const iniciales = `${alumno.nombre?.[0] ?? ''}${alumno.apellido?.[0] ?? ''}`;
@@ -170,7 +179,7 @@ export default function AlumnoDetalle({ alumno, onBack, onEdit, onEditMembresia,
         </Seccion>
 
         {puedeVerPlanes && (
-          <SeccionPlan alumnoId={alumno.id} isActivo={isActivo} onVerPlan={onVerPlan} onAsignarPlan={onAsignarPlan} />
+          <SeccionPlan alumnoId={alumno.id} isActivo={isActivo} onVerPlan={onVerPlan} onAsignarPlan={onAsignarPlan} onVerProgreso={onVerProgreso} />
         )}
       </div>
     </div>

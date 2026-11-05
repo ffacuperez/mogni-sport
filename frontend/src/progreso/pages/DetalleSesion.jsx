@@ -5,26 +5,28 @@ import { Cargando } from '../../shared/components/ui';
 import ComparativaEjercicio from '../components/ComparativaEjercicio';
 import EncabezadoDetalle from '../components/EncabezadoDetalle';
 import ErrorConsulta from '../components/ErrorConsulta';
-import { consultarSesion, textoFechaCompleta, tituloPlan } from '../services/progresoService';
+import { useProgreso } from '../services/ProgresoContext';
+import { textoFechaCompleta, tituloPlan } from '../services/progresoService';
 
 /** Detalle de una sesión registrada: lo indicado y lo realizado en cada ejercicio. */
 export default function DetalleSesion() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { consultas, rutaBase } = useProgreso();
   const [sesion, setSesion] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     let vigente = true;
-    consultarSesion(id)
+    consultas.consultarSesion(id)
       .then((respuesta) => { if (vigente) setSesion(respuesta); })
       .catch((err) => { if (vigente) setError(err); });
     return () => { vigente = false; };
-  }, [id]);
+  }, [consultas, id]);
 
   // Si se entró directo a la URL no hay a dónde volver dentro de la app
-  const volver = () => (location.key === 'default' ? navigate('/mi-cuenta/progreso/sesiones') : navigate(-1));
+  const volver = () => (location.key === 'default' ? navigate(`${rutaBase}/sesiones`) : navigate(-1));
 
   if (error) return <ErrorConsulta error={error} />;
 

@@ -35,6 +35,7 @@ import DetallePlanAnterior from './progreso/pages/DetallePlanAnterior';
 import DetalleSesion from './progreso/pages/DetalleSesion';
 import MiProgreso from './progreso/pages/MiProgreso';
 import PlanActual from './progreso/pages/PlanActual';
+import ProgresoAlumno from './progreso/pages/ProgresoAlumno';
 import TabPlanes from './progreso/pages/TabPlanes';
 import TabSesiones from './progreso/pages/TabSesiones';
 import Agenda from './turno/pages/Agenda';
@@ -568,11 +569,21 @@ function MainApp({ onLogout }) {
                   onToggleStatus={() => handleToggleEstadoAlumno(alumno)}
                   puedeVerPlanes={puedeVerPlanes}
                   onVerPlan={(planId) => navigate(`/planes/asignados/${planId}`)}
+                  onVerProgreso={() => navigate(`/alumnos/${alumno.id}/progreso`)}
                   onAsignarPlan={() => navigate(`/planes/asignar?alumno=${alumno.id}`)}
                 />
               )}
             </ConAlumno>
           } />
+
+          {/* MOGNI-268: el progreso del alumno, para el entrenador y el propietario */}
+          {puedeVerPlanes && (
+            <Route path="alumnos/:id/progreso/*" element={
+              <ConAlumno alumnos={alumnos} cargado={cargado} onCargar={cargarAlumno}>
+                {(alumno) => <ProgresoAlumno alumno={alumno} onVolver={() => navigate(`/alumnos/${alumno.id}`)} />}
+              </ConAlumno>
+            } />
+          )}
 
           <Route path="alumnos/:id/editar" element={
             <ConAlumno alumnos={alumnos} cargado={cargado} onCargar={cargarAlumno}>

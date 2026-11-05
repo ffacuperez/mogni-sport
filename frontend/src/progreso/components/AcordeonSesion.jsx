@@ -8,6 +8,7 @@ import { completarSesion, textoDetalleSesion } from '../services/progresoService
 import EjercicioIndicado from './EjercicioIndicado';
 import EjercicioRegistrable from './EjercicioRegistrable';
 import RegistrarEjercicioModal from './RegistrarEjercicioModal';
+import { useProgreso } from '../services/ProgresoContext';
 
 const ESTADOS = {
   REGISTRADA: { tono: 'success', texto: 'Registrada', icono: Check },
@@ -22,6 +23,7 @@ const ESTADOS = {
  * con todos hechos, se finaliza. El backend decide si es registrable.
  */
 export default function AcordeonSesion({ sesion, planId, semana, onActualizada }) {
+  const { rutaBase } = useProgreso();
   const [abierta, setAbierta] = useState(false);
   const [elegido, setElegido] = useState(null);
   const [finalizando, setFinalizando] = useState(false);
@@ -82,7 +84,7 @@ export default function AcordeonSesion({ sesion, planId, semana, onActualizada }
             {sesion.ejercicios.map((ejercicio) => <EjercicioIndicado key={ejercicio.orden} ejercicio={ejercicio} />)}
             {sesion.estado === 'REGISTRADA' && sesion.registroId && (
               <Link
-                to={`/mi-cuenta/progreso/sesiones/${sesion.registroId}`}
+                to={`${rutaBase}/sesiones/${sesion.registroId}`}
                 className={cx('flex items-center justify-end gap-0.5 border-t border-line px-4 py-3 text-xs font-semibold text-primary hover:underline', FOCUS)}
               >
                 Ver lo registrado

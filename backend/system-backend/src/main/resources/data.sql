@@ -20,14 +20,14 @@
 --
 --   Alumno (DNI)                Membresía        Situación
 --   Lucía Gómez (30111222)      Musculación 3x   En mora hace 3 días, la 2ª cuota la pagó en mora con recargo
---   Camila Torres (37222000)    Funcional 2x     En mora hace 30 días (no hay baja automática)
+--   Camila Torres (37222000)    Funcional 3x     En mora hace 30 días (no hay baja automática)
 --   Bruno Acosta (39333000)     Musculación 3x   Entró en mora hoy
---   Sofía Ruiz (38333444)       Funcional 2x     Vencida (ayer)
+--   Sofía Ruiz (38333444)       Funcional 3x     Vencida (ayer)
 --   Martín Fernández (35222333) Full 5x          Próxima a vencer (3 días)
---   Agustina Romero (41444000)  Funcional 2x     Al día, vence en 8 días: ya puede renovar (ventana de 10)
+--   Agustina Romero (41444000)  Funcional 3x     Al día, vence en 8 días: ya puede renovar (ventana de 10)
 --   Joaquín Sosa (36111000)     Musculación 3x   Al día: ya pagó el mes siguiente con Full 5x (PROGRAMADA desde
 --                                                dentro de 4 días)
---   Nicolás Benítez (33555000)  Full 5x          Al día (20 días): pasó de Funcional 2x a Full 5x hace 3 días y
+--   Nicolás Benítez (33555000)  Full 5x          Al día (20 días): pasó de Funcional 3x a Full 5x hace 3 días y
 --                                                pagó la diferencia (historial con dos pagos)
 --   Tomás Díaz (40444555)       Musculación 3x   Al día (20 días), 2 cuotas encadenadas
 --   Valentina López (42555666)  Full 5x          Al día (alta hoy)
@@ -43,7 +43,7 @@ TRUNCATE TABLE pagos, cuotas, inscripciones, alumnos, membresias, cuentas, franj
 
 -- 2) Membresías
 INSERT INTO membresias (nombre, precio_actual, frecuencia_semanal, descripcion) VALUES
-    ('Funcional 2x',   18000, 2, 'Clases de funcional dos veces por semana'),
+    ('Funcional 3x',   18000, 3, 'Clases de funcional tres veces por semana'),
     ('Musculación 3x', 25000, 3, 'Sala de musculación tres veces por semana'),
     ('Full 5x',        38000, 5, 'Acceso completo de lunes a viernes');
 
@@ -91,22 +91,22 @@ JOIN cuentas c ON c.email = a.email;
 -- 6) Inscripciones. Las ACTIVA tienen fecha_fin NULL. Cada alumno tiene como mucho una por estado, así las cuotas y
 --    los pagos de abajo la encuentran por (DNI, estado).
 --    Joaquín: la ACTIVA (Musculación 3x) sigue hasta su vencimiento y la PROGRAMADA (Full 5x) empieza ese día.
---    Nicolás: la de Funcional 2x terminó cuando cambió a Full 5x (hace 3 días).
+--    Nicolás: la de Funcional 3x terminó cuando cambió a Full 5x (hace 3 días).
 --    Diego y Paula: canceladas el día de su baja.
 INSERT INTO inscripciones (fecha_inicio, fecha_fin, estado, alumno_id, membresia_id)
 SELECT CURRENT_DATE + i.inicio, CURRENT_DATE + i.fin, i.estado, a.id, m.id
 FROM (VALUES
     ('30111222', 'Musculación 3x', -70, NULL::int, 'ACTIVA'),
     ('35222333', 'Full 5x',        -27, NULL,      'ACTIVA'),
-    ('38333444', 'Funcional 2x',   -31, NULL,      'ACTIVA'),
+    ('38333444', 'Funcional 3x',   -31, NULL,      'ACTIVA'),
     ('40444555', 'Musculación 3x', -40, NULL,      'ACTIVA'),
     ('42555666', 'Full 5x',          0, NULL,      'ACTIVA'),
     ('36111000', 'Musculación 3x', -26, NULL,      'ACTIVA'),
     ('36111000', 'Full 5x',          4, NULL,      'PROGRAMADA'),
-    ('37222000', 'Funcional 2x',   -62, NULL,      'ACTIVA'),
+    ('37222000', 'Funcional 3x',   -62, NULL,      'ACTIVA'),
     ('39333000', 'Musculación 3x', -32, NULL,      'ACTIVA'),
-    ('41444000', 'Funcional 2x',   -22, NULL,      'ACTIVA'),
-    ('33555000', 'Funcional 2x',   -10, -3,        'CANCELADA'),
+    ('41444000', 'Funcional 3x',   -22, NULL,      'ACTIVA'),
+    ('33555000', 'Funcional 3x',   -10, -3,        'CANCELADA'),
     ('33555000', 'Full 5x',         -3, NULL,      'ACTIVA'),
     ('34666000', 'Musculación 3x', -20, -2,        'CANCELADA'),
     ('43777000', 'Full 5x',        -50, -15,       'CANCELADA')

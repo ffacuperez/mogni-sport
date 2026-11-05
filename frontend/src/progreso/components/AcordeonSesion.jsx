@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import { Link } from 'react-router';
-import { Activity, Check, ChevronDown, ChevronRight, Clock } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { cx, FOCUS } from '../../shared/components/clases';
 import { Badge, Button, Panel } from '../../shared/components/ui';
@@ -8,13 +8,8 @@ import { completarSesion, textoDetalleSesion } from '../services/progresoService
 import EjercicioIndicado from './EjercicioIndicado';
 import EjercicioRegistrable from './EjercicioRegistrable';
 import RegistrarEjercicioModal from './RegistrarEjercicioModal';
-
-const ESTADOS = {
-  REGISTRADA: { tono: 'success', texto: 'Registrada', icono: Check },
-  EN_CURSO: { tono: 'warning', texto: 'En curso', icono: Activity },
-  PENDIENTE: { tono: 'neutral', texto: 'Pendiente', icono: Clock },
-  NO_REGISTRADA: { tono: 'neutral', texto: 'No registrada' },
-};
+import { useProgreso } from '../services/ProgresoContext';
+import { ESTADOS } from '../services/estadosSesion';
 
 /**
  * Tarjeta de una sesión: al tocarla se expande y muestra sus ejercicios; al tocarla de nuevo se contrae.
@@ -22,6 +17,7 @@ const ESTADOS = {
  * con todos hechos, se finaliza. El backend decide si es registrable.
  */
 export default function AcordeonSesion({ sesion, planId, semana, onActualizada }) {
+  const { rutaBase } = useProgreso();
   const [abierta, setAbierta] = useState(false);
   const [elegido, setElegido] = useState(null);
   const [finalizando, setFinalizando] = useState(false);
@@ -82,7 +78,7 @@ export default function AcordeonSesion({ sesion, planId, semana, onActualizada }
             {sesion.ejercicios.map((ejercicio) => <EjercicioIndicado key={ejercicio.orden} ejercicio={ejercicio} />)}
             {sesion.estado === 'REGISTRADA' && sesion.registroId && (
               <Link
-                to={`/mi-cuenta/progreso/sesiones/${sesion.registroId}`}
+                to={`${rutaBase}/sesiones/${sesion.registroId}`}
                 className={cx('flex items-center justify-end gap-0.5 border-t border-line px-4 py-3 text-xs font-semibold text-primary hover:underline', FOCUS)}
               >
                 Ver lo registrado

@@ -1,0 +1,2 @@
+# Solo en el classpath de los tests: cada contexto de Spring recibe su base PostgreSQL embebida
+org.springframework.context.ApplicationContextInitializer=mogni.system_backend.BaseEmbebidaTestInitializer

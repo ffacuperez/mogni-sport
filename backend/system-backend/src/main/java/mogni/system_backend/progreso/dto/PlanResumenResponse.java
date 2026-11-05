@@ -6,6 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import mogni.system_backend.plan.entity.EstadoPlanAsignado;
 import mogni.system_backend.plan.entity.MetodoPlan;
+import mogni.system_backend.plantilla.entity.NivelPlantilla;
+import mogni.system_backend.plantilla.entity.ObjetivoPlantilla;
 
 /** HU-270: un plan en el listado de planes del alumno. */
 @Getter
@@ -13,6 +15,9 @@ import mogni.system_backend.plan.entity.MetodoPlan;
 public class PlanResumenResponse {
     private Long id;
     private String nombre;
+    /** MOGNI-268: lo que muestra el historial de planes al entrenador. */
+    private NivelPlantilla nivel;
+    private ObjetivoPlantilla objetivo;
     /** Null en los planes que no lo tienen cargado, igual que mesociclo. */
     private MetodoPlan metodo;
     private String mesociclo;

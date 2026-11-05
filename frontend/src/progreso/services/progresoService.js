@@ -24,7 +24,6 @@ const serieFromApi = (s) => ({
   peso: s.peso,
   repeticiones: s.repeticiones,
   rir: s.rir,
-  rmEstimado: s.rmEstimado,
 });
 
 // HU-269: en una sesión ya empezada, cada ejercicio trae también lo que cargó el alumno
@@ -39,6 +38,8 @@ const ejercicioSesionFromApi = (e) => ({
 
 const sesionFromApi = (s) => ({
   numero: s.numero,
+  // "Tren inferior A"; null si la sesión no tiene nombre
+  nombre: s.nombre ?? null,
   estado: s.estado,
   fechaRegistro: s.fechaRegistro ?? null,
   registroId: s.registroId ?? null,
@@ -56,6 +57,8 @@ const semanaFromApi = (s) => ({
 const planFromApi = (p) => ({
   id: p.id,
   nombre: p.nombre,
+  nivel: p.nivel ?? null,
+  objetivo: p.objetivo ?? null,
   metodo: p.metodo ?? null,
   mesociclo: p.mesociclo ?? null,
   objetivoMesociclo: p.objetivoMesociclo ?? null,
@@ -72,6 +75,8 @@ const planFromApi = (p) => ({
 const resumenFromApi = (p) => ({
   id: p.id,
   nombre: p.nombre,
+  nivel: p.nivel ?? null,
+  objetivo: p.objetivo ?? null,
   metodo: p.metodo ?? null,
   mesociclo: p.mesociclo ?? null,
   estado: p.estado,
@@ -82,22 +87,60 @@ const resumenFromApi = (p) => ({
   sesionesTotales: p.sesionesTotales,
 });
 
-/** El plan activo (o null) y los finalizados, del más reciente al más antiguo. */
-export async function consultarPlanes() {
-  const data = await request(`${BASE_PATH}/planes`);
-  return { activo: data.activo ? resumenFromApi(data.activo) : null, anteriores: data.anteriores.map(resumenFromApi) };
+const sesionDetalleFromApi = (s) => ({
+  semana: s.semana,
+  numeroSesion: s.numeroSesion,
+  fecha: s.fecha,
+  plan: { nombre: s.nombrePlan, metodo: s.metodo ?? null, mesociclo: s.mesociclo ?? null },
+  ejercicios: s.ejercicios.map((e) => ({
+    ...ejercicioFromApi(e),
+    kgUsados: e.kgUsados ?? null,
+    rirReal: e.rirReal ?? null,
+    notas: e.notas ?? null,
+    rmEstimado: e.rmEstimado ?? null,
+    seriesRealizadas: (e.seriesRealizadas ?? []).map(serieFromApi),
+    diferenciaRir: e.diferenciaRir ?? null,
+    completo: e.completo ?? true,
+  })),
+});
+
+/**
+ * Las consultas del progreso contra una base: /mi-progreso para el alumno logueado (HU-270) o
+ * /alumnos/{id}/progreso para el entrenador (MOGNI-268). Devuelven lo mismo en los dos casos.
+ */
+export function crearConsultasProgreso(base) {
+  return {
+    /** El plan activo (o null) y los finalizados, del más reciente al más antiguo. */
+    consultarPlanes: async () => {
+      const data = await request(`${base}/planes`);
+      return { activo: data.activo ? resumenFromApi(data.activo) : null, anteriores: data.anteriores.map(resumenFromApi) };
+    },
+    /** El plan activo, o null si no tiene (el backend responde 204). */
+    consultarPlanActivo: async () => {
+      const data = await request(`${base}/plan-activo`);
+      return data ? planFromApi(data) : null;
+    },
+    /** Un plan, con sus semanas y sesiones. */
+    consultarPlan: async (id) => planFromApi(await request(`${base}/planes/${id}`)),
+    /** Las sesiones registradas del plan, ya ordenadas por el backend (de la más reciente a la más antigua). */
+    consultarSesiones: async (planId) => (await request(`${base}/planes/${planId}/sesiones`)).map((s) => ({
+      id: s.id,
+      semana: s.semana,
+      numeroSesion: s.numeroSesion,
+      fecha: s.fecha,
+      ejerciciosRegistrados: s.ejerciciosRegistrados,
+      // Los que tenía indicados al empezarla; si el backend no lo manda, se asume completa
+      ejerciciosTotales: s.ejerciciosTotales ?? s.ejerciciosRegistrados,
+    })),
+    /** Una sesión registrada, con lo indicado y lo realizado en cada ejercicio. */
+    consultarSesion: async (id) => sesionDetalleFromApi(await request(`${base}/sesiones/${id}`)),
+  };
 }
 
-/** El plan activo del alumno, o null si no tiene (el backend responde 204). */
-export async function consultarPlanActivo() {
-  const data = await request(`${BASE_PATH}/plan-activo`);
-  return data ? planFromApi(data) : null;
-}
+/** MOGNI-268: las mismas consultas, del alumno que elige el entrenador. */
+export const consultasProgresoDeAlumno = (alumnoId) => crearConsultasProgreso(`/alumnos/${alumnoId}/progreso`);
 
-/** Un plan del alumno, con sus semanas y sesiones. */
-export async function consultarPlan(id) {
-  return planFromApi(await request(`${BASE_PATH}/planes/${id}`));
-}
+export const { consultarPlanes, consultarPlanActivo, consultarPlan, consultarSesiones, consultarSesion } = crearConsultasProgreso(BASE_PATH);
 
 /** HU-269: empieza una sesión de la semana actual o, si ya estaba empezada, la devuelve. */
 export async function iniciarSesion(planId, semana, numeroSesion) {
@@ -120,29 +163,26 @@ export function calcularRm(peso, repeticiones, rir) {
   return posibles <= 1 ? peso : peso * (1 + posibles / 30);
 }
 
-/** Las sesiones registradas del plan, ya ordenadas por el backend. */
-export async function consultarSesiones(planId) {
-  return request(`${BASE_PATH}/planes/${planId}/sesiones`);
+/**
+ * MOGNI-269: la serie de la que sale el único 1RM del ejercicio: la de más peso; si empatan, la de más repeticiones; si
+ * también, la primera. La misma regla que el backend. Recibe series con peso, repeticiones y rir numéricos.
+ */
+export function serieDeReferencia(series) {
+  return series.reduce((mejor, serie) => (
+    serie.peso > mejor.peso || (serie.peso === mejor.peso && serie.repeticiones > mejor.repeticiones) ? serie : mejor
+  ));
 }
 
-/** Una sesión registrada, con lo indicado y lo realizado en cada ejercicio. */
-export async function consultarSesion(id) {
-  const s = await request(`${BASE_PATH}/sesiones/${id}`);
-  return {
-    semana: s.semana,
-    numeroSesion: s.numeroSesion,
-    fecha: s.fecha,
-    plan: { nombre: s.nombrePlan, metodo: s.metodo ?? null, mesociclo: s.mesociclo ?? null },
-    ejercicios: s.ejercicios.map((e) => ({
-      ...ejercicioFromApi(e),
-      kgUsados: e.kgUsados ?? null,
-      rirReal: e.rirReal ?? null,
-      notas: e.notas ?? null,
-      rmEstimado: e.rmEstimado ?? null,
-      seriesRealizadas: (e.seriesRealizadas ?? []).map(serieFromApi),
-      diferenciaRir: e.diferenciaRir ?? null,
-    })),
-  };
+/** Las sesiones de cada semana del plan (todas las semanas repiten las mismas). */
+export const sesionesPorSemana = (plan) => plan.semanas[0]?.sesiones.length ?? 0;
+
+/**
+ * Las sesiones que el alumno ya podría haber hecho: todas las de las semanas hasta la actual, incluida. Un plan
+ * finalizado ya las tuvo todas.
+ */
+export function sesionesEsperadasHastaEstaSemana(plan) {
+  if (plan.estado !== 'ACTIVO') return plan.sesionesTotales;
+  return plan.semanas.slice(0, plan.semanaActual).reduce((total, semana) => total + semana.sesiones.length, 0);
 }
 
 /** Agrupa las sesiones por semana, respetando el orden en que vienen. */

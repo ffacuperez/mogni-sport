@@ -28,12 +28,14 @@ public class EjercicioRealizadoResponse {
     private Integer rirReal;
     /** Null si no dejó ninguna nota. */
     private String notas;
-    /** HU-269: el mayor entre sus series; null en los registros anteriores a HU-269. */
+    /** HU-269: el de la serie de más peso; null en los registros anteriores a HU-269. */
     private BigDecimal rmEstimado;
     /** HU-269: vacía en los registros anteriores a HU-269. */
     private List<SerieRealizadaResponse> seriesRealizadas;
     /** RIR real menos el objetivo; null si coinciden o si falta alguno de los dos. */
     private Integer diferenciaRir;
+    /** Si el alumno lo cargó. Los registros anteriores a HU-269 vienen siempre completos. */
+    private boolean completo;
 
     public static EjercicioRealizadoResponse desde(RegistroEjercicio registro) {
         return new EjercicioRealizadoResponse(
@@ -49,7 +51,8 @@ public class EjercicioRealizadoResponse {
                 registro.getNotas(),
                 registro.getRmEstimado(),
                 registro.getSeriesRealizadas().stream().map(SerieRealizadaResponse::desde).toList(),
-                diferenciaRir(registro.getRirObjetivo(), registro.getRirReal()));
+                diferenciaRir(registro.getRirObjetivo(), registro.getRirReal()),
+                registro.isCompleto());
     }
 
     private static Integer diferenciaRir(Integer objetivo, Integer real) {

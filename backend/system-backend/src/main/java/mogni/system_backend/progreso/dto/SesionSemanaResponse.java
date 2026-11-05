@@ -11,6 +11,8 @@ import lombok.Getter;
 @AllArgsConstructor
 public class SesionSemanaResponse {
     private int numero;
+    /** El nombre de la sesión en el plan (p. ej. "Tren inferior A"); null si no tiene. */
+    private String nombre;
     private EstadoSesion estado;
     /** El día en que se empezó; null si no está registrada ni en curso. */
     private LocalDate fechaRegistro;

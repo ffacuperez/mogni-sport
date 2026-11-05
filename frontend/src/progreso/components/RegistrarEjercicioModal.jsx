@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 import { cx, inputClass, labelClass } from '../../shared/components/clases';
 import { Button, Modal } from '../../shared/components/ui';
 import {
-  calcularRm, iniciarSesion, registrarEjercicio, textoDescansoSegundos, textoKg, textoSeriesRepeticiones,
+  calcularRm, iniciarSesion, registrarEjercicio, serieDeReferencia, textoDescansoSegundos, textoKg, textoSeriesRepeticiones,
 } from '../services/progresoService';
 
 const CAMPOS = [
@@ -39,9 +39,9 @@ export default function RegistrarEjercicioModal({ ejercicio, sesion, planId, sem
   const enviando = useRef(false);
 
   const completas = filas.every(serieCompleta);
-  const mejorRm = completas
-    ? Math.max(...filas.map((f) => calcularRm(Number(f.peso), Number(f.repeticiones), Number(f.rir))))
-    : null;
+  const series = filas.map((f, i) => ({ orden: i + 1, peso: Number(f.peso), repeticiones: Number(f.repeticiones), rir: Number(f.rir) }));
+  const referencia = completas ? serieDeReferencia(series) : null;
+  const rmEstimado = referencia ? calcularRm(referencia.peso, referencia.repeticiones, referencia.rir) : null;
   const indicado = [
     textoSeriesRepeticiones(ejercicio),
     ejercicio.rirObjetivo != null && `RIR ${ejercicio.rirObjetivo}`,
@@ -65,7 +65,6 @@ export default function RegistrarEjercicioModal({ ejercicio, sesion, planId, sem
         onActualizada(iniciada);
         registroId = iniciada.registroId;
       }
-      const series = filas.map((f, i) => ({ orden: i + 1, peso: Number(f.peso), repeticiones: Number(f.repeticiones), rir: Number(f.rir) }));
       onActualizada(await registrarEjercicio(registroId, ejercicio.orden, { series, notas: notas.trim() || null }));
       onCerrar();
     } catch (err) {
@@ -122,8 +121,8 @@ export default function RegistrarEjercicioModal({ ejercicio, sesion, planId, sem
         </div>
 
         <p className="text-sm text-ink-soft" aria-live="polite">
-          {mejorRm != null
-            ? <>1RM estimado: <span className="font-semibold text-ink">{textoKg(mejorRm)}</span> (la mejor serie)</>
+          {rmEstimado != null
+            ? <>1RM estimado: <span className="font-semibold text-ink">{textoKg(rmEstimado)}</span> (serie {referencia.orden}, la de más peso)</>
             : `Completá peso, repeticiones y RIR de ${ejercicio.series === 1 ? 'la serie' : `las ${ejercicio.series} series`} para guardar.`}
         </p>
 

@@ -1,6 +1,7 @@
 package mogni.system_backend.progreso.dto;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -27,6 +28,10 @@ public class EjercicioRealizadoResponse {
     private Integer rirReal;
     /** Null si no dejó ninguna nota. */
     private String notas;
+    /** HU-269: el mayor entre sus series; null en los registros anteriores a HU-269. */
+    private BigDecimal rmEstimado;
+    /** HU-269: vacía en los registros anteriores a HU-269. */
+    private List<SerieRealizadaResponse> seriesRealizadas;
     /** RIR real menos el objetivo; null si coinciden o si falta alguno de los dos. */
     private Integer diferenciaRir;
 
@@ -42,6 +47,8 @@ public class EjercicioRealizadoResponse {
                 registro.getKgUsados(),
                 registro.getRirReal(),
                 registro.getNotas(),
+                registro.getRmEstimado(),
+                registro.getSeriesRealizadas().stream().map(SerieRealizadaResponse::desde).toList(),
                 diferenciaRir(registro.getRirObjetivo(), registro.getRirReal()));
     }
 

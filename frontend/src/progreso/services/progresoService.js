@@ -19,11 +19,31 @@ const ejercicioFromApi = (e) => ({
   indicaciones: e.indicaciones ?? null,
 });
 
+const serieFromApi = (s) => ({
+  orden: s.orden,
+  peso: s.peso,
+  repeticiones: s.repeticiones,
+  rir: s.rir,
+  rmEstimado: s.rmEstimado,
+});
+
+// HU-269: en una sesión ya empezada, cada ejercicio trae también lo que cargó el alumno
+const ejercicioSesionFromApi = (e) => ({
+  ...ejercicioFromApi(e),
+  orden: e.orden,
+  completo: e.completo,
+  rmEstimado: e.rmEstimado ?? null,
+  notas: e.notas ?? null,
+  seriesRealizadas: (e.seriesRealizadas ?? []).map(serieFromApi),
+});
+
 const sesionFromApi = (s) => ({
   numero: s.numero,
   estado: s.estado,
   fechaRegistro: s.fechaRegistro ?? null,
-  ejercicios: s.ejercicios.map(ejercicioFromApi),
+  registroId: s.registroId ?? null,
+  registrable: s.registrable,
+  ejercicios: s.ejercicios.map(ejercicioSesionFromApi),
 });
 
 const semanaFromApi = (s) => ({
@@ -79,6 +99,27 @@ export async function consultarPlan(id) {
   return planFromApi(await request(`${BASE_PATH}/planes/${id}`));
 }
 
+/** HU-269: empieza una sesión de la semana actual o, si ya estaba empezada, la devuelve. */
+export async function iniciarSesion(planId, semana, numeroSesion) {
+  return sesionFromApi(await request(`${BASE_PATH}/planes/${planId}/sesiones`, { method: 'POST', body: { semana, numeroSesion } }));
+}
+
+/** HU-269: carga o corrige un ejercicio con todas sus series. Devuelve la sesión actualizada. */
+export async function registrarEjercicio(registroId, orden, { series, notas }) {
+  return sesionFromApi(await request(`${BASE_PATH}/sesiones/${registroId}/ejercicios/${orden}`, { method: 'PUT', body: { series, notas } }));
+}
+
+/** HU-269: finaliza la sesión; el backend lo rechaza si falta algún ejercicio. */
+export async function completarSesion(registroId) {
+  return sesionFromApi(await request(`${BASE_PATH}/sesiones/${registroId}/completar`, { method: 'POST' }));
+}
+
+/** HU-269: 1RM estimado (Epley con RIR), la misma cuenta que hace el backend. Solo para la vista previa. */
+export function calcularRm(peso, repeticiones, rir) {
+  const posibles = repeticiones + rir;
+  return posibles <= 1 ? peso : peso * (1 + posibles / 30);
+}
+
 /** Las sesiones registradas del plan, ya ordenadas por el backend. */
 export async function consultarSesiones(planId) {
   return request(`${BASE_PATH}/planes/${planId}/sesiones`);
@@ -97,6 +138,8 @@ export async function consultarSesion(id) {
       kgUsados: e.kgUsados ?? null,
       rirReal: e.rirReal ?? null,
       notas: e.notas ?? null,
+      rmEstimado: e.rmEstimado ?? null,
+      seriesRealizadas: (e.seriesRealizadas ?? []).map(serieFromApi),
       diferenciaRir: e.diferenciaRir ?? null,
     })),
   };

@@ -12,7 +12,11 @@ import lombok.Getter;
 public class SesionSemanaResponse {
     private int numero;
     private EstadoSesion estado;
-    /** El día en que se hizo; null si no está registrada. */
+    /** El día en que se empezó; null si no está registrada ni en curso. */
     private LocalDate fechaRegistro;
-    private List<EjercicioIndicadoResponse> ejercicios;
+    /** HU-269: el registro de la sesión; null si no está registrada ni en curso. */
+    private Long registroId;
+    /** HU-269: si el alumno puede cargar o corregir ejercicios (plan activo, semana actual y sin finalizar). */
+    private boolean registrable;
+    private List<EjercicioSesionResponse> ejercicios;
 }

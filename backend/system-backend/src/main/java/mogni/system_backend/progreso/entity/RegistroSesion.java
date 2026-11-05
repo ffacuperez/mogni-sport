@@ -25,6 +25,7 @@ import mogni.system_backend.plan.entity.PlanAsignado;
 /**
  * HU-270: una sesión que el alumno registró en una semana del plan. Apunta a la sesión por su número y no por FK,
  * porque modificar un plan recrea sus sesiones (PlanAsignado.reemplazarSesiones) y cambian los ids.
+ * La restricción única garantiza un solo registro por sesión y semana, aunque dos pedidos la inicien a la vez.
  */
 @Entity
 @Table(name = "registros_sesion", uniqueConstraints = @UniqueConstraint(columnNames = { "plan_id", "semana", "numero_sesion" }))
@@ -52,6 +53,13 @@ public class RegistroSesion {
     @Column(nullable = false)
     private LocalDate fecha;
 
+    /**
+     * HU-269: false mientras está en curso; pasa a true cuando el alumno la finaliza con todos los ejercicios hechos.
+     * Los registros anteriores a HU-269 ya estaban hechos: por eso el default de la columna es true.
+     */
+    @Column(nullable = false, columnDefinition = "boolean not null default true")
+    private boolean completada;
+
     @OneToMany(mappedBy = "registro", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("orden ASC")
     private List<RegistroEjercicio> ejercicios = new ArrayList<>();
@@ -70,5 +78,9 @@ public class RegistroSesion {
             ejercicio.setRegistro(this);
             ejercicios.add(ejercicio);
         }
+    }
+
+    public boolean todosLosEjerciciosCompletos() {
+        return ejercicios.stream().allMatch(RegistroEjercicio::isCompleto);
     }
 }

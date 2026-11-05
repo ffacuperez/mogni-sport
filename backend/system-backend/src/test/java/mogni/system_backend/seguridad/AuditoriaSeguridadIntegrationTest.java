@@ -455,7 +455,6 @@ class AuditoriaSeguridadIntegrationTest {
     }
 
     @Test
-    @Disabled("HALLAZGO B-1: una cuenta desactivada responde 'La cuenta está deshabilitada' con cualquier contraseña")
     void el_login_de_una_cuenta_desactivada_no_revela_que_existe_sin_la_contrasenia_correcta() throws Exception {
         Cuenta cuenta = cuenta(Rol.ALUMNO, "clave-correcta", false);
         cuenta.setActiva(false);
@@ -464,7 +463,13 @@ class AuditoriaSeguridadIntegrationTest {
         Respuesta inexistente = login("no-existe-" + SECUENCIA.incrementAndGet() + "@test.com", "lo-que-sea");
         Respuesta desactivada = login(cuenta.getEmail(), "clave-incorrecta");
 
+        assertEquals(401, desactivada.status());
         assertEquals(inexistente.texto(), desactivada.texto());
+        // Con la contraseña correcta, el dueño sí ve por qué no puede entrar (y no recibe token)
+        Respuesta conLaCorrecta = login(cuenta.getEmail(), "clave-correcta");
+        assertEquals(401, conLaCorrecta.status());
+        assertTrue(conLaCorrecta.texto().contains("deshabilitada"), conLaCorrecta.texto());
+        assertFalse(conLaCorrecta.texto().contains("token"));
     }
 
     @Test

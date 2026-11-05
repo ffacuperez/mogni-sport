@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -1180,5 +1181,139 @@ class MiProgresoIntegrationTest {
         assertEquals(404, registrarEjercicio(otro, registroId, 1, series(4, "100", 8, 2)).status());
         assertEquals(404, completar(otro, registroId).status());
         assertEquals(404, registrarEjercicio(duenio, registroId, 9, series(4, "100", 8, 2)).status());
+    }
+
+    // --- MOGNI-268: el progreso de un alumno, para el entrenador ---
+
+    private Respuesta comoPersonal(String rol, String ruta) throws Exception {
+        return ejecutar(get(ruta).with(user("personal@test.com").roles(rol)));
+    }
+
+    private Respuesta comoEntrenador(String ruta) throws Exception {
+        return comoPersonal("ENTRENADOR", ruta);
+    }
+
+    private static String progresoDe(Alumno alumno) {
+        return "/alumnos/" + alumno.getId() + "/progreso";
+    }
+
+    @Test
+    void el_entrenador_consulta_el_plan_activo_y_el_historial_de_planes_de_un_alumno() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate hoy = ZonaHoraria.hoy();
+        PlanAsignado anterior = planFinalizado(alumno, hoy.minusWeeks(8), 5, hoy.minusWeeks(3));
+        registrar(anterior, 1, 1, hoy.minusWeeks(8));
+        PlanAsignado activo = planDeSemanas(alumno, hoy, 4);
+
+        Respuesta planActivo = comoEntrenador(progresoDe(alumno) + "/plan-activo");
+        Respuesta planes = comoEntrenador(progresoDe(alumno) + "/planes");
+
+        assertEquals(200, planActivo.status(), planActivo.cuerpo().toString());
+        assertEquals(activo.getId(), planActivo.cuerpo().path("id").asLong());
+        assertEquals("INTERMEDIO", planActivo.cuerpo().path("nivel").asString());
+        assertEquals("HIPERTROFIA", planActivo.cuerpo().path("objetivo").asString());
+        assertEquals(8, planActivo.cuerpo().path("sesionesTotales").asInt());
+        // De solo lectura: el entrenador no registra sesiones por el alumno
+        planActivo.cuerpo().path("semanas").forEach(semana -> semana.path("sesiones")
+                .forEach(sesion -> assertFalse(sesion.path("registrable").asBoolean(), sesion.toString())));
+
+        assertEquals(200, planes.status());
+        assertEquals(activo.getId(), planes.cuerpo().path("activo").path("id").asLong());
+        JsonNode anteriores = planes.cuerpo().path("anteriores");
+        assertEquals(1, anteriores.size());
+        assertEquals(anterior.getId(), anteriores.get(0).path("id").asLong());
+        assertEquals("INTERMEDIO", anteriores.get(0).path("nivel").asString());
+        assertEquals("HIPERTROFIA", anteriores.get(0).path("objetivo").asString());
+        assertEquals(1, anteriores.get(0).path("sesionesRegistradas").asInt());
+        assertEquals(10, anteriores.get(0).path("sesionesTotales").asInt());
+        assertEquals(200, comoEntrenador(progresoDe(alumno) + "/planes/" + anterior.getId()).status());
+    }
+
+    @Test
+    void el_entrenador_consulta_el_historial_de_sesiones_y_el_detalle_de_un_ejercicio() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate hoy = ZonaHoraria.hoy();
+        PlanAsignado plan = planDeSemanas(alumno, hoy.minusWeeks(2), 5);
+        registrar(plan, 1, 2, hoy.minusWeeks(2));
+        registrar(plan, 2, 1, hoy.minusWeeks(1));
+        long registroId = iniciarYObtenerId(alumno, plan, 3, 1);
+        registrarEjercicio(alumno, registroId, 1, "{\"series\":[" + String.join(",",
+                serie(1, "100", "8", "2"), serie(2, "110", "5", "1"), serie(3, "90", "10", "2"), serie(4, "105", "6", "2")) + "]}");
+        registrarEjercicio(alumno, registroId, 2, series(4, "80", 12, 2));
+        assertEquals(200, completar(alumno, registroId).status());
+
+        Respuesta sesiones = comoEntrenador(progresoDe(alumno) + "/planes/" + plan.getId() + "/sesiones");
+        Respuesta detalle = comoEntrenador(progresoDe(alumno) + "/sesiones/" + registroId);
+
+        assertEquals(200, sesiones.status(), sesiones.cuerpo().toString());
+        // De la más reciente a la más antigua
+        List<Integer> semanas = new ArrayList<>();
+        sesiones.cuerpo().forEach(sesion -> semanas.add(sesion.path("semana").asInt()));
+        assertEquals(List.of(3, 2, 1), semanas);
+        assertEquals(registroId, sesiones.cuerpo().get(0).path("id").asLong());
+
+        assertEquals(200, detalle.status(), detalle.cuerpo().toString());
+        JsonNode ejercicio = detalle.cuerpo().path("ejercicios").get(0);
+        // Un único 1RM por ejercicio (MOGNI-269), de la serie de más peso: 110 kg x 5, RIR 1
+        assertEquals(0, new BigDecimal("132.00").compareTo(ejercicio.path("rmEstimado").decimalValue()));
+        assertEquals(0, new BigDecimal("110").compareTo(ejercicio.path("kgUsados").decimalValue()));
+        JsonNode realizadas = ejercicio.path("seriesRealizadas");
+        assertEquals(4, realizadas.size());
+        assertEquals(0, new BigDecimal("100").compareTo(realizadas.get(0).path("peso").decimalValue()));
+        assertEquals(8, realizadas.get(0).path("repeticiones").asInt());
+        assertEquals(2, realizadas.get(0).path("rir").asInt());
+        realizadas.forEach(serie -> assertTrue(serie.path("rmEstimado").isMissingNode()));
+    }
+
+    @Test
+    void un_alumno_sin_plan_ni_sesiones_no_tiene_nada_que_mostrar() throws Exception {
+        Alumno alumno = alumno();
+
+        Respuesta planActivo = comoEntrenador(progresoDe(alumno) + "/plan-activo");
+        Respuesta planes = comoEntrenador(progresoDe(alumno) + "/planes");
+
+        // 204 y listas vacías: el frontend muestra el estado vacío
+        assertEquals(204, planActivo.status());
+        assertEquals(200, planes.status());
+        assertTrue(planes.cuerpo().path("activo").isNull());
+        assertEquals(0, planes.cuerpo().path("anteriores").size());
+    }
+
+    @Test
+    void un_alumno_recibe_acceso_denegado_al_progreso_de_otro() throws Exception {
+        Alumno duenio = alumno();
+        PlanAsignado plan = planDeSemanas(duenio, ZonaHoraria.hoy(), 4);
+        long registroId = iniciarYObtenerId(duenio, plan, 1, 1);
+        Alumno otro = alumno();
+
+        for (String ruta : List.of("/plan-activo", "/planes", "/planes/" + plan.getId(),
+                "/planes/" + plan.getId() + "/sesiones", "/sesiones/" + registroId)) {
+            Respuesta respuesta = ejecutar(get(progresoDe(duenio) + ruta).with(user(otro.getEmail()).roles("ALUMNO")));
+            assertEquals(403, respuesta.status(), ruta);
+        }
+        // Ni siquiera el propio alumno: lo suyo lo ve en /mi-progreso
+        assertEquals(403, ejecutar(get(progresoDe(duenio) + "/planes").with(user(duenio.getEmail()).roles("ALUMNO"))).status());
+    }
+
+    @Test
+    void el_propietario_tambien_lo_consulta_y_el_nutricionista_no() throws Exception {
+        Alumno alumno = alumno();
+        planDeSemanas(alumno, ZonaHoraria.hoy(), 4);
+
+        assertEquals(200, comoPersonal("PROPIETARIO", progresoDe(alumno) + "/plan-activo").status());
+        assertEquals(403, comoPersonal("NUTRICIONISTA", progresoDe(alumno) + "/plan-activo").status());
+    }
+
+    @Test
+    void un_plan_o_una_sesion_de_otro_alumno_y_un_alumno_inexistente_responden_404() throws Exception {
+        Alumno alumno = alumno();
+        Alumno otro = alumno();
+        PlanAsignado ajeno = planDeSemanas(otro, ZonaHoraria.hoy(), 4);
+        long sesionAjena = iniciarYObtenerId(otro, ajeno, 1, 1);
+
+        assertEquals(404, comoEntrenador(progresoDe(alumno) + "/planes/" + ajeno.getId()).status());
+        assertEquals(404, comoEntrenador(progresoDe(alumno) + "/planes/" + ajeno.getId() + "/sesiones").status());
+        assertEquals(404, comoEntrenador(progresoDe(alumno) + "/sesiones/" + sesionAjena).status());
+        assertEquals(404, comoEntrenador("/alumnos/999999/progreso/planes").status());
     }
 }

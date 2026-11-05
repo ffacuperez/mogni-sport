@@ -2,6 +2,7 @@ import { Navigate, NavLink, Route, Routes } from 'react-router';
 
 import { cx, FOCUS } from '../../shared/components/clases';
 import { Badge, Panel } from '../../shared/components/ui';
+import CuotasAlumno from '../../cuota/pages/CuotasAlumno';
 import ProgresoAlumno from '../../progreso/pages/ProgresoAlumno';
 import DatosAlumno from './DatosAlumno';
 
@@ -50,13 +51,14 @@ function TabsFicha({ tabs }) {
 }
 
 /**
- * Ficha del alumno: encabezado y pestañas Datos | Progreso. Progreso solo para quien puede ver planes
- * (propietario y entrenador).
+ * Ficha del alumno: encabezado y pestañas Datos | Cuotas | Progreso. Cuotas solo para el propietario (como la
+ * cobranza); Progreso para quien puede ver planes (propietario y entrenador).
  */
-export default function FichaAlumno({ alumno, puedeVerPlanes, onEdit, onEditMembresia, onToggleStatus, onVerPlan, onAsignarPlan, onVolver }) {
+export default function FichaAlumno({ alumno, esPropietario, puedeVerPlanes, onEdit, onEditMembresia, onToggleStatus, onVerPlan, onAsignarPlan, onVolver }) {
   const base = `/alumnos/${alumno.id}`;
   const tabs = [
     { to: base, texto: 'Datos', end: true },
+    ...(esPropietario ? [{ to: `${base}/cuotas`, texto: 'Cuotas' }] : []),
     ...(puedeVerPlanes ? [{ to: `${base}/progreso`, texto: 'Progreso' }] : []),
   ];
 
@@ -80,6 +82,7 @@ export default function FichaAlumno({ alumno, puedeVerPlanes, onEdit, onEditMemb
             onAsignarPlan={onAsignarPlan}
           />
         } />
+        {esPropietario && <Route path="cuotas" element={<CuotasAlumno alumno={alumno} />} />}
         {puedeVerPlanes && (
           <Route path="progreso/*" element={<ProgresoAlumno alumno={alumno} onVolver={onVolver} />} />
         )}

@@ -570,6 +570,7 @@ function MainApp({ onLogout }) {
               {(alumno) => (
                 <FichaAlumno
                   alumno={alumno}
+                  esPropietario={esPropietario}
                   puedeVerPlanes={puedeVerPlanes}
                   onEdit={() => navigate(`/alumnos/${alumno.id}/editar`)}
                   onEditMembresia={() => navigate(`/alumnos/${alumno.id}/membresia`)}

@@ -22,7 +22,7 @@ import mogni.system_backend.plantilla.entity.EjercicioPrescripto;
 /**
  * HU-270: lo que el alumno hizo en un ejercicio de una sesión registrada. Lo indicado (en EjercicioPrescripto) es una
  * copia de cuando se registró, así el historial no cambia si después el profe modifica el plan.
- * HU-269: se completa cargando todas sus series; kg, RIR real y 1RM estimado salen de la serie de mayor 1RM.
+ * HU-269: se completa cargando todas sus series; kg, RIR real y 1RM estimado salen de la serie de más peso.
  */
 @Entity
 @Table(name = "registros_ejercicio")
@@ -50,7 +50,7 @@ public class RegistroEjercicio extends EjercicioPrescripto {
     @Column(length = 500)
     private String notas;
 
-    /** El mayor 1RM estimado entre sus series; null mientras no esté completo. */
+    /** El 1RM estimado de la serie de más peso (ver serieDeReferencia); null mientras no esté completo. */
     @Column(precision = 7, scale = 2)
     private BigDecimal rmEstimado;
 
@@ -78,11 +78,23 @@ public class RegistroEjercicio extends EjercicioPrescripto {
             serie.setEjercicio(this);
             seriesRealizadas.add(serie);
         });
-        RegistroSerie mejor = series.stream().max(Comparator.comparing(RegistroSerie::getRmEstimado)).orElseThrow();
-        this.rmEstimado = mejor.getRmEstimado();
-        this.kgUsados = mejor.getPeso();
-        this.rirReal = mejor.getRir();
+        RegistroSerie referencia = serieDeReferencia(series);
+        this.rmEstimado = RegistroSerie.calcularRm(referencia.getPeso(), referencia.getRepeticiones(), referencia.getRir());
+        this.kgUsados = referencia.getPeso();
+        this.rirReal = referencia.getRir();
         this.notas = notas;
         this.completo = true;
+    }
+
+    /**
+     * MOGNI-269: el 1RM del ejercicio sale de una sola serie, la de más peso. Si empatan en peso, la de más repeticiones;
+     * si también empatan, la primera.
+     */
+    public static RegistroSerie serieDeReferencia(List<RegistroSerie> series) {
+        return series.stream()
+                .max(Comparator.comparing(RegistroSerie::getPeso)
+                        .thenComparingInt(RegistroSerie::getRepeticiones)
+                        .thenComparing(Comparator.comparingInt(RegistroSerie::getOrden).reversed()))
+                .orElseThrow();
     }
 }

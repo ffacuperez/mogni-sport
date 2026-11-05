@@ -48,6 +48,10 @@ public class RegistroSerie {
     @Column(nullable = false)
     private int rir;
 
+    /**
+     * 1RM de esta serie sola. Desde MOGNI-269 no se muestra (el 1RM es uno por ejercicio); la columna queda porque ya
+     * existe y es NOT NULL en las bases creadas antes del cambio.
+     */
     @Column(nullable = false, precision = 7, scale = 2)
     private BigDecimal rmEstimado;
 

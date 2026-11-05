@@ -38,6 +38,8 @@ const ejercicioSesionFromApi = (e) => ({
 
 const sesionFromApi = (s) => ({
   numero: s.numero,
+  // "Tren inferior A"; null si la sesión no tiene nombre
+  nombre: s.nombre ?? null,
   estado: s.estado,
   fechaRegistro: s.fechaRegistro ?? null,
   registroId: s.registroId ?? null,
@@ -98,6 +100,7 @@ const sesionDetalleFromApi = (s) => ({
     rmEstimado: e.rmEstimado ?? null,
     seriesRealizadas: (e.seriesRealizadas ?? []).map(serieFromApi),
     diferenciaRir: e.diferenciaRir ?? null,
+    completo: e.completo ?? true,
   })),
 });
 
@@ -120,7 +123,15 @@ export function crearConsultasProgreso(base) {
     /** Un plan, con sus semanas y sesiones. */
     consultarPlan: async (id) => planFromApi(await request(`${base}/planes/${id}`)),
     /** Las sesiones registradas del plan, ya ordenadas por el backend (de la más reciente a la más antigua). */
-    consultarSesiones: (planId) => request(`${base}/planes/${planId}/sesiones`),
+    consultarSesiones: async (planId) => (await request(`${base}/planes/${planId}/sesiones`)).map((s) => ({
+      id: s.id,
+      semana: s.semana,
+      numeroSesion: s.numeroSesion,
+      fecha: s.fecha,
+      ejerciciosRegistrados: s.ejerciciosRegistrados,
+      // Los que tenía indicados al empezarla; si el backend no lo manda, se asume completa
+      ejerciciosTotales: s.ejerciciosTotales ?? s.ejerciciosRegistrados,
+    })),
     /** Una sesión registrada, con lo indicado y lo realizado en cada ejercicio. */
     consultarSesion: async (id) => sesionDetalleFromApi(await request(`${base}/sesiones/${id}`)),
   };
@@ -160,6 +171,18 @@ export function serieDeReferencia(series) {
   return series.reduce((mejor, serie) => (
     serie.peso > mejor.peso || (serie.peso === mejor.peso && serie.repeticiones > mejor.repeticiones) ? serie : mejor
   ));
+}
+
+/** Las sesiones de cada semana del plan (todas las semanas repiten las mismas). */
+export const sesionesPorSemana = (plan) => plan.semanas[0]?.sesiones.length ?? 0;
+
+/**
+ * Las sesiones que el alumno ya podría haber hecho: todas las de las semanas hasta la actual, incluida. Un plan
+ * finalizado ya las tuvo todas.
+ */
+export function sesionesEsperadasHastaEstaSemana(plan) {
+  if (plan.estado !== 'ACTIVO') return plan.sesionesTotales;
+  return plan.semanas.slice(0, plan.semanaActual).reduce((total, semana) => total + semana.sesiones.length, 0);
 }
 
 /** Agrupa las sesiones por semana, respetando el orden en que vienen. */

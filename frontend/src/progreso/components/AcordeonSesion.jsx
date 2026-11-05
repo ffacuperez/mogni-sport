@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import { Link } from 'react-router';
-import { Activity, Check, ChevronDown, ChevronRight, Clock } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { cx, FOCUS } from '../../shared/components/clases';
 import { Badge, Button, Panel } from '../../shared/components/ui';
@@ -9,13 +9,7 @@ import EjercicioIndicado from './EjercicioIndicado';
 import EjercicioRegistrable from './EjercicioRegistrable';
 import RegistrarEjercicioModal from './RegistrarEjercicioModal';
 import { useProgreso } from '../services/ProgresoContext';
-
-const ESTADOS = {
-  REGISTRADA: { tono: 'success', texto: 'Registrada', icono: Check },
-  EN_CURSO: { tono: 'warning', texto: 'En curso', icono: Activity },
-  PENDIENTE: { tono: 'neutral', texto: 'Pendiente', icono: Clock },
-  NO_REGISTRADA: { tono: 'neutral', texto: 'No registrada' },
-};
+import { ESTADOS } from '../services/estadosSesion';
 
 /**
  * Tarjeta de una sesión: al tocarla se expande y muestra sus ejercicios; al tocarla de nuevo se contrae.

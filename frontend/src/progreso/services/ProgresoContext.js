@@ -31,9 +31,9 @@ export function progresoParaElEntrenador(alumnoId) {
       cargandoPlan: 'Cargando el plan',
       cargandoPlanes: 'Cargando los planes',
       cargandoSesiones: 'Cargando las sesiones',
-      sinPlan: { titulo: 'No tiene un plan activo', texto: 'Asignale uno desde su ficha para empezar a seguir su progreso.' },
-      sinAnteriores: { titulo: 'No tiene planes anteriores', texto: 'Cuando termine su plan actual, va a aparecer acá.' },
-      sinSesiones: { titulo: 'Todavía no registró ninguna sesión', texto: 'Cuando registre su primera sesión, la vas a ver acá.' },
+      sinPlan: { titulo: 'Este alumno no tiene un plan activo', texto: 'Asignale un plan a partir de una plantilla para empezar a seguir su progreso.' },
+      sinAnteriores: { titulo: 'Este alumno todavía no tiene planes anteriores', texto: 'Cuando finalice su plan actual, lo vas a ver acá.' },
+      sinSesiones: { titulo: 'Este alumno todavía no registró ninguna sesión', texto: 'Cuando registre su primera sesión desde la app, la vas a ver acá.' },
       accesoBloqueado: 'No podés ver el progreso de este alumno',
     },
   };

@@ -282,6 +282,37 @@ export function Modal({ title, subtitle, onClose, size = 'sm', children, cerrabl
   );
 }
 
+/**
+ * Panel lateral que entra desde la derecha sobre un overlay. Cierra con Escape, clic afuera o la X. En celular ocupa
+ * todo el ancho. header: título y lo que va debajo; footer: queda fijo al pie mientras el contenido scrollea.
+ */
+export function Drawer({ label, header, footer, onClose, children }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose?.(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex justify-end bg-black/40 animate-fade-in"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose?.(); }}
+    >
+      <div role="dialog" aria-modal="true" aria-label={label} className="flex h-full w-full max-w-[560px] flex-col bg-card shadow-modal animate-slide-in-right">
+        <div className="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
+          <div className="min-w-0">{header}</div>
+          <button type="button" onClick={onClose} aria-label="Cerrar" className={cx('-mr-2 -mt-1 shrink-0 cursor-pointer rounded-full p-2 text-ink-soft transition-colors hover:bg-row-hover hover:text-ink', FOCUS)}>
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">{children}</div>
+        {footer && <div className="px-6 pb-6">{footer}</div>}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 /** Mensaje centrado de carga para pantallas completas. */
 export function Cargando({ texto = 'Cargando...', className = 'mt-16' }) {
   return (

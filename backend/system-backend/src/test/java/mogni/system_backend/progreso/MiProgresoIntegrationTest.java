@@ -593,6 +593,43 @@ class MiProgresoIntegrationTest {
     }
 
     @Test
+    void cada_sesion_informa_cuantos_ejercicios_tenia_indicados_segun_la_copia_del_registro() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        List<EjercicioSesionPlan> indicados = plan.getSesiones().get(0).getEjercicios();
+        RegistroSesion registro = new RegistroSesion(plan, 1, 1, ZonaHoraria.hoy());
+        registro.setCompletada(true);
+        registro.agregarEjercicios(List.of(
+                new RegistroEjercicio(indicados.get(0), new BigDecimal("40"), 2, null),
+                new RegistroEjercicio(indicados.get(1))));
+        registroRepository.save(registro);
+        // El profe le saca un ejercicio al plan después: el total sigue saliendo de lo que se copió al empezar
+        plan.getSesiones().get(0).getEjercicios().remove(1);
+        planRepository.save(plan);
+
+        JsonNode sesion = sesionesDe(alumno, plan.getId()).cuerpo().get(0);
+
+        assertEquals(1, sesion.path("ejerciciosRegistrados").asInt());
+        assertEquals(2, sesion.path("ejerciciosTotales").asInt());
+    }
+
+    @Test
+    void cada_sesion_de_la_semana_trae_su_nombre_en_el_plan() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planBasico(alumno, ZonaHoraria.hoy());
+        SesionPlan conNombre = new SesionPlan("Tren inferior A");
+        conNombre.agregarEjercicios(List.of(ejercicio("Sentadilla", 4, 15, 18, null, 3, null)));
+        plan.reemplazarSesiones(List.of(conNombre, sesion(ejercicio("Remo", 3, 10, 12, null, 2, null))));
+        plan.setCantidadSemanas(2);
+        planRepository.save(plan);
+
+        JsonNode sesiones = planActivoDe(alumno).cuerpo().path("semanas").get(0).path("sesiones");
+
+        assertEquals("Tren inferior A", sesiones.get(0).path("nombre").asString());
+        assertTrue(sesiones.get(1).path("nombre").isNull());
+    }
+
+    @Test
     void las_sesiones_de_un_plan_finalizado_se_pueden_consultar() throws Exception {
         Alumno alumno = alumno();
         LocalDate hoy = ZonaHoraria.hoy();

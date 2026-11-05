@@ -155,6 +155,10 @@ public class MiProgresoService {
                         registro.getSemana(),
                         registro.getNumeroSesion(),
                         registro.getFecha(),
+                        // La copia de lo indicado se guarda entera al empezar la sesión (HU-269): el total sale de ahí y no
+                        // del plan de hoy, que el profe pudo cambiar. Limitación: los registros anteriores a HU-269 solo
+                        // guardaron los ejercicios hechos, así que siempre se ven completos.
+                        (int) registro.getEjercicios().stream().filter(RegistroEjercicio::isCompleto).count(),
                         registro.getEjercicios().size()))
                 .toList();
     }
@@ -188,7 +192,7 @@ public class MiProgresoService {
         RegistroSesion registro = registroRepository
                 .findByPlanIdAndSemanaAndNumeroSesion(plan.getId(), semana, sesion.getNumero())
                 .orElseGet(() -> crearRegistro(plan, semana, sesion.getNumero(), hoy));
-        return mapearSesion(plan, semana, sesion.getNumero(), sesion.getEjercicios(), registro, hoy, true);
+        return mapearSesion(plan, semana, sesion.getNumero(), sesion.getNombre(), sesion.getEjercicios(), registro, hoy, true);
     }
 
     /**
@@ -376,22 +380,27 @@ public class MiProgresoService {
                 desde,
                 hasta,
                 plan.getSesiones().stream()
-                        .map(sesion -> mapearSesion(plan, numero, sesion.getNumero(), sesion.getEjercicios(),
+                        .map(sesion -> mapearSesion(plan, numero, sesion.getNumero(), sesion.getNombre(), sesion.getEjercicios(),
                                 registros.get(new ClaveSesion(numero, sesion.getNumero())), hoy, registrable))
                         .toList());
     }
 
     /** Una sesión ya empezada; sus ejercicios salen de la copia que se guardó al empezarla. Solo la usa el alumno. */
     private SesionSemanaResponse mapearRegistro(RegistroSesion registro, LocalDate hoy) {
-        return mapearSesion(registro.getPlan(), registro.getSemana(), registro.getNumeroSesion(), List.of(), registro,
-                hoy, true);
+        String nombre = registro.getPlan().getSesiones().stream()
+                .filter(sesion -> sesion.getNumero() == registro.getNumeroSesion())
+                .findFirst()
+                .map(SesionPlan::getNombre)
+                .orElse(null);
+        return mapearSesion(registro.getPlan(), registro.getSemana(), registro.getNumeroSesion(), nombre, List.of(),
+                registro, hoy, true);
     }
 
     /**
      * Con registro, los ejercicios salen de la copia guardada (con lo que cargó el alumno); sin registro, de lo que
      * indica hoy el plan. Una sesión sin terminar de un plan que ya terminó cuenta como no registrada.
      */
-    private SesionSemanaResponse mapearSesion(PlanAsignado plan, int semana, int numero,
+    private SesionSemanaResponse mapearSesion(PlanAsignado plan, int semana, int numero, String nombre,
             List<? extends EjercicioPrescripto> delPlan, RegistroSesion registro, LocalDate hoy, boolean registrable) {
         boolean vigente = plan.estaVigente(hoy);
         RegistroSesion visible = registro != null && (registro.isCompletada() || vigente) ? registro : null;
@@ -406,6 +415,7 @@ public class MiProgresoService {
                 : visible.getEjercicios().stream().map(EjercicioSesionResponse::desde).toList();
         return new SesionSemanaResponse(
                 numero,
+                nombre,
                 estado,
                 visible == null ? null : visible.getFecha(),
                 visible == null ? null : visible.getId(),

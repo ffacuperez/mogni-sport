@@ -13,5 +13,8 @@ public class SesionRegistradaResponse {
     private int semana;
     private int numeroSesion;
     private LocalDate fecha;
+    /** Los ejercicios hechos de la sesión. */
     private int ejerciciosRegistrados;
+    /** Todos los ejercicios que tenía indicados la sesión, según la copia que se guardó al empezarla. */
+    private int ejerciciosTotales;
 }

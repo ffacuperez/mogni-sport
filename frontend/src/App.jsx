@@ -577,7 +577,7 @@ function MainApp({ onLogout }) {
                   onToggleStatus={() => handleToggleEstadoAlumno(alumno)}
                   onVerPlan={(planId) => navigate(`/planes/asignados/${planId}`)}
                   onAsignarPlan={() => navigate(`/planes/asignar?alumno=${alumno.id}`)}
-                  onVolver={() => navigate(`/alumnos/${alumno.id}`)}
+                  onAjustarPlan={(planId) => navigate(`/planes/asignados/${planId}/editar`)}
                 />
               )}
             </ConAlumno>

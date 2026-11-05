@@ -387,7 +387,6 @@ class AuditoriaSeguridadIntegrationTest {
     }
 
     @Test
-    @Disabled("HALLAZGO A-2: el filtro JWT no mira si la cuenta está activa; /alumnos/me y /notificaciones siguen respondiendo")
     void un_alumno_dado_de_baja_no_accede_a_ningun_endpoint_con_su_token_viejo() throws Exception {
         long membresiaId = membresia("20000", 3);
         Alta alumno = alumno(membresiaId);
@@ -400,7 +399,6 @@ class AuditoriaSeguridadIntegrationTest {
     }
 
     @Test
-    @Disabled("HALLAZGO A-2: un miembro del personal con la cuenta desactivada sigue operando con su token")
     void un_miembro_del_personal_desactivado_no_puede_usar_su_token() throws Exception {
         Cuenta entrenador = cuenta(Rol.ENTRENADOR, "clave-segura-1", false);
         String token = token(entrenador);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
-import { Calendar, ClipboardList, Clock, CreditCard, Dumbbell, Home as IconHome, LogOut, UserCog, Users, Wallet } from 'lucide-react';
+import { Calendar, ClipboardList, Clock, CreditCard, Dumbbell, LogOut, UserCog, Users, Wallet } from 'lucide-react';
 
 import Home from './home/pages/Home';
 import Login from './auth/pages/Login';
@@ -509,11 +509,6 @@ function MainApp({ onLogout }) {
                 </li>
               );
             })}
-            <li className="md:mt-4 md:border-t md:border-sidebar-hover md:pt-4">
-              <button type="button" onClick={() => navigate('/sitio')} className={itemClass(false)}>
-                <IconHome className={iconClass(false)} /> Sitio web
-              </button>
-            </li>
           </ul>
         </nav>
 

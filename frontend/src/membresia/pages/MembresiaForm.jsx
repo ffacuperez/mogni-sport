@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { Field, FormActions, PageHeader, Panel } from '../../shared/components/ui';
 import { inputClass } from '../../shared/components/clases';
 
-const DIAS_MIN = 1;
+// B-2: las membresías son de 3 a 5 días por semana (lo mismo valida el backend)
+const DIAS_MIN = 3;
 const DIAS_MAX = 5;
 
 export default function MembresiaForm({ membresiaToEdit, onSave, onCancel, onError }) {

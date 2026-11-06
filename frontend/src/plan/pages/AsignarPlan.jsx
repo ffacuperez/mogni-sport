@@ -262,7 +262,7 @@ export default function AsignarPlan({ plantillaInicialId, alumnoInicialId, onCan
           <h2 className="mb-4 text-base font-semibold text-ink">Origen del plan</h2>
           <div className="inline-flex rounded-lg bg-row-hover p-1" role="group" aria-label="Origen del plan">
             <Pestania activa={origen === 'plantilla'} onClick={() => setOrigen('plantilla')}>Desde una plantilla</Pestania>
-            <Pestania activa={origen === 'cero'} onClick={() => setOrigen('cero')}>Nueva plantilla</Pestania>
+            <Pestania activa={origen === 'cero'} onClick={() => setOrigen('cero')}>Plan personalizado</Pestania>
           </div>
 
           {origen === 'plantilla' ? (
@@ -274,7 +274,7 @@ export default function AsignarPlan({ plantillaInicialId, alumnoInicialId, onCan
                 </select>
               </Field>
               {datos.plantillas.length === 0 && (
-                <p className="mt-2 text-xs text-ink-muted">Todavía no hay plantillas. Podés armar el plan con «Nueva plantilla».</p>
+                <p className="mt-2 text-xs text-ink-muted">Todavía no hay plantillas. Podés armar el plan con «Plan personalizado».</p>
               )}
               {plantilla && <PrevisualizacionPlantilla plantilla={plantilla} />}
               <p className="mt-4 flex items-start gap-1.5 text-xs text-ink-soft">

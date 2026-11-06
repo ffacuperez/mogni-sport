@@ -11,13 +11,18 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.env.Environment;
+import org.springframework.test.context.ActiveProfiles;
 
 /**
  * Reglas de seguridad contra el servidor real (MockMvc no hace el re-despacho a /error que hace
  * Tomcat con sendError, y ahí era donde un 403 terminaba convertido en 401).
- * Usa las cuentas del seed, que existen en la base.
+ * Usa las cuentas del seed (data.sql), que se cargan en la base embebida del perfil "test".
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
+        // Las cuentas del seed (data.sql), cargadas en la base embebida de este contexto
+        "spring.sql.init.mode=always",
+        "spring.jpa.defer-datasource-initialization=true"})
+@ActiveProfiles("test")
 class SecurityHttpRealTest {
 
     private final HttpClient http = HttpClient.newHttpClient();

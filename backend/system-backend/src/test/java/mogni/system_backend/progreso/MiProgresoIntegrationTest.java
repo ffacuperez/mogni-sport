@@ -5,14 +5,24 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import javax.sql.DataSource;
 
@@ -20,6 +30,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -45,6 +57,7 @@ import mogni.system_backend.plantilla.entity.ObjetivoPlantilla;
 import mogni.system_backend.progreso.entity.RegistroEjercicio;
 import mogni.system_backend.progreso.entity.RegistroSesion;
 import mogni.system_backend.progreso.repository.RegistroSesionRepository;
+import mogni.system_backend.progreso.service.MigracionRmEstimado;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -163,8 +176,11 @@ class MiProgresoIntegrationTest {
         return planRepository.save(plan);
     }
 
+    /** Una sesión ya finalizada. */
     private void registrar(PlanAsignado plan, int semana, int sesion, LocalDate fecha) {
-        registroRepository.save(new RegistroSesion(plan, semana, sesion, fecha));
+        RegistroSesion registro = new RegistroSesion(plan, semana, sesion, fecha);
+        registro.setCompletada(true);
+        registroRepository.save(registro);
     }
 
     // --- Pedidos ---
@@ -521,10 +537,11 @@ class MiProgresoIntegrationTest {
 
     // --- Sesiones registradas ---
 
-    /** Registra la sesión con todos sus ejercicios, con los kg, el RIR real y la nota indicados. */
+    /** Registra la sesión ya finalizada con todos sus ejercicios, con los kg, el RIR real y la nota indicados. */
     private RegistroSesion registrarConEjercicios(PlanAsignado plan, int semana, int numeroSesion, LocalDate fecha,
             String kg, Integer rirReal, String notas) {
         RegistroSesion registro = new RegistroSesion(plan, semana, numeroSesion, fecha);
+        registro.setCompletada(true);
         registro.agregarEjercicios(plan.getSesiones().get(numeroSesion - 1).getEjercicios().stream()
                 .map(indicado -> new RegistroEjercicio(indicado, kg == null ? null : new BigDecimal(kg), rirReal, notas))
                 .toList());
@@ -573,6 +590,43 @@ class MiProgresoIntegrationTest {
         registrarConEjercicios(plan, 1, 1, ZonaHoraria.hoy(), "40", 2, null);
 
         assertEquals(2, sesionesDe(alumno, plan.getId()).cuerpo().get(0).path("ejerciciosRegistrados").asInt());
+    }
+
+    @Test
+    void cada_sesion_informa_cuantos_ejercicios_tenia_indicados_segun_la_copia_del_registro() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        List<EjercicioSesionPlan> indicados = plan.getSesiones().get(0).getEjercicios();
+        RegistroSesion registro = new RegistroSesion(plan, 1, 1, ZonaHoraria.hoy());
+        registro.setCompletada(true);
+        registro.agregarEjercicios(List.of(
+                new RegistroEjercicio(indicados.get(0), new BigDecimal("40"), 2, null),
+                new RegistroEjercicio(indicados.get(1))));
+        registroRepository.save(registro);
+        // El profe le saca un ejercicio al plan después: el total sigue saliendo de lo que se copió al empezar
+        plan.getSesiones().get(0).getEjercicios().remove(1);
+        planRepository.save(plan);
+
+        JsonNode sesion = sesionesDe(alumno, plan.getId()).cuerpo().get(0);
+
+        assertEquals(1, sesion.path("ejerciciosRegistrados").asInt());
+        assertEquals(2, sesion.path("ejerciciosTotales").asInt());
+    }
+
+    @Test
+    void cada_sesion_de_la_semana_trae_su_nombre_en_el_plan() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planBasico(alumno, ZonaHoraria.hoy());
+        SesionPlan conNombre = new SesionPlan("Tren inferior A");
+        conNombre.agregarEjercicios(List.of(ejercicio("Sentadilla", 4, 15, 18, null, 3, null)));
+        plan.reemplazarSesiones(List.of(conNombre, sesion(ejercicio("Remo", 3, 10, 12, null, 2, null))));
+        plan.setCantidadSemanas(2);
+        planRepository.save(plan);
+
+        JsonNode sesiones = planActivoDe(alumno).cuerpo().path("semanas").get(0).path("sesiones");
+
+        assertEquals("Tren inferior A", sesiones.get(0).path("nombre").asString());
+        assertTrue(sesiones.get(1).path("nombre").isNull());
     }
 
     @Test
@@ -782,5 +836,521 @@ class MiProgresoIntegrationTest {
         JsonNode ultimaSemana = detalle.path("semanas").get(1).path("sesiones");
         assertEquals("REGISTRADA", ultimaSemana.get(0).path("estado").asString());
         assertEquals("NO_REGISTRADA", ultimaSemana.get(1).path("estado").asString());
+    }
+
+    // --- HU-269: registrar una sesión ---
+    // El plan básico tiene la sesión 1 con Sentadilla (4 series) y Prensa (4 series), y la sesión 2 con Remo (3 series).
+
+    private Respuesta iniciar(Alumno alumno, Long planId, int semana, int numeroSesion) throws Exception {
+        return ejecutar(post("/mi-progreso/planes/" + planId + "/sesiones")
+                .with(user(alumno.getEmail()).roles("ALUMNO"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"semana\":" + semana + ",\"numeroSesion\":" + numeroSesion + "}"));
+    }
+
+    private Respuesta registrarEjercicio(Alumno alumno, long registroId, int orden, String cuerpo) throws Exception {
+        return ejecutar(put("/mi-progreso/sesiones/" + registroId + "/ejercicios/" + orden)
+                .with(user(alumno.getEmail()).roles("ALUMNO"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(cuerpo));
+    }
+
+    private Respuesta completar(Alumno alumno, long registroId) throws Exception {
+        return ejecutar(post("/mi-progreso/sesiones/" + registroId + "/completar").with(user(alumno.getEmail()).roles("ALUMNO")));
+    }
+
+    /** Las series 1..cantidad, todas con el mismo peso, repeticiones y RIR. */
+    private static String series(int cantidad, String peso, int repeticiones, int rir) {
+        return "{\"series\":[" + IntStream.rangeClosed(1, cantidad)
+                .mapToObj(orden -> serie(orden, peso, String.valueOf(repeticiones), String.valueOf(rir)))
+                .collect(Collectors.joining(",")) + "]}";
+    }
+
+    /** Un valor "null" queda como null en el JSON. */
+    private static String serie(int orden, String peso, String repeticiones, String rir) {
+        return "{\"orden\":" + orden + ",\"peso\":" + peso + ",\"repeticiones\":" + repeticiones + ",\"rir\":" + rir + "}";
+    }
+
+    private long iniciarYObtenerId(Alumno alumno, PlanAsignado plan, int semana, int numeroSesion) throws Exception {
+        Respuesta respuesta = iniciar(alumno, plan.getId(), semana, numeroSesion);
+        assertEquals(200, respuesta.status(), respuesta.cuerpo().toString());
+        return respuesta.cuerpo().path("registroId").asLong();
+    }
+
+    private JsonNode sesionDelPlanActivo(Alumno alumno, int semana, int numeroSesion) throws Exception {
+        return planActivoDe(alumno).cuerpo().path("semanas").get(semana - 1).path("sesiones").get(numeroSesion - 1);
+    }
+
+    private int seriesGuardadas(long registroId) {
+        return new JdbcTemplate(dataSource).queryForObject(
+                "select count(*) from registros_serie s join registros_ejercicio e on e.id = s.registro_ejercicio_id"
+                        + " where e.registro_sesion_id = ?",
+                Integer.class, registroId);
+    }
+
+    @Test
+    void iniciar_una_sesion_del_plan_activo_lista_sus_ejercicios_con_sus_series() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+
+        Respuesta respuesta = iniciar(alumno, plan.getId(), 1, 1);
+
+        assertEquals(200, respuesta.status());
+        JsonNode sesion = respuesta.cuerpo();
+        assertEquals("EN_CURSO", sesion.path("estado").asString());
+        assertTrue(sesion.path("registroId").asLong() > 0);
+        assertTrue(sesion.path("registrable").asBoolean());
+        assertEquals(ZonaHoraria.hoy().toString(), sesion.path("fechaRegistro").asString());
+        JsonNode ejercicios = sesion.path("ejercicios");
+        assertEquals(2, ejercicios.size());
+        assertEquals(1, ejercicios.get(0).path("orden").asInt());
+        assertTrue(ejercicios.get(0).path("nombre").asString().startsWith("Sentadilla"));
+        assertEquals(4, ejercicios.get(0).path("series").asInt());
+        assertFalse(ejercicios.get(0).path("completo").asBoolean());
+        assertEquals(2, ejercicios.get(1).path("orden").asInt());
+        assertEquals(4, ejercicios.get(1).path("series").asInt());
+    }
+
+    @Test
+    void una_sesion_en_curso_no_cuenta_como_registrada_y_se_recupera_al_volver() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        long registroId = iniciarYObtenerId(alumno, plan, 1, 1);
+        registrarEjercicio(alumno, registroId, 2, series(4, "60", 12, 2));
+
+        JsonNode cuerpo = planActivoDe(alumno).cuerpo();
+
+        assertEquals(0, cuerpo.path("sesionesRegistradas").asInt());
+        JsonNode sesion = cuerpo.path("semanas").get(0).path("sesiones").get(0);
+        assertEquals("EN_CURSO", sesion.path("estado").asString());
+        assertEquals(registroId, sesion.path("registroId").asLong());
+        assertFalse(sesion.path("ejercicios").get(0).path("completo").asBoolean());
+        assertTrue(sesion.path("ejercicios").get(1).path("completo").asBoolean());
+        assertEquals(4, sesion.path("ejercicios").get(1).path("seriesRealizadas").size());
+        assertEquals(0, sesionesDe(alumno, plan.getId()).cuerpo().size());
+    }
+
+    @Test
+    void iniciar_dos_veces_la_misma_sesion_devuelve_el_mismo_registro() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+
+        long primero = iniciarYObtenerId(alumno, plan, 1, 1);
+        long segundo = iniciarYObtenerId(alumno, plan, 1, 1);
+
+        assertEquals(primero, segundo);
+        assertEquals(1, registroRepository.findByPlanId(plan.getId()).size());
+    }
+
+    @Test
+    void dos_pedidos_simultaneos_de_iniciar_crean_un_solo_registro() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        CountDownLatch largada = new CountDownLatch(1);
+        Callable<Respuesta> pedido = () -> {
+            largada.await();
+            return iniciar(alumno, plan.getId(), 1, 1);
+        };
+        ExecutorService hilos = Executors.newFixedThreadPool(2);
+        try {
+            Future<Respuesta> uno = hilos.submit(pedido);
+            Future<Respuesta> otro = hilos.submit(pedido);
+            largada.countDown();
+
+            assertEquals(200, uno.get().status(), uno.get().cuerpo().toString());
+            assertEquals(200, otro.get().status(), otro.get().cuerpo().toString());
+            assertEquals(uno.get().cuerpo().path("registroId").asLong(), otro.get().cuerpo().path("registroId").asLong());
+        } finally {
+            hilos.shutdown();
+        }
+        assertEquals(1, registroRepository.findByPlanId(plan.getId()).size());
+    }
+
+    @Test
+    void registrar_todas_las_series_marca_el_ejercicio_y_guarda_un_unico_1rm_de_la_serie_de_mas_peso() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        long registroId = iniciarYObtenerId(alumno, plan, 1, 1);
+        // 1RM = peso x (1 + (reps + RIR) / 30). La de más peso es la 2 (110 kg x 5, RIR 1): 132,00. La regla anterior
+        // (el mayor 1RM entre las series) hubiera elegido la 1: 133,33.
+        String cuerpo = "{\"notas\":\"  Buenas sensaciones  \",\"series\":[" + String.join(",",
+                serie(1, "100", "8", "2"), serie(2, "110", "5", "1"), serie(3, "90", "10", "2"), serie(4, "105", "6", "2")) + "]}";
+
+        Respuesta respuesta = registrarEjercicio(alumno, registroId, 1, cuerpo);
+
+        assertEquals(200, respuesta.status(), respuesta.cuerpo().toString());
+        JsonNode ejercicio = respuesta.cuerpo().path("ejercicios").get(0);
+        assertTrue(ejercicio.path("completo").asBoolean());
+        assertEquals(0, new BigDecimal("132.00").compareTo(ejercicio.path("rmEstimado").decimalValue()));
+        assertEquals("Buenas sensaciones", ejercicio.path("notas").asString());
+        JsonNode realizadas = ejercicio.path("seriesRealizadas");
+        assertEquals(4, realizadas.size());
+        // Un solo 1RM por ejercicio: las series ya no informan el suyo
+        realizadas.forEach(serie -> assertTrue(serie.path("rmEstimado").isMissingNode(), serie.toString()));
+        assertEquals("EN_CURSO", respuesta.cuerpo().path("estado").asString());
+        // El detalle de HU-270 toma kg y RIR de la misma serie
+        JsonNode detalle = sesionDe(alumno, registroId).cuerpo().path("ejercicios").get(0);
+        assertEquals(0, new BigDecimal("110").compareTo(detalle.path("kgUsados").decimalValue()));
+        assertEquals(1, detalle.path("rirReal").asInt());
+        assertEquals(0, new BigDecimal("132.00").compareTo(detalle.path("rmEstimado").decimalValue()));
+        assertEquals(4, detalle.path("seriesRealizadas").size());
+        detalle.path("seriesRealizadas").forEach(serie -> assertTrue(serie.path("rmEstimado").isMissingNode()));
+    }
+
+    @Test
+    void con_el_mismo_peso_el_1rm_sale_de_la_serie_de_mas_repeticiones() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        long registroId = iniciarYObtenerId(alumno, plan, 1, 2);
+        // Las tres con 100 kg. La de más repeticiones es la 3 (8, RIR 0): 126,67. Por mayor 1RM hubiera sido la 2
+        // (6 + RIR 4): 133,33.
+        String cuerpo = "{\"series\":[" + String.join(",",
+                serie(1, "100", "5", "1"), serie(2, "100", "6", "4"), serie(3, "100", "8", "0")) + "]}";
+
+        Respuesta respuesta = registrarEjercicio(alumno, registroId, 1, cuerpo);
+
+        assertEquals(200, respuesta.status(), respuesta.cuerpo().toString());
+        assertEquals(0, new BigDecimal("126.67").compareTo(
+                respuesta.cuerpo().path("ejercicios").get(0).path("rmEstimado").decimalValue()));
+        JsonNode detalle = sesionDe(alumno, registroId).cuerpo().path("ejercicios").get(0);
+        assertEquals(0, detalle.path("rirReal").asInt());
+    }
+
+    @Test
+    void al_arrancar_se_recalcula_el_1rm_de_los_ejercicios_registrados_con_la_regla_anterior() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        long registroId = iniciarYObtenerId(alumno, plan, 1, 1);
+        registrarEjercicio(alumno, registroId, 1, "{\"series\":[" + String.join(",",
+                serie(1, "100", "8", "2"), serie(2, "110", "5", "1"), serie(3, "90", "10", "2"), serie(4, "105", "6", "2")) + "]}");
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        // Como lo hubiera guardado la regla anterior: el mayor 1RM (serie 1)
+        String delEjercicio = " where registro_sesion_id = ? and orden = 1";
+        jdbc.update("update registros_ejercicio set rm_estimado = 133.33, kg_usados = 100, rir_real = 2" + delEjercicio, registroId);
+
+        new MigracionRmEstimado(jdbc).run(null);
+
+        assertEquals(0, new BigDecimal("132.00").compareTo(jdbc.queryForObject(
+                "select rm_estimado from registros_ejercicio" + delEjercicio, BigDecimal.class, registroId)));
+        assertEquals(0, new BigDecimal("110").compareTo(jdbc.queryForObject(
+                "select kg_usados from registros_ejercicio" + delEjercicio, BigDecimal.class, registroId)));
+        assertEquals(1, jdbc.queryForObject("select rir_real from registros_ejercicio" + delEjercicio, Integer.class, registroId));
+    }
+
+    @Test
+    void el_peso_puede_ser_cero_para_ejercicios_con_el_peso_del_cuerpo() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        long registroId = iniciarYObtenerId(alumno, plan, 1, 2);
+
+        assertEquals(200, registrarEjercicio(alumno, registroId, 1, series(3, "0", 10, 2)).status());
+    }
+
+    @Test
+    void los_ejercicios_se_registran_en_cualquier_orden() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        long registroId = iniciarYObtenerId(alumno, plan, 1, 1);
+
+        assertEquals(200, registrarEjercicio(alumno, registroId, 2, series(4, "60", 12, 2)).status());
+        Respuesta despues = registrarEjercicio(alumno, registroId, 1, series(4, "80", 15, 3));
+
+        assertEquals(200, despues.status());
+        assertTrue(despues.cuerpo().path("ejercicios").get(0).path("completo").asBoolean());
+        assertTrue(despues.cuerpo().path("ejercicios").get(1).path("completo").asBoolean());
+    }
+
+    @Test
+    void con_alguna_serie_sin_peso_repeticiones_o_rir_el_ejercicio_no_se_marca() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        long registroId = iniciarYObtenerId(alumno, plan, 1, 2);
+        String completas = serie(1, "50", "10", "2") + "," + serie(2, "50", "10", "2") + ",";
+
+        for (String incompleta : List.of(serie(3, "null", "10", "2"), serie(3, "50", "null", "2"), serie(3, "50", "10", "null"))) {
+            Respuesta respuesta = registrarEjercicio(alumno, registroId, 1, "{\"series\":[" + completas + incompleta + "]}");
+            assertEquals(400, respuesta.status(), incompleta);
+        }
+
+        assertFalse(sesionDelPlanActivo(alumno, 1, 2).path("ejercicios").get(0).path("completo").asBoolean());
+        assertEquals(0, seriesGuardadas(registroId));
+    }
+
+    @Test
+    void tienen_que_venir_exactamente_las_series_del_plan() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        long registroId = iniciarYObtenerId(alumno, plan, 1, 2);
+        String repetidas = "{\"series\":[" + String.join(",",
+                serie(1, "50", "10", "2"), serie(1, "50", "10", "2"), serie(2, "50", "10", "2")) + "]}";
+
+        Respuesta faltan = registrarEjercicio(alumno, registroId, 1, series(2, "50", 10, 2));
+
+        assertEquals(400, faltan.status());
+        assertEquals("Cargá peso, repeticiones y RIR de las 3 series del ejercicio", faltan.cuerpo().path("error").asString());
+        assertEquals(400, registrarEjercicio(alumno, registroId, 1, series(4, "50", 10, 2)).status());
+        assertEquals(400, registrarEjercicio(alumno, registroId, 1, repetidas).status());
+        assertEquals(400, registrarEjercicio(alumno, registroId, 1, "{\"series\":[]}").status());
+        assertEquals(0, seriesGuardadas(registroId));
+    }
+
+    @Test
+    void un_ejercicio_hecho_se_puede_corregir_mientras_la_sesion_esta_en_curso() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        long registroId = iniciarYObtenerId(alumno, plan, 1, 1);
+        registrarEjercicio(alumno, registroId, 1, series(4, "100", 8, 2));
+
+        Respuesta correccion = registrarEjercicio(alumno, registroId, 1, series(4, "80", 10, 0));
+
+        assertEquals(200, correccion.status());
+        JsonNode ejercicio = correccion.cuerpo().path("ejercicios").get(0);
+        assertEquals(0, new BigDecimal("106.67").compareTo(ejercicio.path("rmEstimado").decimalValue()));
+        assertEquals(0, new BigDecimal("80").compareTo(ejercicio.path("seriesRealizadas").get(0).path("peso").decimalValue()));
+        assertEquals(4, seriesGuardadas(registroId));
+    }
+
+    @Test
+    void no_se_puede_finalizar_la_sesion_sin_todos_sus_ejercicios() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        long registroId = iniciarYObtenerId(alumno, plan, 1, 1);
+        registrarEjercicio(alumno, registroId, 1, series(4, "100", 8, 2));
+
+        Respuesta respuesta = completar(alumno, registroId);
+
+        assertEquals(400, respuesta.status());
+        assertEquals("Para finalizar la sesión, registrá todos sus ejercicios", respuesta.cuerpo().path("error").asString());
+        assertEquals("EN_CURSO", sesionDelPlanActivo(alumno, 1, 1).path("estado").asString());
+        assertEquals(0, planActivoDe(alumno).cuerpo().path("sesionesRegistradas").asInt());
+        assertEquals(0, sesionesDe(alumno, plan.getId()).cuerpo().size());
+    }
+
+    @Test
+    void con_todos_los_ejercicios_la_sesion_se_finaliza_y_queda_bloqueada() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        long registroId = iniciarYObtenerId(alumno, plan, 1, 1);
+        registrarEjercicio(alumno, registroId, 1, series(4, "100", 8, 2));
+        registrarEjercicio(alumno, registroId, 2, series(4, "60", 12, 2));
+
+        Respuesta respuesta = completar(alumno, registroId);
+
+        assertEquals(200, respuesta.status(), respuesta.cuerpo().toString());
+        assertEquals("REGISTRADA", respuesta.cuerpo().path("estado").asString());
+        assertFalse(respuesta.cuerpo().path("registrable").asBoolean());
+        assertEquals(1, planActivoDe(alumno).cuerpo().path("sesionesRegistradas").asInt());
+        assertEquals(1, sesionesDe(alumno, plan.getId()).cuerpo().size());
+        Respuesta corregir = registrarEjercicio(alumno, registroId, 1, series(4, "80", 10, 0));
+        assertEquals(400, corregir.status());
+        assertEquals("La sesión ya está finalizada", corregir.cuerpo().path("error").asString());
+        assertEquals(400, completar(alumno, registroId).status());
+        // Iniciarla de nuevo devuelve la finalizada, sin permitir cargarla
+        Respuesta otraVez = iniciar(alumno, plan.getId(), 1, 1);
+        assertEquals(registroId, otraVez.cuerpo().path("registroId").asLong());
+        assertEquals("REGISTRADA", otraVez.cuerpo().path("estado").asString());
+    }
+
+    @Test
+    void sin_plan_activo_no_se_puede_iniciar_una_sesion() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate hoy = ZonaHoraria.hoy();
+        PlanAsignado finalizado = planFinalizado(alumno, hoy.minusWeeks(6), 5, hoy.minusWeeks(1));
+        Alumno conVencido = alumno();
+        PlanAsignado vencido = planConFin(conVencido, hoy.minusWeeks(2), 2, hoy.minusDays(1));
+
+        Respuesta respuesta = iniciar(alumno, finalizado.getId(), 5, 1);
+
+        assertEquals(400, respuesta.status());
+        assertEquals("Solo podés registrar sesiones de tu plan activo", respuesta.cuerpo().path("error").asString());
+        assertEquals(400, iniciar(conVencido, vencido.getId(), 2, 1).status());
+        assertEquals(0, registroRepository.findByPlanId(finalizado.getId()).size());
+    }
+
+    @Test
+    void no_se_puede_seguir_cargando_una_sesion_si_el_plan_termino() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+        long registroId = iniciarYObtenerId(alumno, plan, 1, 1);
+        plan.finalizar(ZonaHoraria.hoy());
+        planRepository.save(plan);
+
+        assertEquals(400, registrarEjercicio(alumno, registroId, 1, series(4, "100", 8, 2)).status());
+        // Lo que quedó sin terminar figura como no registrado
+        JsonNode sesion = planDe(alumno, plan.getId()).cuerpo().path("semanas").get(0).path("sesiones").get(0);
+        assertEquals("NO_REGISTRADA", sesion.path("estado").asString());
+        assertTrue(sesion.path("registroId").isNull());
+    }
+
+    @Test
+    void solo_se_registran_sesiones_de_la_semana_actual() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy().minusDays(8), 5);
+
+        Respuesta pasada = iniciar(alumno, plan.getId(), 1, 1);
+
+        assertEquals(400, pasada.status());
+        assertEquals("Solo podés registrar sesiones de la semana actual", pasada.cuerpo().path("error").asString());
+        assertEquals(400, iniciar(alumno, plan.getId(), 3, 1).status());
+        assertEquals(200, iniciar(alumno, plan.getId(), 2, 1).status());
+        JsonNode semanas = planActivoDe(alumno).cuerpo().path("semanas");
+        assertFalse(semanas.get(0).path("sesiones").get(0).path("registrable").asBoolean());
+        assertTrue(semanas.get(1).path("sesiones").get(1).path("registrable").asBoolean());
+        assertFalse(semanas.get(2).path("sesiones").get(0).path("registrable").asBoolean());
+    }
+
+    @Test
+    void una_sesion_que_no_existe_en_el_plan_no_se_puede_iniciar() throws Exception {
+        Alumno alumno = alumno();
+        PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
+
+        assertEquals(400, iniciar(alumno, plan.getId(), 1, 3).status());
+    }
+
+    @Test
+    void no_se_registra_en_el_plan_ni_en_la_sesion_de_otro_alumno() throws Exception {
+        Alumno duenio = alumno();
+        PlanAsignado plan = planDeSemanas(duenio, ZonaHoraria.hoy(), 5);
+        long registroId = iniciarYObtenerId(duenio, plan, 1, 1);
+        Alumno otro = alumno();
+
+        assertEquals(404, iniciar(otro, plan.getId(), 1, 1).status());
+        assertEquals(404, registrarEjercicio(otro, registroId, 1, series(4, "100", 8, 2)).status());
+        assertEquals(404, completar(otro, registroId).status());
+        assertEquals(404, registrarEjercicio(duenio, registroId, 9, series(4, "100", 8, 2)).status());
+    }
+
+    // --- MOGNI-268: el progreso de un alumno, para el entrenador ---
+
+    private Respuesta comoPersonal(String rol, String ruta) throws Exception {
+        return ejecutar(get(ruta).with(user("personal@test.com").roles(rol)));
+    }
+
+    private Respuesta comoEntrenador(String ruta) throws Exception {
+        return comoPersonal("ENTRENADOR", ruta);
+    }
+
+    private static String progresoDe(Alumno alumno) {
+        return "/alumnos/" + alumno.getId() + "/progreso";
+    }
+
+    @Test
+    void el_entrenador_consulta_el_plan_activo_y_el_historial_de_planes_de_un_alumno() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate hoy = ZonaHoraria.hoy();
+        PlanAsignado anterior = planFinalizado(alumno, hoy.minusWeeks(8), 5, hoy.minusWeeks(3));
+        registrar(anterior, 1, 1, hoy.minusWeeks(8));
+        PlanAsignado activo = planDeSemanas(alumno, hoy, 4);
+
+        Respuesta planActivo = comoEntrenador(progresoDe(alumno) + "/plan-activo");
+        Respuesta planes = comoEntrenador(progresoDe(alumno) + "/planes");
+
+        assertEquals(200, planActivo.status(), planActivo.cuerpo().toString());
+        assertEquals(activo.getId(), planActivo.cuerpo().path("id").asLong());
+        assertEquals("INTERMEDIO", planActivo.cuerpo().path("nivel").asString());
+        assertEquals("HIPERTROFIA", planActivo.cuerpo().path("objetivo").asString());
+        assertEquals(8, planActivo.cuerpo().path("sesionesTotales").asInt());
+        // De solo lectura: el entrenador no registra sesiones por el alumno
+        planActivo.cuerpo().path("semanas").forEach(semana -> semana.path("sesiones")
+                .forEach(sesion -> assertFalse(sesion.path("registrable").asBoolean(), sesion.toString())));
+
+        assertEquals(200, planes.status());
+        assertEquals(activo.getId(), planes.cuerpo().path("activo").path("id").asLong());
+        JsonNode anteriores = planes.cuerpo().path("anteriores");
+        assertEquals(1, anteriores.size());
+        assertEquals(anterior.getId(), anteriores.get(0).path("id").asLong());
+        assertEquals("INTERMEDIO", anteriores.get(0).path("nivel").asString());
+        assertEquals("HIPERTROFIA", anteriores.get(0).path("objetivo").asString());
+        assertEquals(1, anteriores.get(0).path("sesionesRegistradas").asInt());
+        assertEquals(10, anteriores.get(0).path("sesionesTotales").asInt());
+        assertEquals(200, comoEntrenador(progresoDe(alumno) + "/planes/" + anterior.getId()).status());
+    }
+
+    @Test
+    void el_entrenador_consulta_el_historial_de_sesiones_y_el_detalle_de_un_ejercicio() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate hoy = ZonaHoraria.hoy();
+        PlanAsignado plan = planDeSemanas(alumno, hoy.minusWeeks(2), 5);
+        registrar(plan, 1, 2, hoy.minusWeeks(2));
+        registrar(plan, 2, 1, hoy.minusWeeks(1));
+        long registroId = iniciarYObtenerId(alumno, plan, 3, 1);
+        registrarEjercicio(alumno, registroId, 1, "{\"series\":[" + String.join(",",
+                serie(1, "100", "8", "2"), serie(2, "110", "5", "1"), serie(3, "90", "10", "2"), serie(4, "105", "6", "2")) + "]}");
+        registrarEjercicio(alumno, registroId, 2, series(4, "80", 12, 2));
+        assertEquals(200, completar(alumno, registroId).status());
+
+        Respuesta sesiones = comoEntrenador(progresoDe(alumno) + "/planes/" + plan.getId() + "/sesiones");
+        Respuesta detalle = comoEntrenador(progresoDe(alumno) + "/sesiones/" + registroId);
+
+        assertEquals(200, sesiones.status(), sesiones.cuerpo().toString());
+        // De la más reciente a la más antigua
+        List<Integer> semanas = new ArrayList<>();
+        sesiones.cuerpo().forEach(sesion -> semanas.add(sesion.path("semana").asInt()));
+        assertEquals(List.of(3, 2, 1), semanas);
+        assertEquals(registroId, sesiones.cuerpo().get(0).path("id").asLong());
+
+        assertEquals(200, detalle.status(), detalle.cuerpo().toString());
+        JsonNode ejercicio = detalle.cuerpo().path("ejercicios").get(0);
+        // Un único 1RM por ejercicio (MOGNI-269), de la serie de más peso: 110 kg x 5, RIR 1
+        assertEquals(0, new BigDecimal("132.00").compareTo(ejercicio.path("rmEstimado").decimalValue()));
+        assertEquals(0, new BigDecimal("110").compareTo(ejercicio.path("kgUsados").decimalValue()));
+        JsonNode realizadas = ejercicio.path("seriesRealizadas");
+        assertEquals(4, realizadas.size());
+        assertEquals(0, new BigDecimal("100").compareTo(realizadas.get(0).path("peso").decimalValue()));
+        assertEquals(8, realizadas.get(0).path("repeticiones").asInt());
+        assertEquals(2, realizadas.get(0).path("rir").asInt());
+        realizadas.forEach(serie -> assertTrue(serie.path("rmEstimado").isMissingNode()));
+    }
+
+    @Test
+    void un_alumno_sin_plan_ni_sesiones_no_tiene_nada_que_mostrar() throws Exception {
+        Alumno alumno = alumno();
+
+        Respuesta planActivo = comoEntrenador(progresoDe(alumno) + "/plan-activo");
+        Respuesta planes = comoEntrenador(progresoDe(alumno) + "/planes");
+
+        // 204 y listas vacías: el frontend muestra el estado vacío
+        assertEquals(204, planActivo.status());
+        assertEquals(200, planes.status());
+        assertTrue(planes.cuerpo().path("activo").isNull());
+        assertEquals(0, planes.cuerpo().path("anteriores").size());
+    }
+
+    @Test
+    void un_alumno_recibe_acceso_denegado_al_progreso_de_otro() throws Exception {
+        Alumno duenio = alumno();
+        PlanAsignado plan = planDeSemanas(duenio, ZonaHoraria.hoy(), 4);
+        long registroId = iniciarYObtenerId(duenio, plan, 1, 1);
+        Alumno otro = alumno();
+
+        for (String ruta : List.of("/plan-activo", "/planes", "/planes/" + plan.getId(),
+                "/planes/" + plan.getId() + "/sesiones", "/sesiones/" + registroId)) {
+            Respuesta respuesta = ejecutar(get(progresoDe(duenio) + ruta).with(user(otro.getEmail()).roles("ALUMNO")));
+            assertEquals(403, respuesta.status(), ruta);
+        }
+        // Ni siquiera el propio alumno: lo suyo lo ve en /mi-progreso
+        assertEquals(403, ejecutar(get(progresoDe(duenio) + "/planes").with(user(duenio.getEmail()).roles("ALUMNO"))).status());
+    }
+
+    @Test
+    void el_propietario_tambien_lo_consulta_y_el_nutricionista_no() throws Exception {
+        Alumno alumno = alumno();
+        planDeSemanas(alumno, ZonaHoraria.hoy(), 4);
+
+        assertEquals(200, comoPersonal("PROPIETARIO", progresoDe(alumno) + "/plan-activo").status());
+        assertEquals(403, comoPersonal("NUTRICIONISTA", progresoDe(alumno) + "/plan-activo").status());
+    }
+
+    @Test
+    void un_plan_o_una_sesion_de_otro_alumno_y_un_alumno_inexistente_responden_404() throws Exception {
+        Alumno alumno = alumno();
+        Alumno otro = alumno();
+        PlanAsignado ajeno = planDeSemanas(otro, ZonaHoraria.hoy(), 4);
+        long sesionAjena = iniciarYObtenerId(otro, ajeno, 1, 1);
+
+        assertEquals(404, comoEntrenador(progresoDe(alumno) + "/planes/" + ajeno.getId()).status());
+        assertEquals(404, comoEntrenador(progresoDe(alumno) + "/planes/" + ajeno.getId() + "/sesiones").status());
+        assertEquals(404, comoEntrenador(progresoDe(alumno) + "/sesiones/" + sesionAjena).status());
+        assertEquals(404, comoEntrenador("/alumnos/999999/progreso/planes").status());
     }
 }

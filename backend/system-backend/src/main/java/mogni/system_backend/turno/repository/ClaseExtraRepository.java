@@ -26,5 +26,14 @@ public interface ClaseExtraRepository extends JpaRepository<ClaseExtra, Long> {
     List<ClaseExtra> buscarDisponiblesConBloqueo(@Param("alumnoId") Long alumnoId,
                                                   @Param("fecha") LocalDate fecha);
 
+    /** MOGNI-281: si le queda una clase extra para esa fecha. La misma consulta que la anterior, sin bloquear: para leer. */
+    @Query("""
+            select count(c) > 0 from ClaseExtra c
+            where c.alumno.id = :alumnoId
+              and c.reservaUsoId is null
+              and c.vigenteDesde <= :fecha and c.vigenteHasta >= :fecha
+            """)
+    boolean existeDisponible(@Param("alumnoId") Long alumnoId, @Param("fecha") LocalDate fecha);
+
     Optional<ClaseExtra> findByReservaUsoId(Long reservaUsoId);
 }

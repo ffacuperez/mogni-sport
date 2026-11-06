@@ -1,10 +1,8 @@
 package mogni.system_backend.turno.service;
 
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.temporal.TemporalAdjusters;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -18,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.config.ZonaHoraria;
-import mogni.system_backend.cuota.entity.SituacionPago;
 import mogni.system_backend.exception.AccesoDenegadoException;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
@@ -30,6 +27,7 @@ import mogni.system_backend.turno.entity.EstadoReserva;
 import mogni.system_backend.turno.entity.EstadoTurno;
 import mogni.system_backend.turno.entity.Reserva;
 import mogni.system_backend.turno.entity.Turno;
+import mogni.system_backend.turno.repository.ClaseExtraRepository;
 import mogni.system_backend.turno.repository.ReservaRepository;
 
 /**
@@ -45,13 +43,16 @@ public class ConsultaTurnosService {
     private final AlumnoRepository alumnoRepository;
     private final ReservaRepository reservaRepository;
     private final GeneracionTurnosService generacionTurnosService;
+    private final ClaseExtraRepository claseExtraRepository;
 
     public ConsultaTurnosService(AlumnoRepository alumnoRepository,
                                  ReservaRepository reservaRepository,
-                                 GeneracionTurnosService generacionTurnosService) {
+                                 GeneracionTurnosService generacionTurnosService,
+                                 ClaseExtraRepository claseExtraRepository) {
         this.alumnoRepository = alumnoRepository;
         this.reservaRepository = reservaRepository;
         this.generacionTurnosService = generacionTurnosService;
+        this.claseExtraRepository = claseExtraRepository;
     }
 
     /** fecha null = hoy. Tiene que ser hoy o mañana (en Argentina). */
@@ -79,12 +80,8 @@ public class ConsultaTurnosService {
         List<Turno> turnosDelDia = seleccionada.equals(hoy) ? turnosHoy : turnosManiana;
 
         // Reservas activas del alumno en la semana (lunes a domingo) del día seleccionado
-        LocalDate lunes = seleccionada.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-        List<Reserva> reservasDeLaSemana = reservaRepository.findByAlumnoIdAndEstadoAndTurnoFechaBetween(
-                alumno.getId(), EstadoReserva.RESERVADA, lunes, lunes.plusDays(6));
-        int frecuenciaSemanal = alumno.buscarInscripcionActiva()
-                .map(inscripcion -> inscripcion.getMembresia().getFrecuenciaSemanal())
-                .orElse(0);
+        List<Reserva> reservasDeLaSemana = ReglasReserva.reservasDeLaSemana(reservaRepository, alumno.getId(), seleccionada);
+        int frecuenciaSemanal = ReglasReserva.frecuenciaSemanal(alumno);
         int turnosRestantes = Math.max(0, frecuenciaSemanal - reservasDeLaSemana.size());
 
         Set<Long> turnosReservadosEnElDia = reservasDeLaSemana.stream()
@@ -101,8 +98,11 @@ public class ConsultaTurnosService {
                 .toList();
 
         Map<Long, Long> ocupados = contarReservasActivas(turnosAMostrar);
-        boolean bloqueadoPorMora = estaEnMora(alumno, hoy);
-        boolean puedeElegir = !tieneReservaEnElDia && turnosRestantes > 0 && !bloqueadoPorMora;
+        boolean bloqueadoPorMora = ReglasReserva.estaEnMora(alumno, hoy);
+        // MOGNI-281: con la semana completa todavía puede usar una clase extra, igual que al reservar
+        boolean tieneClaseExtra = claseExtraRepository.existeDisponible(alumno.getId(), seleccionada);
+        boolean puedeElegir = !bloqueadoPorMora && ReglasReserva
+                .motivoParaElDia(alumno, seleccionada, reservasDeLaSemana, () -> tieneClaseExtra).isEmpty();
         List<TurnoDisponibleResponse> turnos = turnosAMostrar.stream()
                 .map(turno -> mapearTurno(turno, ocupados.getOrDefault(turno.getId(), 0L),
                         turnosReservadosEnElDia.contains(turno.getId()), puedeElegir,
@@ -119,17 +119,11 @@ public class ConsultaTurnosService {
                 .toList();
 
         return new TurnosDisponiblesResponse(hoy, seleccionada, dias, turnosRestantes, frecuenciaSemanal,
-                tieneReservaEnElDia, turnos, bloqueadoPorMora);
+                tieneReservaEnElDia, turnos, bloqueadoPorMora, tieneClaseExtra);
     }
 
-    /** MOGNI-254/259: en mora no puede reservar (vencida todavía sí). Sin cuotas (datos viejos) no se bloquea. */
-    static boolean estaEnMora(Alumno alumno, LocalDate hoy) {
-        // Hasta cuándo pagó (activa + programada): quien pagó por adelantado con otra membresía no está en mora
-        return SituacionPago.de(alumno.buscarUltimaCuotaPagada().orElse(null), hoy) == SituacionPago.EN_MORA;
-    }
-
-    /** Solo los alumnos con la cuenta activa acceden a los turnos. */
-    static void validarAcceso(Alumno alumno) {
+    /** Solo los alumnos con la cuenta activa acceden a los turnos (y a su inicio, MOGNI-281). */
+    public static void validarAcceso(Alumno alumno) {
         if (!alumno.getCuenta().isActiva()) {
             throw new AccesoDenegadoException("Tu cuenta está inactiva.");
         }

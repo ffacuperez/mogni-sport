@@ -5,6 +5,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -18,6 +20,7 @@ import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import jakarta.servlet.DispatcherType;
+import mogni.system_backend.security.CustomUserDetailsService;
 import mogni.system_backend.security.JwtAuthenticationFilter;
 
 @Configuration
@@ -34,6 +37,25 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    /**
+     * Login con email y contraseña. Por defecto Spring revisa si la cuenta está deshabilitada antes que la contraseña,
+     * y así cualquiera podía saber qué emails son de cuentas dadas de baja. Acá se valida primero la contraseña: con
+     * una incorrecta el error es el mismo que para un email inexistente, y "deshabilitada" solo lo ve el dueño.
+     */
+    @Bean
+    public DaoAuthenticationProvider authenticationProvider(CustomUserDetailsService userDetailsService,
+                                                            PasswordEncoder passwordEncoder) {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
+        provider.setPasswordEncoder(passwordEncoder);
+        provider.setPreAuthenticationChecks(usuario -> { });
+        provider.setPostAuthenticationChecks(usuario -> {
+            if (!usuario.isEnabled()) {
+                throw new DisabledException("La cuenta está deshabilitada");
+            }
+        });
+        return provider;
     }
 
     @Bean
@@ -63,10 +85,14 @@ public class SecurityConfig {
                 .requestMatchers("/notificaciones/**").hasRole("ALUMNO")
                 // Mi progreso (HU-270): cada alumno ve solo lo suyo; el servicio exige además cuenta activa
                 .requestMatchers("/mi-progreso/**").hasRole("ALUMNO")
+                // Mi inicio (MOGNI-281): el resumen del alumno logueado; el servicio exige además cuenta activa
+                .requestMatchers("/mi-inicio").hasRole("ALUMNO")
                 // Historial de pagos (HU-48): solo el propietario, también antes de /alumnos/**
                 .requestMatchers(HttpMethod.GET, "/alumnos/*/pagos").hasRole("PROPIETARIO")
                 // Vista previa de la renovación (MOGNI-45): es parte del registro de pago, solo el propietario
                 .requestMatchers(HttpMethod.GET, "/alumnos/*/renovacion").hasRole("PROPIETARIO")
+                // Progreso de un alumno (MOGNI-268): lo sigue el entrenador (el propietario también); de solo lectura
+                .requestMatchers("/alumnos/*/progreso/**").hasAnyRole("PROPIETARIO", "ENTRENADOR")
                 .requestMatchers("/alumnos/**", "/membresias/**")
                     .hasAnyRole("PROPIETARIO", "ENTRENADOR", "NUTRICIONISTA")
                 // Cobranzas: solo el propietario

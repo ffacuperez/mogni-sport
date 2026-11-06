@@ -19,7 +19,16 @@ const COLUMNAS_INACTIVOS = [
   { label: 'Acción' },
 ];
 
-export default function AlumnosList({ alumnos, cargando, onSelect, onAdd, onReactivate, search, setSearch }) {
+/**
+ * MOGNI-74: del más reciente al más antiguo según el inicio de su inscripción (la activa o, en los inactivos, la
+ * última). A igual fecha, el alta más nueva primero; los que nunca tuvieron inscripción, al final.
+ */
+const porInscripcionMasReciente = (a, b) => (b.inscripcion?.fechaInicio ?? '').localeCompare(a.inscripcion?.fechaInicio ?? '')
+  || b.id - a.id;
+
+export default function AlumnosList({ alumnos: sinOrdenar, cargando, onSelect, onAdd, onReactivate, search, setSearch }) {
+  // Se ordena acá y no en el backend: los alumnos que se dan de alta se agregan al final de la lista en memoria
+  const alumnos = [...sinOrdenar].sort(porInscripcionMasReciente);
   const [pestana, setPestana] = useState('activos');
 
   // HU-74: búsqueda parcial por nombre, apellido o DNI

@@ -5,7 +5,7 @@ import { textoDescansoSegundos, textoDiferenciaRir, textoKg, textoSeriesRepetici
 
 /**
  * Un ejercicio de la sesión con lo indicado y lo realizado lado a lado. Si el RIR real difiere del objetivo se avisa en
- * azul: es información para el alumno, no un error.
+ * azul: es información para el alumno, no un error. HU-269: con lo hecho en cada serie y un único 1RM estimado del ejercicio (MOGNI-269).
  */
 export default function ComparativaEjercicio({ ejercicio }) {
   const hayDiferencia = ejercicio.diferenciaRir != null;
@@ -28,6 +28,7 @@ export default function ComparativaEjercicio({ ejercicio }) {
         <div className="flex flex-col gap-0.5 rounded-lg bg-error-bg px-3 py-2.5">
           <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Realizado</p>
           <p className="text-xl font-bold text-ink">{ejercicio.kgUsados != null ? textoKg(ejercicio.kgUsados) : '—'}</p>
+          {Number(ejercicio.rmEstimado) > 0 && <p className="text-sm font-semibold text-ink">1RM {textoKg(ejercicio.rmEstimado)}</p>}
           {ejercicio.rirReal != null && (
             <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
               RIR {ejercicio.rirReal}
@@ -36,6 +37,15 @@ export default function ComparativaEjercicio({ ejercicio }) {
           )}
         </div>
       </div>
+
+      {/* HU-269: el detalle por serie; los registros anteriores no lo tienen */}
+      {ejercicio.seriesRealizadas.length > 0 && (
+        <ol className="flex flex-col gap-1 text-sm text-ink-soft tabular-nums">
+          {ejercicio.seriesRealizadas.map((serie) => (
+            <li key={serie.orden}>Serie {serie.orden}: {textoKg(serie.peso)} × {serie.repeticiones} · RIR {serie.rir}</li>
+          ))}
+        </ol>
+      )}
 
       {ejercicio.notas && (
         <p className="flex items-start gap-2 text-sm italic text-ink-soft">

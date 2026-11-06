@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +14,7 @@ import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.cuota.dto.CuotaResponse;
+import mogni.system_backend.cuota.dto.EstadoCuota;
 import mogni.system_backend.cuota.entity.Cuota;
 import mogni.system_backend.cuota.entity.ReglasCuota;
 import mogni.system_backend.cuota.entity.SituacionPago;
@@ -47,6 +49,18 @@ public class CuotaService {
                 .map(alumno -> mapearAResponse(alumno, ultimas.get(alumno.getId()), hoy))
                 .sorted(ORDEN)
                 .toList();
+    }
+
+    /**
+     * MOGNI-281: la situación de pago de un alumno. Sale de la última cuota pagada (activa + programada): quien ya pagó
+     * el período siguiente con otra membresía no aparece por vencer. Vacío si no tiene cuotas (solo datos viejos):
+     * igual que en el listado, no se lo trata como al día.
+     */
+    public static Optional<EstadoCuota> estadoCuotaDe(Alumno alumno, LocalDate hoy) {
+        return alumno.buscarUltimaCuotaPagada().map(cuota -> new EstadoCuota(
+                SituacionPago.de(cuota, hoy),
+                cuota.getFechaVencimiento(),
+                ReglasCuota.diasHastaVencimiento(cuota.getFechaVencimiento(), hoy)));
     }
 
     static CuotaResponse mapearAResponse(Alumno alumno, Cuota cuota, LocalDate hoy) {

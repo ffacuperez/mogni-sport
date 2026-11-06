@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
-import { Calendar, ClipboardList, Clock, CreditCard, Dumbbell, Home as IconHome, LogOut, UserCog, Users, Wallet } from 'lucide-react';
+import { Calendar, ClipboardList, Clock, CreditCard, Dumbbell, LogOut, UserCog, Users, Wallet } from 'lucide-react';
 
 import Home from './home/pages/Home';
 import Login from './auth/pages/Login';
@@ -10,12 +10,12 @@ import RecuperarPassword from './auth/pages/RecuperarPassword';
 import RestablecerPassword from './auth/pages/RestablecerPassword';
 import AlumnosList from './alumno/pages/AlumnosList';
 import AlumnoForm from './alumno/pages/AlumnoForm';
-import AlumnoDetalle from './alumno/pages/AlumnoDetalle';
+import FichaAlumno from './alumno/pages/FichaAlumno';
 import AlumnoMembresiaForm from './alumno/pages/AlumnoMembresiaForm';
 import ReactivarAlumnoModal from './alumno/pages/ReactivarAlumnoModal';
 import AlumnoLayout from './alumno/pages/AlumnoLayout';
 import AlumnoPerfil from './alumno/pages/AlumnoPerfil';
-import SeccionProximamente from './alumno/pages/SeccionProximamente';
+import MiInicio from './inicio/pages/MiInicio';
 import Notificaciones from './notificacion/pages/Notificaciones';
 import MembresiasList from './membresia/pages/MembresiasList';
 import MembresiaForm from './membresia/pages/MembresiaForm';
@@ -471,7 +471,10 @@ function MainApp({ onLogout }) {
     { to: '/cuenta', label: 'Mi cuenta', icon: UserCog },
   ];
   const seccionActual = navItems.find(item => pathname.startsWith(item.to))?.label ?? 'Panel';
-  
+  // En la ficha de un alumno, la miga suma su nombre: Panel / Alumnos / Nombre Apellido
+  const idAlumnoEnRuta = pathname.match(/^\/alumnos\/(\d+)(\/|$)/)?.[1];
+  const alumnoEnRuta = idAlumnoEnRuta && alumnos.find(a => String(a.id) === idAlumnoEnRuta);
+
   // Guía 4.5: ítems de 44px, activo con borde izquierdo rojo de 3px sobre #3A3A3A
   const itemClass = (activo) => `group flex h-11 w-full shrink-0 cursor-pointer items-center gap-3 whitespace-nowrap border-l-3 px-4 text-sm font-medium text-on-dark transition-colors ${FOCUS} ${
     activo ? 'border-primary bg-sidebar-hover' : 'border-transparent hover:bg-sidebar-hover'
@@ -508,11 +511,6 @@ function MainApp({ onLogout }) {
                 </li>
               );
             })}
-            <li className="md:mt-4 md:border-t md:border-sidebar-hover md:pt-4">
-              <button type="button" onClick={() => navigate('/sitio')} className={itemClass(false)}>
-                <IconHome className={iconClass(false)} /> Sitio web
-              </button>
-            </li>
           </ul>
         </nav>
 
@@ -528,9 +526,18 @@ function MainApp({ onLogout }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="sticky top-0 z-20 hidden h-14 items-center border-b border-line bg-card px-8 md:flex">
-          <p className="text-sm text-ink-soft">
-            Panel <span className="text-ink-muted">/</span> <span className="font-semibold text-ink">{seccionActual}</span>
-          </p>
+          {alumnoEnRuta ? (
+            <p className="text-sm text-ink-soft">
+              Panel <span className="text-ink-muted">/</span>{' '}
+              <button type="button" onClick={() => navigate('/alumnos')} className={`cursor-pointer rounded hover:text-ink hover:underline ${FOCUS}`}>Alumnos</button>{' '}
+              <span className="text-ink-muted">/</span>{' '}
+              <span className="font-semibold text-ink">{alumnoEnRuta.nombre} {alumnoEnRuta.apellido}</span>
+            </p>
+          ) : (
+            <p className="text-sm text-ink-soft">
+              Panel <span className="text-ink-muted">/</span> <span className="font-semibold text-ink">{seccionActual}</span>
+            </p>
+          )}
         </div>
 
       <main className="mx-auto w-full max-w-[1200px] flex-1 p-4 md:p-8">
@@ -557,18 +564,20 @@ function MainApp({ onLogout }) {
             />
           } />
 
-          <Route path="alumnos/:id" element={
+          {/* Ficha del alumno con sus pestañas (Datos y, MOGNI-268, Progreso para el entrenador y el propietario) */}
+          <Route path="alumnos/:id/*" element={
             <ConAlumno alumnos={alumnos} cargado={cargado} onCargar={cargarAlumno}>
               {(alumno) => (
-                <AlumnoDetalle
+                <FichaAlumno
                   alumno={alumno}
-                  onBack={() => navigate('/alumnos')}
+                  esPropietario={esPropietario}
+                  puedeVerPlanes={puedeVerPlanes}
                   onEdit={() => navigate(`/alumnos/${alumno.id}/editar`)}
                   onEditMembresia={() => navigate(`/alumnos/${alumno.id}/membresia`)}
                   onToggleStatus={() => handleToggleEstadoAlumno(alumno)}
-                  puedeVerPlanes={puedeVerPlanes}
                   onVerPlan={(planId) => navigate(`/planes/asignados/${planId}`)}
                   onAsignarPlan={() => navigate(`/planes/asignar?alumno=${alumno.id}`)}
+                  onAjustarPlan={(planId) => navigate(`/planes/asignados/${planId}/editar`)}
                 />
               )}
             </ConAlumno>
@@ -873,8 +882,9 @@ export default function App() {
           <AlumnoLayout onLogout={handleLogout} />
         </RequiereRol>
       }>
-        <Route index element={<Navigate to="perfil" replace />} />
-        <Route path="inicio" element={<SeccionProximamente titulo="Inicio" />} />
+        {/* MOGNI-281: al ingresar, el alumno ve su inicio */}
+        <Route index element={<Navigate to="inicio" replace />} />
+        <Route path="inicio" element={<MiInicio />} />
         <Route path="turnos" element={<TurnosAlumno />} />
         <Route path="progreso" element={<MiProgreso />}>
           <Route index element={<PlanActual />} />
@@ -886,7 +896,7 @@ export default function App() {
         <Route path="rutinas" element={<Navigate to="/mi-cuenta/progreso" replace />} />
         <Route path="perfil" element={<AlumnoPerfil />} />
         <Route path="notificaciones" element={<Notificaciones />} />
-        <Route path="*" element={<Navigate to="perfil" replace />} />
+        <Route path="*" element={<Navigate to="inicio" replace />} />
       </Route>
 
       {/* Panel de gestión: solo PROPIETARIO, ENTRENADOR y NUTRICIONISTA. Sus rutas están en MainApp */}

@@ -32,6 +32,7 @@ import mogni.system_backend.progreso.dto.EstadoSesion;
 import mogni.system_backend.progreso.dto.IniciarSesionRequest;
 import mogni.system_backend.progreso.dto.MisPlanesResponse;
 import mogni.system_backend.progreso.dto.PlanDetalleResponse;
+import mogni.system_backend.progreso.dto.PlanInicioResponse;
 import mogni.system_backend.progreso.dto.PlanResumenResponse;
 import mogni.system_backend.progreso.dto.RegistrarEjercicioRequest;
 import mogni.system_backend.progreso.dto.SemanaPlanResponse;
@@ -278,6 +279,15 @@ public class MiProgresoService {
 
     private static String textoONull(String texto) {
         return texto == null || texto.isBlank() ? null : texto.trim();
+    }
+
+    /** MOGNI-281: el plan vigente del alumno resumido para su inicio (nombre y en qué semana va), o vacío. */
+    public Optional<PlanInicioResponse> resumenPlanActivo(Alumno alumno, LocalDate hoy) {
+        return buscarPlanVigente(alumno.getId(), hoy).map(plan -> {
+            int cantidadSemanas = cantidadSemanas(plan);
+            return new PlanInicioResponse(plan.getId(), plan.getNombre(), plan.getMetodo(), plan.getMesociclo(),
+                    semanaActual(plan, cantidadSemanas, hoy), cantidadSemanas);
+        });
     }
 
     /** HU-266: el plan activo es el ACTIVO de la base, solo si no venció (misma regla que en todos lados). */

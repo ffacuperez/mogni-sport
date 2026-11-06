@@ -85,6 +85,8 @@ public class SecurityConfig {
                 .requestMatchers("/notificaciones/**").hasRole("ALUMNO")
                 // Mi progreso (HU-270): cada alumno ve solo lo suyo; el servicio exige además cuenta activa
                 .requestMatchers("/mi-progreso/**").hasRole("ALUMNO")
+                // Mi inicio (MOGNI-281): el resumen del alumno logueado; el servicio exige además cuenta activa
+                .requestMatchers("/mi-inicio").hasRole("ALUMNO")
                 // Historial de pagos (HU-48): solo el propietario, también antes de /alumnos/**
                 .requestMatchers(HttpMethod.GET, "/alumnos/*/pagos").hasRole("PROPIETARIO")
                 // Vista previa de la renovación (MOGNI-45): es parte del registro de pago, solo el propietario

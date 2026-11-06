@@ -15,7 +15,7 @@ import AlumnoMembresiaForm from './alumno/pages/AlumnoMembresiaForm';
 import ReactivarAlumnoModal from './alumno/pages/ReactivarAlumnoModal';
 import AlumnoLayout from './alumno/pages/AlumnoLayout';
 import AlumnoPerfil from './alumno/pages/AlumnoPerfil';
-import SeccionProximamente from './alumno/pages/SeccionProximamente';
+import MiInicio from './inicio/pages/MiInicio';
 import Notificaciones from './notificacion/pages/Notificaciones';
 import MembresiasList from './membresia/pages/MembresiasList';
 import MembresiaForm from './membresia/pages/MembresiaForm';
@@ -882,8 +882,9 @@ export default function App() {
           <AlumnoLayout onLogout={handleLogout} />
         </RequiereRol>
       }>
-        <Route index element={<Navigate to="perfil" replace />} />
-        <Route path="inicio" element={<SeccionProximamente titulo="Inicio" />} />
+        {/* MOGNI-281: al ingresar, el alumno ve su inicio */}
+        <Route index element={<Navigate to="inicio" replace />} />
+        <Route path="inicio" element={<MiInicio />} />
         <Route path="turnos" element={<TurnosAlumno />} />
         <Route path="progreso" element={<MiProgreso />}>
           <Route index element={<PlanActual />} />
@@ -895,7 +896,7 @@ export default function App() {
         <Route path="rutinas" element={<Navigate to="/mi-cuenta/progreso" replace />} />
         <Route path="perfil" element={<AlumnoPerfil />} />
         <Route path="notificaciones" element={<Notificaciones />} />
-        <Route path="*" element={<Navigate to="perfil" replace />} />
+        <Route path="*" element={<Navigate to="inicio" replace />} />
       </Route>
 
       {/* Panel de gestión: solo PROPIETARIO, ENTRENADOR y NUTRICIONISTA. Sus rutas están en MainApp */}

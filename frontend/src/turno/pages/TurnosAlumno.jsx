@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { CalendarDays, CalendarX, Check, ChevronRight, CircleAlert, Clock, Info, Lock } from 'lucide-react';
 
 import { Button, Cargando, Panel } from '../../shared/components/ui';
@@ -307,11 +308,16 @@ function ReservarTurnos() {
         </div>
       )}
 
-      {sinTurnosEnLaSemana && !datos.bloqueadoPorMora && (
+      {/* MOGNI-281: con la semana completa, una clase extra todavía le deja reservar (como en el backend) */}
+      {sinTurnosEnLaSemana && !datos.bloqueadoPorMora && (datos.tieneClaseExtra ? (
+        <p className="mt-4 flex items-center gap-2 rounded-lg bg-info-bg px-3 py-2.5 text-xs font-semibold text-info">
+          <Info className="h-4 w-4 shrink-0" /> Tenés una clase extra para usar
+        </p>
+      ) : (
         <p className="mt-4 flex items-center gap-2 rounded-lg bg-thead/60 px-3 py-2.5 text-xs text-ink-soft">
           <Info className="h-4 w-4 shrink-0" /> Podés volver a reservar desde el lunes
         </p>
-      )}
+      ))}
 
       <section aria-label="Turnos del día" aria-busy={cargando} aria-disabled={datos.bloqueadoPorMora || undefined}
         className={cx('mt-5 transition-opacity', (cargando || datos.bloqueadoPorMora) && 'opacity-50')}>
@@ -361,9 +367,13 @@ const PESTANIAS = [
   { id: 'mis-turnos', texto: 'Mis turnos' },
 ];
 
-/** Pantalla de turnos del alumno: pestañas "Reservar" (HU-259 y HU-254) y "Mis turnos" (HU-256). */
+/**
+ * Pantalla de turnos del alumno: pestañas "Reservar" (HU-259 y HU-254) y "Mis turnos" (HU-256). MOGNI-281: el inicio
+ * abre "Mis turnos" directo con ?tab=mis-turnos; después las pestañas se cambian sin tocar la URL.
+ */
 export default function TurnosAlumno() {
-  const [pestania, setPestania] = useState('reservar');
+  const [params] = useSearchParams();
+  const [pestania, setPestania] = useState(params.get('tab') === 'mis-turnos' ? 'mis-turnos' : 'reservar');
 
   return (
     <div>

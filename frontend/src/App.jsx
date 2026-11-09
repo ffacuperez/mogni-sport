@@ -41,7 +41,7 @@ import Toast from './shared/components/Toast';
 import { useToast } from './shared/hooks/useToast';
 import { Cargando, Logo } from './shared/components/ui';
 import { FOCUS } from './shared/components/clases';
-import { debeCambiarPassword, getRol, hasSession, logout, ROL_ALUMNO, ROLES_GESTION } from './auth/services/authService';
+import { debeCambiarPassword, getRol, hasSession, logout, restaurarSesion, ROL_ALUMNO, ROLES_GESTION } from './auth/services/authService';
 import { setUnauthorizedHandler } from './shared/services/httpClient';
 import {
   actualizarAlumno,
@@ -826,6 +826,16 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const [authSession, setAuthSession] = useState(leerSesion);
+  // Sin token de acceso vigente, antes de mandar al login se intenta seguir la sesión del dispositivo (cookie)
+  const [restaurando, setRestaurando] = useState(() => !hasSession());
+
+  useEffect(() => {
+    if (!restaurando) return;
+    restaurarSesion().then(() => {
+      setAuthSession(leerSesion());
+      setRestaurando(false);
+    });
+  }, []);
 
   // Rol y cambio de contraseña pendiente salen del token recién guardado
   const actualizarSesionDesdeToken = () => {
@@ -853,6 +863,8 @@ export default function App() {
     setUnauthorizedHandler(handleLogout);
     localStorage.removeItem('user_rol'); // clave de la versión anterior, ya no se usa
   }, []);
+
+  if (restaurando) return <Cargando />;
 
   // HU-248: con la contraseña inicial pendiente de cambio, esta pantalla va antes que cualquier otra
   if (authSession.isAuthenticated && authSession.debeCambiarPassword) {

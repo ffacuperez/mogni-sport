@@ -15,16 +15,20 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import mogni.system_backend.auth.service.SesionService;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
+    private final SesionService sesionService;
 
-    public JwtAuthenticationFilter(JwtService jwtService, CustomUserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(JwtService jwtService, CustomUserDetailsService userDetailsService,
+                                   SesionService sesionService) {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+        this.sesionService = sesionService;
     }
 
     @Override
@@ -46,8 +50,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
-                // Una cuenta dada de baja no se autentica aunque su token todavía no haya vencido: responde 401
-                if (userDetails.isEnabled() && jwtService.esTokenValido(token, userDetails)) {
+                // Una cuenta dada de baja, o una sesión cerrada (logout, cambio de contraseña), no se autentica aunque
+                // su token todavía no haya vencido: responde 401
+                if (userDetails.isEnabled() && jwtService.esTokenValido(token, userDetails) && sesionVigente(token)) {
                     UsernamePasswordAuthenticationToken authToken =
                             new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -60,5 +65,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean sesionVigente(String token) {
+        Long sesionId = jwtService.extraerSesionId(token);
+        return sesionId != null && sesionService.estaVigente(sesionId);
     }
 }

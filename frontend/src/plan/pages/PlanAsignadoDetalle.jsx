@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, CircleAlert, Flag, Pencil, UserPlus } from 'lucide-react';
 
-import ConfirmModal from '../../shared/components/ConfirmModal';
+import FinalizarPlanModal from '../components/FinalizarPlanModal';
 import { Badge, Button, Cargando, PageHeader, Panel } from '../../shared/components/ui';
 import { cx, FOCUS } from '../../shared/components/clases';
 import { cantidadEjercicios, textoNivel, textoObjetivo, tonoNivel } from '../../plantilla/services/plantillasService';
@@ -44,7 +44,6 @@ export default function PlanAsignadoDetalle({ planId, onVolver, onModificar, onA
   const activo = plan.estado === 'ACTIVO';
 
   const finalizar = async () => {
-    setConfirmando(false);
     setEnviando(true);
     try {
       setPlan(await finalizarPlan(plan.id));
@@ -53,6 +52,7 @@ export default function PlanAsignadoDetalle({ planId, onVolver, onModificar, onA
       onToast(err.message, true);
     } finally {
       setEnviando(false);
+      setConfirmando(false);
     }
   };
 
@@ -69,7 +69,7 @@ export default function PlanAsignadoDetalle({ planId, onVolver, onModificar, onA
               <Pencil className="h-4 w-4" /> Modificar plan
             </Button>
             <Button variant="danger" onClick={() => setConfirmando(true)} disabled={enviando}>
-              <Flag className="h-4 w-4" /> {enviando ? 'Finalizando...' : 'Finalizar plan'}
+              <Flag className="h-4 w-4" /> Finalizar plan
             </Button>
           </>
         ) : (
@@ -100,14 +100,15 @@ export default function PlanAsignadoDetalle({ planId, onVolver, onModificar, onA
         <TarjetasSesiones sesiones={plan.sesiones} />
       </Panel>
 
-      <ConfirmModal
-        isOpen={confirmando}
-        title="Finalizar plan"
-        message={`¿Desea finalizar el plan “${plan.nombre}” de ${plan.alumnoNombre}? Va a quedar sin plan activo y le vas a poder asignar uno nuevo.`}
-        danger
-        onConfirm={finalizar}
-        onCancel={() => setConfirmando(false)}
-      />
+      {confirmando && (
+        <FinalizarPlanModal
+          nombrePlan={plan.nombre}
+          nombreAlumno={plan.alumnoNombre}
+          enviando={enviando}
+          onConfirm={finalizar}
+          onCancel={() => setConfirmando(false)}
+        />
+      )}
     </div>
   );
 }

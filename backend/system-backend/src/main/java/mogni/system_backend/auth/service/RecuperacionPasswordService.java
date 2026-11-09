@@ -51,7 +51,7 @@ public class RecuperacionPasswordService {
     /** Máximo de pedidos por cuenta dentro de la ventana (los demás se ignoran en silencio). */
     static final int MAXIMO_PEDIDOS = 3;
     static final int VENTANA_MINUTOS = 15;
-    static final String ASUNTO = "Restablecé tu contraseña de Mogni Sport";
+    static final String ASUNTO = "Restablecé tu contraseña de Mogni System";
     public static final String MENSAJE_SOLICITUD =
             "Si el correo está registrado, te enviamos un link para restablecer la contraseña. Revisá también la carpeta de spam.";
     static final String MENSAJE_LINK_INVALIDO =

@@ -5,7 +5,7 @@ import { Cargando, Panel } from '../../shared/components/ui';
 import TablaPagos from '../components/TablaPagos';
 import { obtenerHistorialDePagos } from '../services/cuotasService';
 
-/** Tab "Cuotas" de la ficha (solo el propietario): el historial de pagos del alumno (HU-48). */
+/** Tab "Cuotas" de la ficha (solo el propietario): el historial de pagos del alumno (HU-48). El pago se registra desde la lista de Alumnos. */
 export default function CuotasAlumno({ alumno }) {
   // null: cargando
   const [pagos, setPagos] = useState(null);
@@ -20,7 +20,7 @@ export default function CuotasAlumno({ alumno }) {
   }, [alumno.id]);
 
   return (
-    <Panel className="p-6">
+    <Panel className="p-4 sm:p-6">
       <h2 className="mb-5 border-b border-line pb-4 text-base font-semibold text-ink">Historial de pagos</h2>
       {error && <p role="alert" className="text-sm text-error">No se pudo consultar el historial: {error}</p>}
       {!error && !pagos && <Cargando texto="Cargando historial" className="py-8" />}

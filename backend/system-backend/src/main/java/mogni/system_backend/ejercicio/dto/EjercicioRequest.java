@@ -18,9 +18,6 @@ public class EjercicioRequest {
     @Size(max = 100, message = "El grupo muscular puede tener hasta 100 caracteres")
     private String grupoMuscular;
 
-    @Size(max = 2000, message = "La descripción puede tener hasta 2000 caracteres")
-    private String descripcion;
-
     @NotNull(message = "El estado es obligatorio")
     private Boolean activo;
 }

@@ -37,7 +37,7 @@ class EjercicioServiceTest {
     @InjectMocks
     private EjercicioService ejercicioService;
 
-    private final Ejercicio sentadilla = new Ejercicio(3L, "Sentadilla", "Piernas", null, true);
+    private final Ejercicio sentadilla = new Ejercicio(3L, "Sentadilla", "Piernas", true);
 
     @Test
     void eliminar_un_ejercicio_que_se_usa_en_una_plantilla_falla() {

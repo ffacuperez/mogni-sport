@@ -10,12 +10,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +35,7 @@ import mogni.system_backend.alumno.dto.AlumnoResponse;
 import mogni.system_backend.alumno.dto.CambiarMembresiaRequest;
 import mogni.system_backend.alumno.dto.CambioMembresiaResponse;
 import mogni.system_backend.alumno.dto.FiltroEstadoPlan;
+import mogni.system_backend.alumno.dto.PlanActivoResumen;
 import mogni.system_backend.alumno.dto.ReactivarAlumnoRequest;
 import mogni.system_backend.alumno.dto.RegistrarAlumnoRequest;
 import mogni.system_backend.alumno.entity.Alumno;
@@ -42,7 +46,10 @@ import mogni.system_backend.plan.service.PlanAsignadoService;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
 import mogni.system_backend.auth.repository.CuentaRepository;
+import mogni.system_backend.cuota.dto.CuotaAlumnoResumen;
 import mogni.system_backend.cuota.entity.Cuota;
+import mogni.system_backend.cuota.entity.SituacionPago;
+import mogni.system_backend.cuota.repository.CuotaRepository;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
 import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
@@ -53,6 +60,7 @@ import mogni.system_backend.pago.entity.MedioDePago;
 import mogni.system_backend.pago.entity.Pago;
 import mogni.system_backend.pago.repository.PagoRepository;
 import mogni.system_backend.plan.entity.EstadoPlanAsignado;
+import mogni.system_backend.plan.entity.MetodoPlan;
 import mogni.system_backend.plan.entity.PlanAsignado;
 import mogni.system_backend.plan.repository.PlanAsignadoRepository;
 import mogni.system_backend.turno.service.CancelacionPorSistemaService;
@@ -84,6 +92,9 @@ class AlumnoServiceTest {
     @Mock
     private PlanAsignadoService planAsignadoService;
 
+    @Mock
+    private CuotaRepository cuotaRepository;
+
     private AlumnoService alumnoService;
 
     private Membresia membresia;
@@ -94,7 +105,8 @@ class AlumnoServiceTest {
         membresia = new Membresia(7L, "Pro", 40000.0, 5, null);
         // La baja real (no un mock), así se prueba que cancela la inscripción y pide cancelar los turnos
         alumnoService = new AlumnoService(alumnoRepository, cuentaRepository, membresiaRepository, pagoRepository,
-                new BajaAlumnoService(cancelacionPorSistemaService, planAsignadoService), passwordEncoder, planAsignadoRepository);
+                new BajaAlumnoService(cancelacionPorSistemaService, planAsignadoService), passwordEncoder, planAsignadoRepository,
+                cuotaRepository);
     }
 
     private RegistrarAlumnoRequest registro() {
@@ -1009,5 +1021,244 @@ class AlumnoServiceTest {
 
         assertTrue(alumnoService.reactivarAlumno(10L, null).isActivo());
         verify(alumnoRepository, never()).save(any());
+    }
+
+    // --- Listado: cuota, semana del plan y orden ---
+
+    private final Map<Long, Cuota> ultimasCuotas = new HashMap<>();
+
+    /** Alumno activo con una cuota que vence dentro de {@code dias} días (null = sin cuotas). */
+    private Alumno activoConCuota(long id, String apellido, Integer dias) {
+        Alumno alumno = alumnoConId(id);
+        alumno.setNombre("Nombre" + id);
+        alumno.setApellido(apellido);
+        Inscripcion inscripcion = new Inscripcion(id, hoy.minusDays(60), null, EstadoInscripcion.ACTIVA, null, membresia);
+        alumno.agregarInscripcion(inscripcion);
+        if (dias != null) {
+            ultimasCuotas.put(id, inscripcion.agregarCuota(hoy.plusDays(dias).minusDays(30)));
+        }
+        return alumno;
+    }
+
+    private List<AlumnoResponse> listarActivos(Alumno... alumnos) {
+        when(alumnoRepository.findByCuentaActiva(true)).thenReturn(List.of(alumnos));
+        when(cuotaRepository.buscarUltimasCuotas()).thenReturn(ultimasCuotas);
+        return alumnoService.listarAlumnos(true, null);
+    }
+
+    private static CuotaAlumnoResumen cuotaDe(List<AlumnoResponse> filas, String apellido) {
+        return filas.stream().filter(fila -> apellido.equals(fila.getApellido())).findFirst().orElseThrow().getCuotaActual();
+    }
+
+    @Test
+    void listarAlumnos_incluyeLosDatosDeSuUltimaCuota() {
+        CuotaAlumnoResumen cuota = listarActivos(activoConCuota(1L, "Perez", 20)).get(0).getCuotaActual();
+
+        assertEquals(hoy.plusDays(20), cuota.getFechaVencimiento());
+        assertEquals(new BigDecimal("40000.00"), cuota.getPrecioMembresia());
+        assertEquals(SituacionPago.AL_DIA, cuota.getSituacion());
+        assertNull(cuota.getDiasEnMora());
+        assertFalse(cuota.isPuedeRenovar());
+        assertEquals(hoy.plusDays(10), cuota.getRenovableDesde());
+    }
+
+    @Test
+    void listarAlumnos_conUnCambioProgramadoMuestraLaMembresiaDeHoyLaProgramadaYElPrecioARenovar() {
+        Alumno alumno = activoConCuota(1L, "Perez", 3);
+        // Pagó por adelantado "Full": la cuota nueva (la última) está en la programada
+        Inscripcion programada = Inscripcion.nueva(alumno, new Membresia(8L, "Full", 38000.0, 5, null),
+                hoy.plusDays(3), EstadoInscripcion.PROGRAMADA);
+        ultimasCuotas.put(1L, programada.agregarCuota(hoy.plusDays(3)));
+
+        AlumnoResponse fila = listarActivos(alumno).get(0);
+
+        assertEquals("Pro", fila.getMembresiaNombre());
+        assertEquals("Full", fila.getMembresiaProgramada());
+        assertEquals(hoy.plusDays(3), fila.getProgramadaDesde());
+        assertEquals(new BigDecimal("38000.00"), fila.getCuotaActual().getPrecioMembresia());
+        assertEquals(hoy.plusDays(33), fila.getCuotaActual().getFechaVencimiento());
+        assertEquals(SituacionPago.AL_DIA, fila.getCuotaActual().getSituacion());
+        assertFalse(fila.getCuotaActual().isPuedeRenovar());
+    }
+
+    @Test
+    void listarAlumnos_ordenaEnMoraVencidasYDespuesPorVencimientoMasCercano() {
+        List<AlumnoResponse> filas = listarActivos(
+                activoConCuota(1L, "AlDia", 25),
+                activoConCuota(2L, "Proxima", 3),
+                activoConCuota(3L, "Vencida", -1),
+                activoConCuota(4L, "MoraNueva", -2),
+                activoConCuota(5L, "MoraVieja", -6),
+                activoConCuota(6L, "SinCuotas", null));
+
+        assertEquals(List.of("MoraVieja", "MoraNueva", "Vencida", "Proxima", "AlDia", "SinCuotas"),
+                filas.stream().map(AlumnoResponse::getApellido).toList());
+    }
+
+    @Test
+    void listarAlumnos_conElMismoVencimientoOrdenaPorApellidoYNombre() {
+        List<AlumnoResponse> filas = listarActivos(
+                activoConCuota(1L, "Zeta", 20),
+                activoConCuota(2L, "alfa", 20),
+                activoConCuota(3L, "Beta", 20));
+
+        assertEquals(List.of("alfa", "Beta", "Zeta"), filas.stream().map(AlumnoResponse::getApellido).toList());
+    }
+
+    @Test
+    void listarAlumnos_enMoraMuestraLosDiasDesdeQueEntro() {
+        List<AlumnoResponse> filas = listarActivos(activoConCuota(1L, "Hoy", -2), activoConCuota(2L, "Hace3", -5));
+
+        assertEquals(0L, cuotaDe(filas, "Hoy").getDiasEnMora());
+        assertEquals(3L, cuotaDe(filas, "Hace3").getDiasEnMora());
+        assertTrue(cuotaDe(filas, "Hace3").isPuedeRenovar());
+    }
+
+    @Test
+    void listarAlumnos_puedeRenovarDesde10DiasAntesDelVencimiento() {
+        List<AlumnoResponse> filas = listarActivos(activoConCuota(1L, "Diez", 10), activoConCuota(2L, "Once", 11));
+
+        assertTrue(cuotaDe(filas, "Diez").isPuedeRenovar());
+        assertFalse(cuotaDe(filas, "Once").isPuedeRenovar());
+    }
+
+    @Test
+    void listarAlumnos_sinCuotasApareceSinSituacionYPuedePagar() {
+        AlumnoResponse fila = listarActivos(activoConCuota(1L, "Viejo", null)).get(0);
+
+        assertNull(fila.getCuotaActual().getSituacion());
+        assertNull(fila.getCuotaActual().getFechaVencimiento());
+        assertEquals("Pro", fila.getMembresiaNombre());
+        assertTrue(fila.getCuotaActual().isPuedeRenovar());
+    }
+
+    @Test
+    void listarAlumnos_activosNoPideInactivos() {
+        assertEquals(1, listarActivos(activoConCuota(1L, "Perez", 20)).size());
+
+        verify(alumnoRepository, never()).findByCuentaActiva(false);
+    }
+
+    @Test
+    void listarAlumnos_inactivosVienenSinCuotaActualYNoConsultanCuotas() {
+        Alumno inactivo = alumnoConId(10L);
+        inactivo.getCuenta().setActiva(false);
+        when(alumnoRepository.findByCuentaActiva(false)).thenReturn(List.of(inactivo));
+
+        assertNull(alumnoService.listarAlumnos(false, null).get(0).getCuotaActual());
+        verify(cuotaRepository, never()).buscarUltimasCuotas();
+    }
+
+    @Test
+    void listarAlumnos_buscaLasCuotasUnaSolaVezYNoAlumnoPorAlumno() {
+        Alumno uno = activoConCuota(1L, "Uno", 20);
+        Alumno dos = activoConCuota(2L, "Dos", 20);
+        // Las dos tienen cuota en memoria: si la situación sale vacía, es que se usó el mapa y no cada alumno
+        ultimasCuotas.clear();
+
+        List<AlumnoResponse> filas = listarActivos(uno, dos);
+
+        verify(cuotaRepository, times(1)).buscarUltimasCuotas();
+        assertNull(cuotaDe(filas, "Uno").getSituacion());
+        assertNull(cuotaDe(filas, "Dos").getSituacion());
+    }
+
+    @Test
+    void listarAlumnos_inactivosOrdenadosPorBajaMasRecienteYSinFechaAlFinal() {
+        Alumno antigua = alumnoDeBaja(1L, "Antigua", hoy.minusDays(30));
+        Alumno sinFecha = alumnoDeBaja(2L, "SinFecha", null);
+        Alumno recienteB = alumnoDeBaja(3L, "RecienteB", hoy.minusDays(1));
+        Alumno recienteA = alumnoDeBaja(4L, "RecienteA", hoy.minusDays(1));
+        when(alumnoRepository.findByCuentaActiva(false)).thenReturn(List.of(antigua, sinFecha, recienteB, recienteA));
+
+        List<AlumnoResponse> filas = alumnoService.listarAlumnos(false, null);
+
+        assertEquals(List.of("RecienteA", "RecienteB", "Antigua", "SinFecha"),
+                filas.stream().map(AlumnoResponse::getApellido).toList());
+    }
+
+    private Alumno alumnoDeBaja(long id, String apellido, LocalDate fechaBaja) {
+        Alumno alumno = alumnoConId(id);
+        alumno.setApellido(apellido);
+        alumno.getCuenta().setActiva(false);
+        alumno.getCuenta().setFechaBaja(fechaBaja);
+        return alumno;
+    }
+
+    private PlanActivoResumen resumenDelPlan(PlanAsignado plan, Alumno alumno) {
+        when(alumnoRepository.findByCuentaActiva(true)).thenReturn(List.of(alumno));
+        when(planAsignadoRepository.findByEstado(EstadoPlanAsignado.ACTIVO)).thenReturn(List.of(plan));
+        return alumnoService.listarAlumnos(true, null).get(0).getPlanActivo();
+    }
+
+    @Test
+    void listarAlumnos_planConSemanasCargadasMuestraEnCualVa() {
+        Alumno alumno = alumnoConId(10L);
+        PlanAsignado plan = planActivo(5L, alumno, "Fuerza");
+        plan.setFechaAsignacion(hoy.minusDays(15));
+        plan.definirDuracion(4);
+
+        PlanActivoResumen resumen = resumenDelPlan(plan, alumno);
+
+        assertEquals(3, resumen.getSemanaActual());
+        assertEquals(4, resumen.getCantidadSemanas());
+    }
+
+    @Test
+    void listarAlumnos_planIncluyeLoQueArmaSuTitulo() {
+        Alumno alumno = alumnoConId(10L);
+        PlanAsignado plan = planActivo(5L, alumno, "Fuerza");
+        plan.setMetodo(MetodoPlan.values()[0]);
+        plan.setMesociclo("Hipertrofia");
+
+        PlanActivoResumen resumen = resumenDelPlan(plan, alumno);
+
+        assertEquals(MetodoPlan.values()[0], resumen.getMetodo());
+        assertEquals("Hipertrofia", resumen.getMesociclo());
+    }
+
+    @Test
+    void listarAlumnos_planViejoSinCantidadLaCalculaDeLaFechaFin() {
+        Alumno alumno = alumnoConId(10L);
+        PlanAsignado plan = planActivo(5L, alumno, "Fuerza");
+        plan.setFechaAsignacion(hoy.minusDays(10));
+        plan.setFechaFin(hoy.plusDays(10));
+
+        PlanActivoResumen resumen = resumenDelPlan(plan, alumno);
+
+        assertEquals(2, resumen.getSemanaActual());
+        assertEquals(3, resumen.getCantidadSemanas());
+    }
+
+    @Test
+    void listarAlumnos_planViejoSinCantidadNiFechaFinCuentaUnaSemana() {
+        Alumno alumno = alumnoConId(10L);
+        PlanAsignado plan = planActivo(5L, alumno, "Fuerza");
+        plan.setFechaAsignacion(hoy.minusDays(30));
+
+        PlanActivoResumen resumen = resumenDelPlan(plan, alumno);
+
+        assertEquals(1, resumen.getSemanaActual());
+        assertEquals(1, resumen.getCantidadSemanas());
+    }
+
+    @Test
+    void obtenerAlumno_laCuotaActualNoMiraInscripcionesCanceladas() {
+        Alumno alumno = alumnoConCuota(membresia, 20, null);
+        Inscripcion cancelada = new Inscripcion(2L, hoy.minusDays(5), hoy, EstadoInscripcion.CANCELADA, null, membresia);
+        alumno.agregarInscripcion(cancelada);
+        cancelada.agregarCuota(hoy.plusDays(40));
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+
+        assertEquals(hoy.plusDays(20), alumnoService.obtenerAlumno(10L).getCuotaActual().getFechaVencimiento());
+    }
+
+    @Test
+    void obtenerAlumno_inactivoVieneSinCuotaActual() {
+        Alumno alumno = alumnoConCuota(membresia, 20, null);
+        alumno.getCuenta().setActiva(false);
+        when(alumnoRepository.findById(10L)).thenReturn(Optional.of(alumno));
+
+        assertNull(alumnoService.obtenerAlumno(10L).getCuotaActual());
     }
 }

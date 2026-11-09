@@ -3,7 +3,7 @@ import { CircleAlert, Repeat } from 'lucide-react';
 
 import { Button, Field, Modal } from '../../shared/components/ui';
 import { cx, FOCUS, inputClass } from '../../shared/components/clases';
-import { calcularTurnos, DIAS_CON_FRANJAS, etiquetaTurno, textoDias, validarFranjas } from '../services/franjasService';
+import { calcularTurnos, DIAS_SEMANA, etiquetaTurno, textoDias, validarFranjas } from '../services/franjasService';
 
 /**
  * Alta y modificación de una franja (HU-252). Al crear se pueden elegir varios días: se crea una franja por día con
@@ -72,7 +72,7 @@ export default function FranjaModal({ franja, franjas, onGuardar, onCancelar }) 
             {!esEdicion && <span className="ml-2 text-xs font-normal text-ink-soft">Podés elegir varios</span>}
           </legend>
           <div className="flex flex-wrap gap-2">
-            {DIAS_CON_FRANJAS.map(dia => {
+            {DIAS_SEMANA.map(dia => {
               const elegido = datos.diasSemana.includes(dia.valor);
               return (
                 <button

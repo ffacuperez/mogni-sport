@@ -8,19 +8,12 @@ import lombok.Getter;
 import mogni.system_backend.cuota.entity.SituacionPago;
 
 /**
- * Fila de la pantalla de Cuotas (MOGNI-46): un alumno activo con su última cuota. Si no tiene cuotas (solo con datos
- * viejos), los datos de la cuota y la situación vienen en null.
+ * Situación de cuota de un alumno activo, para el listado y la ficha. Si no tiene cuotas (solo con datos viejos),
+ * el vencimiento, la situación y los días en mora vienen en null.
  */
 @Getter
 @AllArgsConstructor
-public class CuotaResponse {
-    private Long alumnoId;
-    private String alumnoNombre;
-    private String alumnoApellido;
-    private String alumnoDni;
-    private Long cuotaId;
-    private String membresiaNombre;
-    private LocalDate fechaInicio;
+public class CuotaAlumnoResumen {
     private LocalDate fechaVencimiento;
     /** Precio actual de la membresía que va a renovar (la programada si tiene, si no la activa). */
     private BigDecimal precioMembresia;
@@ -31,10 +24,4 @@ public class CuotaResponse {
     private boolean puedeRenovar;
     /** Desde qué día se puede renovar (10 días antes del vencimiento); null si no tiene cuotas. */
     private LocalDate renovableDesde;
-    /** Membresía ya pagada para el período siguiente (cambio programado); null si no tiene. */
-    private String membresiaProgramada;
-    /** Desde qué día rige la membresía programada; null si no tiene. */
-    private LocalDate programadaDesde;
-    /** Id de la membresía que usa hoy: la que viene elegida al registrar el pago. */
-    private Long membresiaId;
 }

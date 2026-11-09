@@ -4,7 +4,7 @@ import { ArrowRight, Pencil, Power, RefreshCw, UserPlus } from 'lucide-react';
 import { formatearFecha } from '../../shared/services/texto';
 import { Badge, Button, Panel } from '../../shared/components/ui';
 import { obtenerPlanActivo } from '../../plan/services/planesService';
-import { textoNivel, textoObjetivo } from '../../plantilla/services/plantillasService';
+import { textoNivel, textoObjetivo, tonoNivel } from '../../plantilla/services/plantillasService';
 
 const TONO_ESTADO_INSCRIPCION = {
   Activa: 'success',
@@ -76,7 +76,7 @@ function SeccionPlan({ alumnoId, isActivo, onVerPlan, onAsignarPlan }) {
       {plan && (
         <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Dato label="Plan" ancho>{plan.nombre}</Dato>
-          <Dato label="Nivel">{textoNivel(plan.nivel)}</Dato>
+          <Dato label="Nivel">{plan.nivel && <Badge tone={tonoNivel(plan.nivel)}>{textoNivel(plan.nivel)}</Badge>}</Dato>
           <Dato label="Objetivo">{textoObjetivo(plan.objetivo)}</Dato>
           <Dato label="Fecha de inicio" mono>{formatearFecha(plan.fechaAsignacion)}</Dato>
           {/* HU-266: los planes asignados antes de la fecha fin no la tienen */}

@@ -216,7 +216,6 @@ class AuditoriaSeguridadIntegrationTest {
 
     /** Endpoints que solo puede usar el propietario (o propietario y entrenador). */
     private static final List<String[]> DE_GESTION = List.of(
-            new String[] {"GET", "/cuotas"},
             new String[] {"POST", "/pagos"},
             new String[] {"GET", "/alumnos/1/pagos"},
             new String[] {"GET", "/alumnos/1/renovacion"},
@@ -413,7 +412,7 @@ class AuditoriaSeguridadIntegrationTest {
         for (Rol rol : List.of(Rol.ALUMNO, Rol.PROPIETARIO)) {
             Cuenta cuenta = cuenta(rol, "clave-inicial", true);
             String token = token(cuenta);
-            for (String ruta : List.of("/alumnos", "/alumnos/me", "/mi-progreso/planes", "/turnos/disponibles", "/cuotas")) {
+            for (String ruta : List.of("/alumnos", "/alumnos/me", "/mi-progreso/planes", "/turnos/disponibles", "/alumnos/1/pagos")) {
                 assertEquals(403, ejecutar(get(ruta), token).status(), rol + " " + ruta);
             }
             Respuesta cambio = ejecutar(post("/auth/cambiar-password"), token,
@@ -566,7 +565,7 @@ class AuditoriaSeguridadIntegrationTest {
         assertEquals(400, ejecutar(post("/membresias"), propietario,
                 "{\"nombre\":\"" + largo + "\",\"precioActual\":10,\"frecuenciaSemanal\":3}").status());
         assertEquals(400, ejecutar(post("/ejercicios"), propietario,
-                "{\"nombre\":\"Press\",\"grupoMuscular\":\"Pecho\",\"descripcion\":\"" + largo + "\",\"activo\":true}").status());
+                "{\"nombre\":\"" + largo + "\",\"grupoMuscular\":\"Pecho\",\"activo\":true}").status());
     }
 
     /** Contra el servidor HTTP real (embebido): MockMvc no pasa por la página de error de Spring Boot. */

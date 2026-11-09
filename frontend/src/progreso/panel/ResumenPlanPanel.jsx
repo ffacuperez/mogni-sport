@@ -28,7 +28,7 @@ export default function ResumenPlanPanel({ plan, onModificar, onFinalizar }) {
   const objetivo = plan.objetivo ? textoObjetivo(plan.objetivo) : plan.objetivoMesociclo;
 
   return (
-    <Panel aria-label="Resumen del plan" className="flex flex-col gap-5 px-6 py-5">
+    <Panel aria-label="Resumen del plan" className="flex flex-col gap-13 px-6 py-5">
       <div className="flex flex-col items-start justify-between gap-x-10 gap-y-4 lg:flex-row">
         <div className="grid w-full flex-1 grid-cols-1 gap-x-10 gap-y-4 sm:grid-cols-2 md:grid-cols-3 lg:w-auto">
           <Dato label="Método · Mesociclo">

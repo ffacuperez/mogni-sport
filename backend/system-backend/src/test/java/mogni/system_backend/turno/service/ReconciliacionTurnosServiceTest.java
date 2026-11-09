@@ -27,6 +27,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import jakarta.persistence.EntityManager;
 import mogni.system_backend.alumno.entity.Alumno;
@@ -65,6 +66,7 @@ class ReconciliacionTurnosServiceTest {
     @Mock private AvisoTurnoRepository avisoTurnoRepository;
     @Mock private GeneracionTurnosService generacionTurnosService;
     @Mock private EntityManager entityManager;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     private final List<Turno> turnos = new ArrayList<>();
     private final List<Reserva> reservas = new ArrayList<>();
@@ -76,7 +78,8 @@ class ReconciliacionTurnosServiceTest {
     @BeforeEach
     void setUp() {
         CancelacionGimnasioService cancelacion = new CancelacionGimnasioService(
-                turnoRepository, reservaRepository, claseExtraRepository, avisoTurnoRepository, generacionTurnosService);
+                turnoRepository, reservaRepository, claseExtraRepository, avisoTurnoRepository, generacionTurnosService,
+                eventPublisher);
         service = new ReconciliacionTurnosService(turnoRepository, franjaHorariaRepository, reservaRepository,
                 alumnoRepository, configuracionGimnasioService, cancelacion, entityManager);
 

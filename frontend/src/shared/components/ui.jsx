@@ -59,7 +59,7 @@ export function Logo({ size = 'md', onDark = false, className }) {
       />
       <span className="leading-none">
         <span className={cx('block font-extrabold tracking-tight', onDark ? 'text-on-dark' : 'text-ink', grande ? 'text-2xl' : 'text-base')}>MOGNI</span>
-        <span className={cx('block font-semibold tracking-[0.3em] text-primary', onDark && 'text-primary-light', grande ? 'mt-1 text-xs' : 'mt-0.5 text-[10px]')}>SPORT</span>
+        <span className={cx('block font-semibold tracking-[0.3em] text-primary', onDark && 'text-primary-light', grande ? 'mt-1 text-xs' : 'mt-0.5 text-[10px]')}>SYSTEM</span>
       </span>
     </div>
   );

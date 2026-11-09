@@ -8,7 +8,7 @@ import { useInstalarApp } from '../hooks/useInstalarApp';
 /** Pasos para instalar en iPhone, donde no se puede abrir el diálogo de instalación desde un botón. */
 export function InstruccionesIOS({ onClose }) {
   return (
-    <Modal title="Instalar Mogni Sport" subtitle="En iPhone se instala desde Safari" onClose={onClose}>
+    <Modal title="Instalar Mogni System" subtitle="En iPhone se instala desde Safari" onClose={onClose}>
       <ol className="mb-6 space-y-4 text-sm text-ink">
         <li className="flex items-center gap-3">
           <Share className="h-5 w-5 shrink-0 text-primary" />

@@ -35,7 +35,7 @@ public class BrevoMailSender {
 
     public BrevoMailSender(@Value("${brevo.api-key:}") String apiKey,
                            @Value("${brevo.sender-email:}") String remitenteEmail,
-                           @Value("${brevo.sender-name:Mogni Sport}") String remitenteNombre) {
+                           @Value("${brevo.sender-name:Mogni System}") String remitenteNombre) {
         this.apiKey = apiKey.trim();
         this.remitenteEmail = remitenteEmail.trim();
         this.remitenteNombre = remitenteNombre.trim();

@@ -41,6 +41,7 @@ export default function ResumenPlanPanel({ plan, onModificar, onFinalizar }) {
           <Dato label="Sesiones por semana"><span className="tabular-nums">{sesionesPorSemana(plan)}</span></Dato>
           {objetivo && <Dato label="Objetivo">{objetivo}</Dato>}
           <Dato label="Fecha de inicio"><span className="tabular-nums">{formatearFecha(plan.fechaInicio)}</span></Dato>
+          {plan.fechaFin && <Dato label="Fecha de fin"><span className="tabular-nums">{formatearFecha(plan.fechaFin)}</span></Dato>}
         </div>
         {activo && onModificar && onFinalizar && (
           <div className="order-first grid w-full shrink-0 grid-cols-2 gap-2 lg:order-none lg:flex lg:w-auto">

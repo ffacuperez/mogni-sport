@@ -8,8 +8,8 @@ export const COLUMNAS_ACTIVOS = [
   { clave: 'plan', label: 'Plan' },
   { clave: 'semana', label: 'Semana' },
   { clave: 'membresia', label: 'Membresía activa' },
-  { clave: 'vencimiento', label: 'Vencimiento' },
   { clave: 'precio', label: 'Próx. cuota' },
+  { clave: 'vencimiento', label: 'Vencimiento' },
   { clave: 'estado', label: 'Estado' },
 ];
 

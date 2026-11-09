@@ -1,10 +1,10 @@
 import { Fragment, useEffect, useState } from 'react';
-import { ChevronRight, CircleAlert, Copy, Info, Lock, Pencil, Plus, Trash2, UserPlus } from 'lucide-react';
+import { ChevronRight, CircleAlert, Copy, Info, Lock, Pencil, Plus, RotateCcw, Trash2, UserPlus } from 'lucide-react';
 
 import ConfirmModal from '../../shared/components/ConfirmModal';
 import { Badge, Button, Cargando, PageHeader, Panel } from '../../shared/components/ui';
 import { cx, FOCUS } from '../../shared/components/clases';
-import { duplicarPlantilla, eliminarPlantilla, listarPlantillas, textoNivel, textoObjetivo, tonoNivel } from '../services/plantillasService';
+import { duplicarPlantilla, eliminarPlantilla, listarPlantillas, listarPlantillasInactivas, reactivarPlantilla, textoNivel, textoObjetivo, tonoNivel } from '../services/plantillasService';
 import TarjetasSesiones from '../components/TarjetasSesiones';
 
 const plural = (n, singular, varios) => `${n} ${n === 1 ? singular : varios}`;
@@ -33,11 +33,31 @@ function BotonAccion({ icono: Icono, etiqueta, onClick, peligro = false, disable
 }
 
 /** Al desplegar una plantilla: sus sesiones con los ejercicios. */
-function DetalleSesiones({ plantilla }) {
+function PestanaPlantillas({ id, activa, onElegir, children }) {
   return (
-    <div className="px-4 pb-4 pl-12">
+    <button
+      type="button"
+      role="tab"
+      id={`tab-plantillas-${id}`}
+      aria-selected={activa}
+      aria-controls="panel-plantillas"
+      onClick={onElegir}
+      className={cx(
+        '-mb-px flex-1 cursor-pointer border-b-2 px-5 py-3 text-sm font-semibold transition-colors xl:flex-none',
+        activa ? 'border-primary text-primary' : 'border-transparent text-ink-soft hover:text-ink',
+        FOCUS,
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function DetalleSesiones({ plantilla, inactiva = false }) {
+  return (
+    <div className="px-4 pb-4 pl-12 pt-3">
       <TarjetasSesiones sesiones={plantilla.sesiones} />
-      {plantilla.asignacionesActivas > 0 && (
+      {!inactiva && plantilla.asignacionesActivas > 0 && (
         <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-soft">
           <Lock className="h-3.5 w-3.5" /> No se puede eliminar una plantilla con asignaciones activas.
         </p>
@@ -53,13 +73,35 @@ export default function PlantillasList({ onAdd, onEdit, onAsignar, onToast }) {
   const [abiertas, setAbiertas] = useState({});
   const [aEliminar, setAEliminar] = useState(null);
   const [duplicando, setDuplicando] = useState(null);
+  const [pestana, setPestana] = useState('activas');
+  const [bajas, setBajas] = useState([]);
+  const [reactivando, setReactivando] = useState(null);
 
   useEffect(() => {
-    listarPlantillas()
-      .then(setPlantillas)
+    Promise.all([listarPlantillas(), listarPlantillasInactivas()])
+      .then(([activas, inactivas]) => { setPlantillas(activas); setBajas(inactivas); })
       .catch((err) => setError(err.message))
       .finally(() => setCargando(false));
   }, []);
+
+  const reactivar = async (plantilla) => {
+    setReactivando(plantilla.id);
+    try {
+      const reactivada = await reactivarPlantilla(plantilla.id);
+      setBajas(prev => prev.filter(p => p.id !== plantilla.id));
+      setPlantillas(prev => [reactivada, ...prev]);
+      onToast(`Se reactivó la plantilla "${reactivada.nombre}".`);
+    } catch (err) {
+      // 404: ya la habían reactivado desde otra pestaña; no tiene que quedar en esta lista
+      if (err.status === 404) setBajas(prev => prev.filter(p => p.id !== plantilla.id));
+      onToast(err.message, true);
+    } finally {
+      setReactivando(null);
+    }
+  };
+
+  const enBajas = pestana === 'bajas';
+  const lista = enBajas ? bajas : plantillas;
 
   const toggle = (id) => setAbiertas(prev => ({ ...prev, [id]: !prev[id] }));
 
@@ -83,6 +125,7 @@ export default function PlantillasList({ onAdd, onEdit, onAsignar, onToast }) {
     try {
       await eliminarPlantilla(plantilla.id);
       setPlantillas(prev => prev.filter(p => p.id !== plantilla.id));
+      setBajas(prev => [plantilla, ...prev]);
       onToast('La plantilla fue eliminada correctamente.');
     } catch (err) {
       // 404: ya la habían eliminado desde otra pestaña o sesión; no tiene que quedar en la lista
@@ -117,7 +160,11 @@ export default function PlantillasList({ onAdd, onEdit, onAsignar, onToast }) {
         </div>
       ) : (
         <>
-          <Panel className="overflow-hidden">
+          <div className="mb-5 flex border-b border-line" role="tablist" aria-label="Estado de plantillas">
+            <PestanaPlantillas id="activas" activa={!enBajas} onElegir={() => setPestana('activas')}>Activas ({plantillas.length})</PestanaPlantillas>
+            <PestanaPlantillas id="bajas" activa={enBajas} onElegir={() => setPestana('bajas')}>Inactivas ({bajas.length})</PestanaPlantillas>
+          </div>
+          <Panel id="panel-plantillas" role="tabpanel" aria-labelledby={`tab-plantillas-${pestana}`} className="overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-left text-sm">
                 <thead className="border-b border-line">
@@ -131,16 +178,18 @@ export default function PlantillasList({ onAdd, onEdit, onAsignar, onToast }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line-soft">
-                  {plantillas.length === 0 && (
+                  {lista.length === 0 && (
                     <tr>
                       <td colSpan={6} className="px-3 py-12 text-center text-sm text-ink-muted">
-                        Todavía no hay plantillas. Creá la primera con "Agregar nueva plantilla".
+                        {enBajas
+                          ? 'No hay plantillas inactivas.'
+                          : 'Todavía no hay plantillas. Creá la primera con "Agregar nueva plantilla".'}
                       </td>
                     </tr>
                   )}
-                  {plantillas.map(plantilla => {
+                  {lista.map(plantilla => {
                     const abierta = Boolean(abiertas[plantilla.id]);
-                    const asignada = plantilla.asignacionesActivas > 0;
+                    const asignada = !enBajas && plantilla.asignacionesActivas > 0;
                     return (
                       <Fragment key={plantilla.id}>
                         <tr className={cx('align-middle', abierta && 'bg-row-hover/40')}>
@@ -157,7 +206,9 @@ export default function PlantillasList({ onAdd, onEdit, onAsignar, onToast }) {
                           </td>
                           <td className="px-3 py-3">
                             <p className="font-semibold text-ink">{plantilla.nombre}</p>
-                            {asignada
+                            {enBajas
+                              ? <p className="mt-0.5 text-xs text-ink-muted">Inactiva</p>
+                              : asignada
                               ? <Badge tone="error" className="mt-1 px-2 py-0.5 text-[11px]">{plural(plantilla.asignacionesActivas, 'asignación activa', 'asignaciones activas')}</Badge>
                               : <p className="mt-0.5 text-xs text-ink-muted">Sin asignaciones activas</p>}
                           </td>
@@ -165,6 +216,11 @@ export default function PlantillasList({ onAdd, onEdit, onAsignar, onToast }) {
                           <td className="px-3 py-3"><Badge>{textoObjetivo(plantilla.objetivo)}</Badge></td>
                           <td className="px-3 py-3 tabular-nums text-ink-soft">{plural(plantilla.sesiones.length, 'sesión', 'sesiones')}</td>
                           <td className="px-3 py-3">
+                            {enBajas ? (
+                              <Button size="sm" disabled={reactivando === plantilla.id} onClick={() => reactivar(plantilla)}>
+                                <RotateCcw className="h-4 w-4" /> Reactivar
+                              </Button>
+                            ) : (
                             <div className="flex items-center gap-1">
                               <BotonAccion icono={UserPlus} etiqueta={`Asignar ${plantilla.nombre} a un alumno`} title="Asignar a un alumno"
                                 onClick={() => onAsignar(plantilla.id)} />
@@ -177,11 +233,12 @@ export default function PlantillasList({ onAdd, onEdit, onAsignar, onToast }) {
                                 title={asignada ? 'No se puede eliminar: tiene asignaciones activas' : 'Eliminar'}
                                 onClick={() => setAEliminar(plantilla)} />
                             </div>
+                            )}
                           </td>
                         </tr>
                         {abierta && (
                           <tr className="bg-row-hover/40">
-                            <td colSpan={6}><DetalleSesiones plantilla={plantilla} /></td>
+                            <td colSpan={6}><DetalleSesiones plantilla={plantilla} inactiva={enBajas} /></td>
                           </tr>
                         )}
                       </Fragment>
@@ -190,9 +247,9 @@ export default function PlantillasList({ onAdd, onEdit, onAsignar, onToast }) {
                 </tbody>
               </table>
             </div>
-            {plantillas.length > 0 && (
+            {lista.length > 0 && (
               <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-3 text-xs text-ink-soft">
-                <span>Mostrando {plantillas.length} de {plural(plantillas.length, 'plantilla', 'plantillas')}</span>
+                <span>Mostrando {lista.length} de {plural(lista.length, 'plantilla', 'plantillas')}</span>
                 <span>Última actualización primero</span>
               </div>
             )}

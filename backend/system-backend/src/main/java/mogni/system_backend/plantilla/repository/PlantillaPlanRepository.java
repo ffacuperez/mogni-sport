@@ -12,16 +12,21 @@ import mogni.system_backend.plantilla.entity.PlantillaPlan;
 
 public interface PlantillaPlanRepository extends JpaRepository<PlantillaPlan, Long> {
 
-    /** Plantillas no dadas de baja, de la modificada más recientemente a la más antigua. */
+    /** Plantillas activas, de la modificada más recientemente a la más antigua. */
     List<PlantillaPlan> findByActivaTrueOrderByFechaActualizacionDesc();
 
+    /** Plantillas inactivas, de la modificada más recientemente a la más antigua. */
+    List<PlantillaPlan> findByActivaFalseOrderByFechaActualizacionDesc();
+
     Optional<PlantillaPlan> findByIdAndActivaTrue(Long id);
+
+    Optional<PlantillaPlan> findByIdAndActivaFalse(Long id);
 
     boolean existsByNombreIgnoreCaseAndActivaTrue(String nombre);
 
     boolean existsByNombreIgnoreCaseAndActivaTrueAndIdNot(String nombre, Long id);
 
-    /** Si el ejercicio se usa en alguna plantilla, incluso dada de baja (sus sesiones siguen guardadas). */
+    /** Si el ejercicio se usa en alguna plantilla, incluso inactiva (sus sesiones siguen guardadas). */
     @Query("select count(es) > 0 from EjercicioSesion es where es.ejercicio.id = :ejercicioId")
     boolean existeEjercicioEnAlgunaPlantilla(@Param("ejercicioId") Long ejercicioId);
 

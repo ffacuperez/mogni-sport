@@ -31,7 +31,11 @@ const VALORES = {
   membresia: (a) => (a.membresiaId ? a.membresia : null),
   vencimiento: (a) => a.cuota?.vencimiento ?? null,
   precio: (a) => a.cuota?.precio ?? null,
-  estado: (a) => GRAVEDAD[a.cuota?.situacion] ?? null,
+  // Por gravedad y, dentro de la misma situación, por vencimiento (el más antiguo primero). Así el orden descendente es
+  // exactamente el inverso: también se invierte quién lleva más días en mora.
+  estado: (a) => (GRAVEDAD[a.cuota?.situacion] == null || !a.cuota.vencimiento
+    ? null
+    : GRAVEDAD[a.cuota.situacion] * 1e8 + Number(a.cuota.vencimiento.replaceAll('-', ''))),
   ultimaMembresia: (a) => a.inscripcion?.membresia ?? null,
   baja: (a) => a.fechaBaja || null,
   ultimaCuota: (a) => a.vencimientoUltimaCuota || null,

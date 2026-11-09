@@ -88,7 +88,7 @@ function Armazon({ alumno, tabs, children }) {
  * cobranza); Progreso para quien puede ver planes (propietario y entrenador). El detalle de un plan anterior se ve a
  * pantalla completa, sin el encabezado ni las pestañas.
  */
-export default function FichaAlumno({ alumno, esPropietario, puedeVerPlanes, onEdit, onEditMembresia, onToggleStatus, onVerPlan, onAsignarPlan, onModificarPlan, onPlanFinalizado, onToast, onRegistrarPago, refrescoPagos }) {
+export default function FichaAlumno({ alumno, esPropietario, puedeVerPlanes, onEdit, onEditMembresia, onToggleStatus, onVerPlan, onAsignarPlan, onModificarPlan, onPlanFinalizado, onToast }) {
   const base = `/alumnos/${alumno.id}`;
   const progreso = useMemo(() => progresoParaElEntrenador(alumno.id), [alumno.id]);
   const tabs = [
@@ -115,7 +115,7 @@ export default function FichaAlumno({ alumno, esPropietario, puedeVerPlanes, onE
                   onAsignarPlan={onAsignarPlan}
                 />
               } />
-              {esPropietario && <Route path="cuotas" element={<CuotasAlumno alumno={alumno} onRegistrarPago={onRegistrarPago} refrescoPagos={refrescoPagos} />} />}
+              {esPropietario && <Route path="cuotas" element={<CuotasAlumno alumno={alumno} />} />}
               {puedeVerPlanes && (
                 <Route path="progreso/*" element={<ProgresoPanel alumno={alumno} onAsignarPlan={onAsignarPlan} onModificarPlan={onModificarPlan} onPlanFinalizado={onPlanFinalizado} onToast={onToast} />} />
               )}

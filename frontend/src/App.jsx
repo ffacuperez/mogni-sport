@@ -151,8 +151,6 @@ function MainApp({ onLogout }) {
   const [selectedAlumnoId, setSelectedAlumnoId] = useState(null);
   const [recargandoAlumnos, setRecargandoAlumnos] = useState(false);
   const ultimaRecargaAlumnos = useRef(0);
-  // Se incrementa después de un pago desde la ficha, para que el historial se vuelva a pedir
-  const [refrescoPagos, setRefrescoPagos] = useState(0);
 
   // --- Registrar pago (HU-45): lo que necesita RegistrarPagoModal: { alumnoId, membresiaId, nombre, apellido, dni } ---
   const [alumnoAPagar, setAlumnoAPagar] = useState(null);
@@ -459,7 +457,7 @@ function MainApp({ onLogout }) {
     dni: alumno.dni,
   });
 
-  // Trae de nuevo un alumno de la ficha, después de un pago o de finalizar su plan
+  // Trae de nuevo un alumno de la ficha, después de finalizar su plan
   const refrescarAlumno = async (alumnoId) => {
     try {
       reemplazarAlumno(await obtenerAlumno(alumnoId));
@@ -468,19 +466,12 @@ function MainApp({ onLogout }) {
     }
   };
 
-  // Después de pagar desde la ficha: sus datos de cuota y el historial
-  const refrescarFichaTrasPago = (alumnoId) => {
-    setRefrescoPagos(n => n + 1);
-    refrescarAlumno(alumnoId);
-  };
-
-  // MOGNI-45: renovación. Lo que se refresca depende de desde dónde se pagó.
+  // MOGNI-45: renovación, desde la lista de alumnos
   const handleRegistrarPago = async (datos) => {
     const ok = await ejecutar(() => registrarPago(datos), 'El pago fue registrado correctamente.');
     if (!ok) return;
     setAlumnoAPagar(null);
-    if (pathname === '/alumnos') recargarAlumnos();
-    else refrescarFichaTrasPago(datos.alumnoId);
+    recargarAlumnos();
   };
 
   const rol = getRol();
@@ -618,8 +609,6 @@ function MainApp({ onLogout }) {
                   onModificarPlan={(planId) => navigate(`/planes/asignados/${planId}/editar`)}
                   onPlanFinalizado={() => refrescarAlumno(alumno.id)}
                   onToast={displayToast}
-                  onRegistrarPago={() => abrirPago(alumno)}
-                  refrescoPagos={refrescoPagos}
                 />
               )}
             </ConAlumno>

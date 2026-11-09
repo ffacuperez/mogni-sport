@@ -19,20 +19,20 @@
 --   ALUMNOS        su email                 / su DNI (deben cambiarla al primer ingreso)
 --
 --   Alumno (DNI)                Membresía        Situación
---   Lucía Gómez (30111222)      Musculación 3x   En mora hace 3 días, la 2ª cuota la pagó en mora con recargo
---   Camila Torres (37222000)    Funcional 3x     En mora hace 30 días (no hay baja automática)
---   Bruno Acosta (39333000)     Musculación 3x   Entró en mora hoy
---   Sofía Ruiz (38333444)       Funcional 3x     Vencida (ayer)
---   Martín Fernández (35222333) Full 5x          Próxima a vencer (3 días)
---   Agustina Romero (41444000)  Funcional 3x     Al día, vence en 8 días: ya puede renovar (ventana de 10)
---   Joaquín Sosa (36111000)     Musculación 3x   Al día: ya pagó el mes siguiente con Full 5x (PROGRAMADA desde
+--   Lucía Gómez (30111222)      x4   En mora hace 3 días, la 2ª cuota la pagó en mora con recargo
+--   Camila Torres (37222000)    x3   En mora hace 30 días (no hay baja automática)
+--   Bruno Acosta (39333000)     x4   Entró en mora hoy
+--   Sofía Ruiz (38333444)       x3   Vencida (ayer)
+--   Martín Fernández (35222333) x5   Próxima a vencer (3 días)
+--   Agustina Romero (41444000)  x3   Al día, vence en 8 días: ya puede renovar (ventana de 10)
+--   Joaquín Sosa (36111000)     x4   Al día: ya pagó el mes siguiente con x5 (PROGRAMADA desde
 --                                                dentro de 4 días)
---   Nicolás Benítez (33555000)  Full 5x          Al día (20 días): pasó de Funcional 3x a Full 5x hace 3 días y
+--   Nicolás Benítez (33555000)  x5   Al día (20 días): pasó de x3 a x5 hace 3 días y
 --                                                pagó la diferencia (historial con dos pagos)
---   Tomás Díaz (40444555)       Musculación 3x   Al día (20 días), 2 cuotas encadenadas
---   Valentina López (42555666)  Full 5x          Al día (alta hoy)
---   Diego Molina (34666000)     Musculación 3x   INACTIVO (baja hace 2 días) con 10 días pagos: se reactiva sin pagar
---   Paula Herrera (43777000)    Full 5x          INACTIVA (baja hace 15 días), sin días pagos: se reactiva con pago
+--   Tomás Díaz (40444555)       x4   Al día (20 días), 2 cuotas encadenadas
+--   Valentina López (42555666)  x5   Al día (alta hoy)
+--   Diego Molina (34666000)     x4   INACTIVO (baja hace 2 días) con 10 días pagos: se reactiva sin pagar
+--   Paula Herrera (43777000)    x5   INACTIVA (baja hace 15 días), sin días pagos: se reactiva con pago
 --
 -- Franjas horarias: lunes a viernes de 08:00 a 12:00 y de 17:00 a 21:00 (turnos de 1 hora, el cupo lo crea
 -- InicializacionConfiguracionGimnasio). Los turnos de cada día se generan solos al consultarlos.
@@ -43,9 +43,9 @@ TRUNCATE TABLE pagos, cuotas, inscripciones, alumnos, membresias, cuentas, franj
 
 -- 2) Membresías
 INSERT INTO membresias (nombre, precio_actual, frecuencia_semanal, descripcion) VALUES
-    ('Funcional 3x',   18000, 3, 'Clases de funcional tres veces por semana'),
-    ('Musculación 3x', 25000, 3, 'Sala de musculación tres veces por semana'),
-    ('Full 5x',        38000, 5, 'Acceso completo de lunes a viernes');
+    ('x3', 18000, 3, 'Tres veces por semana'),
+    ('x4', 25000, 4, 'Cuatro veces por semana'),
+    ('x5', 38000, 5, 'Acceso completo de lunes a viernes');
 
 -- 3) Cuentas del personal
 INSERT INTO cuentas (email, password, rol, debe_cambiar_password, activa) VALUES
@@ -90,26 +90,26 @@ JOIN cuentas c ON c.email = a.email;
 
 -- 6) Inscripciones. Las ACTIVA tienen fecha_fin NULL. Cada alumno tiene como mucho una por estado, así las cuotas y
 --    los pagos de abajo la encuentran por (DNI, estado).
---    Joaquín: la ACTIVA (Musculación 3x) sigue hasta su vencimiento y la PROGRAMADA (Full 5x) empieza ese día.
---    Nicolás: la de Funcional 3x terminó cuando cambió a Full 5x (hace 3 días).
+--    Joaquín: la ACTIVA (x4) sigue hasta su vencimiento y la PROGRAMADA (x5) empieza ese día.
+--    Nicolás: la de x3 terminó cuando cambió a x5 (hace 3 días).
 --    Diego y Paula: canceladas el día de su baja.
 INSERT INTO inscripciones (fecha_inicio, fecha_fin, estado, alumno_id, membresia_id)
 SELECT CURRENT_DATE + i.inicio, CURRENT_DATE + i.fin, i.estado, a.id, m.id
 FROM (VALUES
-    ('30111222', 'Musculación 3x', -70, NULL::int, 'ACTIVA'),
-    ('35222333', 'Full 5x',        -27, NULL,      'ACTIVA'),
-    ('38333444', 'Funcional 3x',   -31, NULL,      'ACTIVA'),
-    ('40444555', 'Musculación 3x', -40, NULL,      'ACTIVA'),
-    ('42555666', 'Full 5x',          0, NULL,      'ACTIVA'),
-    ('36111000', 'Musculación 3x', -26, NULL,      'ACTIVA'),
-    ('36111000', 'Full 5x',          4, NULL,      'PROGRAMADA'),
-    ('37222000', 'Funcional 3x',   -62, NULL,      'ACTIVA'),
-    ('39333000', 'Musculación 3x', -32, NULL,      'ACTIVA'),
-    ('41444000', 'Funcional 3x',   -22, NULL,      'ACTIVA'),
-    ('33555000', 'Funcional 3x',   -10, -3,        'CANCELADA'),
-    ('33555000', 'Full 5x',         -3, NULL,      'ACTIVA'),
-    ('34666000', 'Musculación 3x', -20, -2,        'CANCELADA'),
-    ('43777000', 'Full 5x',        -50, -15,       'CANCELADA')
+    ('30111222', 'x4',  -70, NULL::int, 'ACTIVA'),
+    ('35222333', 'x5',  -27, NULL,      'ACTIVA'),
+    ('38333444', 'x3',  -31, NULL,      'ACTIVA'),
+    ('40444555', 'x4',  -40, NULL,      'ACTIVA'),
+    ('42555666', 'x5',    0, NULL,      'ACTIVA'),
+    ('36111000', 'x4',  -26, NULL,      'ACTIVA'),
+    ('36111000', 'x5',    4, NULL,      'PROGRAMADA'),
+    ('37222000', 'x3',  -62, NULL,      'ACTIVA'),
+    ('39333000', 'x4',  -32, NULL,      'ACTIVA'),
+    ('41444000', 'x3',  -22, NULL,      'ACTIVA'),
+    ('33555000', 'x3',  -10, -3,        'CANCELADA'),
+    ('33555000', 'x5',   -3, NULL,      'ACTIVA'),
+    ('34666000', 'x4',  -20, -2,        'CANCELADA'),
+    ('43777000', 'x5',  -50, -15,       'CANCELADA')
 ) AS i(dni, membresia, inicio, fin, estado)
 JOIN alumnos a ON a.dni = i.dni
 JOIN membresias m ON m.nombre = i.membresia;
@@ -143,7 +143,7 @@ JOIN inscripciones i ON i.alumno_id = a.id AND i.estado = c.estado;
 -- 8) Un pago por cuota. El monto es el total (precio + recargo).
 --    Lucía renovó en mora (hace 35 días, 5 días después del vencimiento): recargo del 10% redondeado a la decena
 --    hacia arriba ($25.000 → total $27.500, recargo $2.500).
---    Joaquín pagó ayer el mes siguiente con Full 5x (queda programado).
+--    Joaquín pagó ayer el mes siguiente con x5 (queda programado).
 INSERT INTO pagos (cuota_id, monto, recargo, medio_de_pago, fecha_pago)
 SELECT cu.id, cu.precio + p.recargo, p.recargo, p.medio, CURRENT_DATE + p.fecha_pago
 FROM (VALUES

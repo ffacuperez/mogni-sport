@@ -29,8 +29,8 @@ export default function ResumenPlanPanel({ plan, onModificar, onFinalizar }) {
 
   return (
     <Panel aria-label="Resumen del plan" className="flex flex-col gap-5 px-6 py-5">
-      <div className="flex flex-col items-start justify-between gap-x-10 gap-y-4 md:flex-row">
-        <div className="grid w-full flex-1 grid-cols-1 gap-x-10 gap-y-4 sm:grid-cols-2 md:flex md:w-auto md:flex-wrap">
+      <div className="flex flex-col items-start justify-between gap-x-10 gap-y-4 lg:flex-row">
+        <div className="grid w-full flex-1 grid-cols-1 gap-x-10 gap-y-4 sm:grid-cols-2 md:grid-cols-3 lg:w-auto">
           <Dato label="Método · Mesociclo">
             <span className="flex flex-wrap items-center gap-2">
               {tituloPlan(plan)}
@@ -38,12 +38,12 @@ export default function ResumenPlanPanel({ plan, onModificar, onFinalizar }) {
             </span>
           </Dato>
           {plan.nivel && <Dato label="Nivel"><Badge tone={tonoNivel(plan.nivel)} className="font-semibold">{textoNivel(plan.nivel)}</Badge></Dato>}
+          <Dato label="Sesiones por semana"><span className="tabular-nums">{sesionesPorSemana(plan)}</span></Dato>
           {objetivo && <Dato label="Objetivo">{objetivo}</Dato>}
           <Dato label="Fecha de inicio"><span className="tabular-nums">{formatearFecha(plan.fechaInicio)}</span></Dato>
-          <Dato label="Sesiones por semana"><span className="tabular-nums">{sesionesPorSemana(plan)}</span></Dato>
         </div>
         {activo && onModificar && onFinalizar && (
-          <div className="order-first grid w-full shrink-0 grid-cols-2 gap-2 md:order-none md:flex md:w-auto">
+          <div className="order-first grid w-full shrink-0 grid-cols-2 gap-2 lg:order-none lg:flex lg:w-auto">
             <Button variant="secondary" className="max-md:px-2!" onClick={onModificar}>
               <Pencil className="h-4 w-4 shrink-0" /> Modificar plan
             </Button>

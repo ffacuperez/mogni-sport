@@ -59,7 +59,7 @@ export default function RecuperarPassword() {
     <PantallaAuth
       icono={KeyRound}
       titulo="¿Olvidaste tu contraseña?"
-      descripcion="Ingresá el correo con el que entrás a Mogni Sport y te mandamos un link para elegir una nueva."
+      descripcion="Ingresá el correo con el que entrás a Mogni System y te mandamos un link para elegir una nueva."
       onVolver={() => navigate('/login')}
     >
       {error && (

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.Period;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -27,9 +28,12 @@ import mogni.system_backend.alumno.dto.RegistrarAlumnoRequest;
 import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
+import mogni.system_backend.cuota.dto.CuotaAlumnoResumen;
 import mogni.system_backend.cuota.entity.Cuota;
 import mogni.system_backend.cuota.entity.ReglasCuota;
 import mogni.system_backend.cuota.entity.SituacionPago;
+import mogni.system_backend.cuota.repository.CuotaRepository;
+import mogni.system_backend.cuota.service.CuotaService;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
 import mogni.system_backend.inscripcion.dto.InscripcionResponse;
@@ -53,6 +57,22 @@ public class AlumnoService {
     private static final DateTimeFormatter FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final BigDecimal SIN_RECARGO = BigDecimal.ZERO.setScale(2);
 
+    private static final Comparator<AlumnoResponse> POR_APELLIDO_Y_NOMBRE = Comparator
+            .comparing(AlumnoResponse::getApellido, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+            .thenComparing(AlumnoResponse::getNombre, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
+
+    /** Primero en mora, después vencidas, después el resto por vencimiento más cercano; sin cuotas al final. */
+    private static final Comparator<AlumnoResponse> ORDEN_ACTIVOS = Comparator
+            .comparingInt((AlumnoResponse alumno) -> prioridad(alumno.getCuotaActual().getSituacion()))
+            .thenComparing((AlumnoResponse alumno) -> alumno.getCuotaActual().getFechaVencimiento(),
+                    Comparator.nullsLast(Comparator.naturalOrder()))
+            .thenComparing(POR_APELLIDO_Y_NOMBRE);
+
+    /** La baja más reciente primero. */
+    private static final Comparator<AlumnoResponse> ORDEN_INACTIVOS = Comparator
+            .comparing(AlumnoResponse::getFechaBaja, Comparator.nullsLast(Comparator.reverseOrder()))
+            .thenComparing(POR_APELLIDO_Y_NOMBRE);
+
     private final AlumnoRepository alumnoRepository;
     private final CuentaRepository cuentaRepository;
     private final MembresiaRepository membresiaRepository;
@@ -60,6 +80,7 @@ public class AlumnoService {
     private final BajaAlumnoService bajaAlumnoService;
     private final PasswordEncoder passwordEncoder;
     private final PlanAsignadoRepository planAsignadoRepository;
+    private final CuotaRepository cuotaRepository;
 
     public AlumnoService(AlumnoRepository alumnoRepository,
                           CuentaRepository cuentaRepository,
@@ -67,7 +88,8 @@ public class AlumnoService {
                           PagoRepository pagoRepository,
                           BajaAlumnoService bajaAlumnoService,
                           PasswordEncoder passwordEncoder,
-                          PlanAsignadoRepository planAsignadoRepository) {
+                          PlanAsignadoRepository planAsignadoRepository,
+                          CuotaRepository cuotaRepository) {
         this.alumnoRepository = alumnoRepository;
         this.cuentaRepository = cuentaRepository;
         this.membresiaRepository = membresiaRepository;
@@ -75,6 +97,7 @@ public class AlumnoService {
         this.bajaAlumnoService = bajaAlumnoService;
         this.passwordEncoder = passwordEncoder;
         this.planAsignadoRepository = planAsignadoRepository;
+        this.cuotaRepository = cuotaRepository;
     }
 
     /**
@@ -140,12 +163,16 @@ public class AlumnoService {
         Map<Long, PlanActivoResumen> planesActivos = planAsignadoRepository.findByEstado(EstadoPlanAsignado.ACTIVO)
                 .stream()
                 .filter(plan -> plan.estaVigente(hoy))
-                .collect(Collectors.toMap(p -> p.getAlumno().getId(), this::resumir, (a, b) -> a));
+                .collect(Collectors.toMap(p -> p.getAlumno().getId(), plan -> resumir(plan, hoy), (a, b) -> a));
+        // Una sola consulta para las cuotas de todos: el listado no trae las cuotas de cada inscripción
+        Map<Long, Cuota> ultimasCuotas = activos ? cuotaRepository.buscarUltimasCuotas() : Map.of();
         return alumnoRepository.findByCuentaActiva(activos)
                 .stream()
                 .filter(a -> estadoPlan == null
                         || (estadoPlan == FiltroEstadoPlan.ACTIVO) == planesActivos.containsKey(a.getId()))
-                .map(a -> mapearAResponse(a, planesActivos.get(a.getId())))
+                .map(a -> mapearAResponse(a, planesActivos.get(a.getId()),
+                        activos ? CuotaService.resumenDe(a, ultimasCuotas.get(a.getId()), hoy) : null))
+                .sorted(activos ? ORDEN_ACTIVOS : ORDEN_INACTIVOS)
                 .toList();
     }
 
@@ -487,20 +514,36 @@ public class AlumnoService {
                 .orElseThrow(() -> new RegistroInvalidoException("La membresía indicada no existe"));
     }
 
+    private static int prioridad(SituacionPago situacion) {
+        if (situacion == null) {
+            return 3;
+        }
+        return switch (situacion) {
+            case EN_MORA -> 0;
+            case VENCIDA -> 1;
+            default -> 2;
+        };
+    }
+
     private AlumnoResponse mapearAResponse(Alumno alumno) {
+        LocalDate hoy = ZonaHoraria.hoy();
         PlanActivoResumen planActivo = alumno.getId() == null ? null
                 : planAsignadoRepository.findFirstByAlumnoIdAndEstado(alumno.getId(), EstadoPlanAsignado.ACTIVO)
-                        .filter(plan -> plan.estaVigente(ZonaHoraria.hoy()))
-                        .map(this::resumir)
+                        .filter(plan -> plan.estaVigente(hoy))
+                        .map(plan -> resumir(plan, hoy))
                         .orElse(null);
-        return mapearAResponse(alumno, planActivo);
+        CuotaAlumnoResumen cuotaActual = alumno.getCuenta().isActiva()
+                ? CuotaService.resumenDe(alumno, alumno.buscarUltimaCuotaPagada().orElse(null), hoy)
+                : null;
+        return mapearAResponse(alumno, planActivo, cuotaActual);
     }
 
-    private PlanActivoResumen resumir(PlanAsignado plan) {
-        return new PlanActivoResumen(plan.getId(), plan.getNombre());
+    private PlanActivoResumen resumir(PlanAsignado plan, LocalDate hoy) {
+        return new PlanActivoResumen(plan.getId(), plan.getNombre(), plan.getMetodo(), plan.getMesociclo(),
+                plan.semanaActual(hoy), plan.cantidadSemanas());
     }
 
-    private AlumnoResponse mapearAResponse(Alumno alumno, PlanActivoResumen planActivo) {
+    private AlumnoResponse mapearAResponse(Alumno alumno, PlanActivoResumen planActivo, CuotaAlumnoResumen cuotaActual) {
         Optional<Inscripcion> activa = alumno.buscarInscripcionActiva();
         Optional<Inscripcion> programada = alumno.buscarInscripcionProgramada();
         Membresia membresia = activa.map(Inscripcion::getMembresia).orElse(null);
@@ -533,7 +576,8 @@ public class AlumnoService {
             reactivacionRequierePago,
             programada.map(i -> i.getMembresia().getNombre()).orElse(null),
             programada.map(Inscripcion::getFechaInicio).orElse(null),
-            planActivo
+            planActivo,
+            cuotaActual
         );
     }
 

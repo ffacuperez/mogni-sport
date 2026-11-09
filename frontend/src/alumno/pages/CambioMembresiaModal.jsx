@@ -64,7 +64,7 @@ export default function CambioMembresiaModal({ alumno, vista, onConfirm, onCance
             {cobra
               ? <>tiene que pagar <strong>{formatearMonto(vista.diferenciaACobrar)}</strong> de diferencia.</>
               : 'no se cobra nada y no hay reembolso.'}
-            {' '}Para cambiarla desde la próxima cuota, registrá el pago desde Cuotas.
+            {' '}Para cambiarla desde la próxima cuota, registrá el pago desde Alumnos eligiendo la membresía nueva.
           </p>
         )}
 

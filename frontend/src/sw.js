@@ -23,7 +23,7 @@ self.addEventListener('push', (event) => {
     datos = { mensaje: event.data?.text() };
   }
 
-  event.waitUntil(self.registration.showNotification(datos.titulo || 'Mogni Sport', {
+  event.waitUntil(self.registration.showNotification(datos.titulo || 'Mogni System', {
     body: datos.mensaje || '',
     icon: '/pwa-192x192.png',
     badge: '/pwa-64x64.png',

@@ -6,14 +6,12 @@ const fromApi = (e) => ({
   id: e.id,
   nombre: e.nombre,
   grupoMuscular: e.grupoMuscular,
-  descripcion: e.descripcion ?? '',
   activo: e.activo,
 });
 
 const toApi = (form) => ({
   nombre: form.nombre,
   grupoMuscular: form.grupoMuscular,
-  descripcion: form.descripcion ?? null,
   activo: form.activo ?? true,
 });
 

@@ -313,7 +313,7 @@ export default function Home({ isAuthenticated = false, onLogin }) {
       <footer className="bg-sidebar">
         <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-4 px-4 py-8 sm:flex-row sm:items-center sm:px-6 lg:px-8">
           <Logo onDark />
-          <p className="text-xs text-ink-muted">© 2026 Mogni Sport. Sistema de gestión para gimnasio boutique.</p>
+          <p className="text-xs text-ink-muted">© 2026 Mogni System. Sistema de gestión para gimnasio boutique.</p>
         </div>
       </footer>
 

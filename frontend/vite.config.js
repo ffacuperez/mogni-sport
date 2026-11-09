@@ -20,9 +20,9 @@ export default defineConfig({
       injectRegister: 'auto',
       includeAssets: ['favicon.svg', 'favicon.ico', 'apple-touch-icon-180x180.png'],
       manifest: {
-        name: 'Mogni Sport',
-        short_name: 'Mogni Sport',
-        description: 'Tu cuenta del gimnasio Mogni Sport',
+        name: 'Mogni System',
+        short_name: 'Mogni System',
+        description: 'Tu cuenta del gimnasio en Mogni System',
         lang: 'es',
         start_url: '/',
         scope: '/',

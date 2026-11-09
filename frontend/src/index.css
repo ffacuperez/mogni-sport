@@ -85,6 +85,8 @@
 @layer base {
   html {
     color-scheme: light;
+    /* Solo desplazar: sin zoom por pellizco ni por doble toque en pantallas táctiles */
+    touch-action: pan-x pan-y;
   }
   body {
     @apply bg-page font-sans text-sm text-ink antialiased;

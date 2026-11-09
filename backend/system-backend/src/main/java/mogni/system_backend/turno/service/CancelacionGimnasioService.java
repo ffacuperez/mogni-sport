@@ -7,9 +7,11 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.exception.ConflictoException;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
@@ -37,17 +39,20 @@ public class CancelacionGimnasioService {
     private final ClaseExtraRepository claseExtraRepository;
     private final AvisoTurnoRepository avisoTurnoRepository;
     private final GeneracionTurnosService generacionTurnosService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public CancelacionGimnasioService(TurnoRepository turnoRepository,
                                       ReservaRepository reservaRepository,
                                       ClaseExtraRepository claseExtraRepository,
                                       AvisoTurnoRepository avisoTurnoRepository,
-                                      GeneracionTurnosService generacionTurnosService) {
+                                      GeneracionTurnosService generacionTurnosService,
+                                      ApplicationEventPublisher eventPublisher) {
         this.turnoRepository = turnoRepository;
         this.reservaRepository = reservaRepository;
         this.claseExtraRepository = claseExtraRepository;
         this.avisoTurnoRepository = avisoTurnoRepository;
         this.generacionTurnosService = generacionTurnosService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -136,6 +141,8 @@ public class CancelacionGimnasioService {
     /**
      * Cancela el turno (que ya tiene que venir bloqueado), pasa sus reservas a CANCELADA_POR_GIMNASIO y les da a los
      * alumnos una clase extra y un aviso. Lo usa la cancelación manual y la reconciliación de franjas.
+     * Si la canceló el propietario, el aviso también sale por push (al confirmarse la cancelación, ver
+     * PushTurnoCanceladoListener). Por cambio de franja, por ahora, solo queda en la app.
      */
     public CancelacionGimnasioResponse cancelar(Turno turno, LocalDateTime ahora, MotivoCancelacionTurno motivo) {
         validarNoIniciado(turno, ahora);
@@ -152,7 +159,7 @@ public class CancelacionGimnasioService {
         for (Reserva reserva : reservas) {
             reserva.setEstado(EstadoReserva.CANCELADA_POR_GIMNASIO);
             claseExtraRepository.save(new ClaseExtra(reserva.getAlumno(), reserva.getId(), desde, hasta));
-            avisoTurnoRepository.save(new AvisoTurno(
+            AvisoTurno aviso = avisoTurnoRepository.save(new AvisoTurno(
                     reserva.getAlumno(),
                     reserva.getId(),
                     turno.getId(),
@@ -160,7 +167,13 @@ public class CancelacionGimnasioService {
                     turno.getFecha(),
                     "Turno cancelado por el gimnasio",
                     "Se canceló tu turno del " + turno.getFecha().format(FECHA)
+                            + " a las " + FranjaHorariaService.formatearHora(turno.getHoraInicio())
                             + ". Recibiste una clase extra, válida hasta el " + hasta.format(FECHA) + "."));
+            Cuenta cuenta = reserva.getAlumno().getCuenta();
+            if (motivo == MotivoCancelacionTurno.MANUAL && cuenta != null) {
+                eventPublisher.publishEvent(new TurnoCanceladoPorGimnasioEvent(
+                        cuenta.getId(), aviso.getId(), aviso.getTitulo(), aviso.getMensaje()));
+            }
         }
         reservaRepository.saveAll(reservas);
         return new CancelacionGimnasioResponse(1, reservas.size(), reservas.size());

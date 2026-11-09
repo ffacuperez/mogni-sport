@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -19,16 +20,20 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import mogni.system_backend.alumno.entity.Alumno;
+import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.exception.ConflictoException;
 import mogni.system_backend.notificacion.entity.AvisoTurno;
 import mogni.system_backend.notificacion.repository.AvisoTurnoRepository;
 import mogni.system_backend.turno.entity.ClaseExtra;
 import mogni.system_backend.turno.entity.EstadoReserva;
 import mogni.system_backend.turno.entity.EstadoTurno;
+import mogni.system_backend.turno.entity.MotivoCancelacionTurno;
 import mogni.system_backend.turno.entity.Reserva;
 import mogni.system_backend.turno.entity.Turno;
 import mogni.system_backend.turno.repository.ClaseExtraRepository;
@@ -46,6 +51,7 @@ class CancelacionGimnasioServiceTest {
     @Mock private ClaseExtraRepository claseExtraRepository;
     @Mock private AvisoTurnoRepository avisoTurnoRepository;
     @Mock private GeneracionTurnosService generacionTurnosService;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     private final List<Reserva> reservas = new ArrayList<>();
     private final List<ClaseExtra> clasesExtra = new ArrayList<>();
@@ -56,7 +62,8 @@ class CancelacionGimnasioServiceTest {
     @BeforeEach
     void setUp() {
         service = new CancelacionGimnasioService(
-                turnoRepository, reservaRepository, claseExtraRepository, avisoTurnoRepository, generacionTurnosService);
+                turnoRepository, reservaRepository, claseExtraRepository, avisoTurnoRepository, generacionTurnosService,
+                eventPublisher);
         lenient().when(turnoRepository.findByIdConBloqueo(anyLong())).thenAnswer(inv ->
                 todosLosTurnos().stream().filter(turno -> turno.getId().equals(inv.<Long>getArgument(0))).findFirst());
         lenient().when(reservaRepository.findWithAlumnoByTurnoIdInAndEstado(any(), any())).thenAnswer(inv -> {
@@ -193,6 +200,76 @@ class CancelacionGimnasioServiceTest {
         assertEquals(List.of(11L), clasesExtra.stream().map(c -> c.getAlumno().getId()).toList());
         assertEquals(List.of(11L), avisos.stream().map(a -> a.getAlumno().getId()).toList());
         assertEquals(EstadoReserva.CANCELADA_POR_GIMNASIO, reservas.get(0).getEstado());
+    }
+
+    private Alumno alumnoConCuenta(long id, long cuentaId) {
+        Cuenta cuenta = new Cuenta();
+        cuenta.setId(cuentaId);
+        Alumno alumno = new Alumno();
+        alumno.setId(id);
+        alumno.setCuenta(cuenta);
+        return alumno;
+    }
+
+    @Test
+    void laCancelacionDelPropietarioAvisaPorPushACadaAlumnoConElMismoTextoQueLaApp() {
+        Turno turno = turno(HOY.plusDays(2), "18:00");
+        reservar(alumnoConCuenta(1L, 31L), turno);
+        reservar(alumnoConCuenta(2L, 32L), turno);
+        when(generacionTurnosService.obtenerOGenerarTurnos(turno.getFecha())).thenReturn(List.of(turno));
+
+        service.cancelarTurno(turno.getFecha(), "18:00", AHORA);
+
+        ArgumentCaptor<TurnoCanceladoPorGimnasioEvent> eventos = ArgumentCaptor.forClass(TurnoCanceladoPorGimnasioEvent.class);
+        verify(eventPublisher, org.mockito.Mockito.times(2)).publishEvent(eventos.capture());
+        assertEquals(List.of(31L, 32L), eventos.getAllValues().stream().map(TurnoCanceladoPorGimnasioEvent::cuentaId).toList());
+        assertEquals(avisos.stream().map(AvisoTurno::getId).toList(),
+                eventos.getAllValues().stream().map(TurnoCanceladoPorGimnasioEvent::avisoId).toList());
+        TurnoCanceladoPorGimnasioEvent evento = eventos.getAllValues().get(0);
+        assertEquals("Turno cancelado por el gimnasio", evento.titulo());
+        // La push muestra fecha, hora y la clase extra, igual que el aviso de la app
+        assertEquals("Se canceló tu turno del 15/10 a las 18:00. Recibiste una clase extra, válida hasta el 25/10.",
+                evento.mensaje());
+        assertEquals(evento.mensaje(), avisos.get(0).getMensaje());
+    }
+
+    @Test
+    void alCancelarUnDiaAvisaPorPushATodosLosAlumnosDeLosTurnosCancelados() {
+        LocalDate fecha = HOY.plusDays(3);
+        Turno manana = turno(fecha, "08:00");
+        Turno tarde = turno(fecha, "19:00");
+        reservar(alumnoConCuenta(1L, 31L), manana);
+        reservar(alumnoConCuenta(2L, 32L), tarde);
+        when(generacionTurnosService.obtenerOGenerarTurnos(fecha)).thenReturn(List.of(manana, tarde));
+
+        service.cancelarDia(fecha, AHORA);
+
+        verify(eventPublisher, org.mockito.Mockito.times(2)).publishEvent(any(TurnoCanceladoPorGimnasioEvent.class));
+    }
+
+    @Test
+    void laCancelacionPorCambioDeFranjaNoAvisaPorPush() {
+        Turno turno = turno(HOY.plusDays(2), "18:00");
+        reservar(alumnoConCuenta(1L, 31L), turno);
+
+        service.cancelar(turno, AHORA, MotivoCancelacionTurno.FRANJA_ELIMINADA);
+
+        assertEquals(1, avisos.size());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void unAlumnoSinCuentaNoGeneraPushPeroSiRecibeElAviso() {
+        Turno turno = turno(HOY.plusDays(2), "18:00");
+        Alumno sinCuenta = new Alumno();
+        sinCuenta.setId(1L);
+        reservar(sinCuenta, turno);
+        when(generacionTurnosService.obtenerOGenerarTurnos(turno.getFecha())).thenReturn(List.of(turno));
+
+        service.cancelarTurno(turno.getFecha(), "18:00", AHORA);
+
+        assertEquals(1, avisos.size());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test

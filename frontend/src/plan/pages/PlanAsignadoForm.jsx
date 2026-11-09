@@ -6,7 +6,7 @@ import { Cargando, FormActions, PageHeader, Panel } from '../../shared/component
 import { cx, FOCUS } from '../../shared/components/clases';
 import { listarEjercicios } from '../../ejercicio/services/ejerciciosService';
 import { DatosPlan, EditorSesiones } from '../../plantilla/components/EditorPlan';
-import { aFormulario, validarFormulario } from '../../plantilla/components/formularioPlan';
+import { aFormulario, sesionConError, validarFormulario } from '../../plantilla/components/formularioPlan';
 import {
   actualizarPlan, hoyIso, obtenerPlan, semanaEn, semanasDelPlan, validarSemanas,
 } from '../services/planesService';
@@ -21,6 +21,8 @@ export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast
   const [error, setError] = useState(null);
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  // La sesión con el error de validación, para desplegarla y llevar la pantalla hasta ella
+  const [irASesion, setIrASesion] = useState(null);
   // HU-266: las semanas se pueden cambiar mientras el plan está activo (no menos que la semana en curso)
   const [hoy] = useState(hoyIso);
   const [semanas, setSemanas] = useState('');
@@ -69,6 +71,8 @@ export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast
     const mensaje = validarFormulario(form, 'el plan');
     if (mensaje) {
       onToast(mensaje, true);
+      const clave = sesionConError(form, 'el plan');
+      if (clave) setIrASesion({ clave, vez: Date.now() });
       return;
     }
     const mensajeSemanas = validarSemanas(semanas, { minimo: minimoSemanas });
@@ -117,7 +121,7 @@ export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast
 
         <div className="mt-8 border-t border-line pt-6">
           <EditorSesiones form={form} setForm={setForm} catalogo={catalogo}
-            idsPermitidosInactivos={idsPermitidosInactivos} sujeto="el plan" />
+            idsPermitidosInactivos={idsPermitidosInactivos} sujeto="el plan" irASesion={irASesion} />
         </div>
 
         <FormActions onCancel={onVolver} enviando={enviando} />

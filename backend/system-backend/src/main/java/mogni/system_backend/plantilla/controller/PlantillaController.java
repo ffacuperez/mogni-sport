@@ -34,6 +34,18 @@ public class PlantillaController {
         return ResponseEntity.ok(plantillaService.listarPlantillas());
     }
 
+    /** Plantillas inactivas (para poder reactivarlas). */
+    @GetMapping("/inactivas")
+    public ResponseEntity<List<PlantillaResponse>> listarInactivas() {
+        return ResponseEntity.ok(plantillaService.listarInactivas());
+    }
+
+    /** Reactiva una plantilla inactiva; 409 si ya hay una activa con el mismo nombre. */
+    @PutMapping("/{id}/reactivar")
+    public ResponseEntity<PlantillaResponse> reactivarPlantilla(@PathVariable Long id) {
+        return ResponseEntity.ok(plantillaService.reactivarPlantilla(id));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<PlantillaResponse> obtenerPlantilla(@PathVariable Long id) {
         return ResponseEntity.ok(plantillaService.obtenerPlantilla(id));

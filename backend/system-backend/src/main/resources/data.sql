@@ -247,7 +247,8 @@ INSERT INTO ejercicios (nombre, grupo_muscular, activo) VALUES
 --     las seis cubren los cuatro objetivos. Casos para mostrar:
 --     - "Acondicionamiento y quema" tiene "Remo al mentón con barra", que se dio de baja después: la plantilla lo
 --       conserva y lo marca "(dado de baja)", pero no se puede agregar a otras sesiones.
---     - "Circuito express 2 días" está dada de baja: no se lista ni se puede asignar, y su nombre queda libre.
+--     - "Circuito express 2 días" está inactiva: no se lista en Activas ni se puede asignar, y su nombre queda libre.
+--       Se ve en la pestaña Inactivas, donde se puede reactivar (si no hay otra activa con su nombre).
 --     - El peso sugerido está cargado solo en unos pocos ejercicios: lo normal es que el profe lo ajuste por alumno.
 INSERT INTO plantillas_plan (nombre, nombre_unico, nivel, objetivo, activa, asignaciones_activas, fecha_actualizacion)
 SELECT p.nombre, CASE WHEN p.activa THEN lower(p.nombre) END, p.nivel, p.objetivo, p.activa, 0,
@@ -439,7 +440,7 @@ FROM (VALUES
     ('Resistencia muscular 5 días', 5, 4, 'Face pull',                             3, 15, 20, 0.75, NULL, 2, NULL),
     ('Resistencia muscular 5 días', 5, 5, 'Rueda abdominal',                       3, 10, 15, 1,    NULL, NULL, NULL),
     ('Resistencia muscular 5 días', 5, 6, 'Bicho muerto',                          3, 12, NULL, 0.75, NULL, NULL, 'Por lado'),
-    -- Circuito express 2 días (dada de baja): incluye "Sit-up con disco", también dado de baja
+    -- Circuito express 2 días (inactiva): incluye "Sit-up con disco", también dado de baja
     ('Circuito express 2 días', 1, 1, 'Sentadilla libre con barra',   3, 15, NULL, 0.5, NULL, 3, NULL),
     ('Circuito express 2 días', 1, 2, 'Flexiones de brazos',          3, 12, NULL, 0.5, NULL, 3, NULL),
     ('Circuito express 2 días', 1, 3, 'Remo en polea baja',           3, 15, NULL, 0.5, NULL, 3, NULL),

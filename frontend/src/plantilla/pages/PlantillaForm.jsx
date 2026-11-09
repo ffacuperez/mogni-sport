@@ -7,7 +7,7 @@ import { cx, FOCUS } from '../../shared/components/clases';
 import { listarEjercicios } from '../../ejercicio/services/ejerciciosService';
 import { actualizarPlantilla, crearPlantilla, obtenerPlantilla } from '../services/plantillasService';
 import { DatosPlan, EditorSesiones } from '../components/EditorPlan';
-import { aFormulario, formularioVacio, validarFormulario } from '../components/formularioPlan';
+import { aFormulario, formularioVacio, sesionConError, validarFormulario } from '../components/formularioPlan';
 
 /** Alta (sin plantillaId) o modificación de una plantilla. */
 export default function PlantillaForm({ plantillaId, onVolver, onGuardada, onToast }) {
@@ -18,6 +18,8 @@ export default function PlantillaForm({ plantillaId, onVolver, onGuardada, onToa
   const [error, setError] = useState(null);
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  // La sesión con el error de validación, para desplegarla y llevar la pantalla hasta ella
+  const [irASesion, setIrASesion] = useState(null);
 
   useEffect(() => {
     Promise.all([listarEjercicios(), esEdicion ? obtenerPlantilla(plantillaId) : null])
@@ -57,6 +59,8 @@ export default function PlantillaForm({ plantillaId, onVolver, onGuardada, onToa
     const mensaje = validarFormulario(form);
     if (mensaje) {
       onToast(mensaje, true);
+      const clave = sesionConError(form);
+      if (clave) setIrASesion({ clave, vez: Date.now() });
       return;
     }
     setConfirmando(true);
@@ -90,7 +94,8 @@ export default function PlantillaForm({ plantillaId, onVolver, onGuardada, onToa
         <DatosPlan form={form} setForm={setForm} ayudaNombre="El nombre debe ser único para identificar esta plantilla." />
 
         <div className="mt-8 border-t border-line pt-6">
-          <EditorSesiones form={form} setForm={setForm} catalogo={catalogo} idsPermitidosInactivos={idsPermitidosInactivos} />
+          <EditorSesiones form={form} setForm={setForm} catalogo={catalogo} idsPermitidosInactivos={idsPermitidosInactivos}
+            irASesion={irASesion} />
         </div>
 
         <FormActions onCancel={onVolver} enviando={enviando} />

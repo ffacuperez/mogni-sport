@@ -378,4 +378,52 @@ class PlantillaServiceTest {
         assertEquals(List.of("B", "A"), lista.stream().map(PlantillaResponse::getNombre).toList());
         assertEquals(1, lista.get(0).getSesiones().get(0).getEjercicios().size());
     }
+
+    // --- Plantillas inactivas ---
+
+    @Test
+    void listar_inactivas_devuelve_las_plantillas_dadas_de_baja() {
+        PlantillaPlan baja = plantillaExistente(7L, "Circuito", 0);
+        baja.setActiva(false);
+        when(plantillaRepository.findByActivaFalseOrderByFechaActualizacionDesc()).thenReturn(List.of(baja));
+
+        List<PlantillaResponse> lista = plantillaService.listarInactivas();
+
+        assertEquals(List.of("Circuito"), lista.stream().map(PlantillaResponse::getNombre).toList());
+    }
+
+    @Test
+    void reactivar_vuelve_a_activar_la_plantilla_y_recupera_su_nombre_unico() {
+        PlantillaPlan baja = plantillaExistente(7L, "Circuito", 0);
+        baja.setActiva(false);
+        when(plantillaRepository.findByIdAndActivaFalse(7L)).thenReturn(Optional.of(baja));
+        when(plantillaRepository.existsByNombreIgnoreCaseAndActivaTrue("Circuito")).thenReturn(false);
+
+        plantillaService.reactivarPlantilla(7L);
+
+        assertTrue(baja.isActiva());
+        assertEquals("circuito", baja.getNombreUnico());
+        assertTrue(baja.getFechaActualizacion().isAfter(LocalDateTime.of(2026, 10, 1, 10, 0)));
+    }
+
+    @Test
+    void reactivar_con_el_nombre_ocupado_por_una_activa_da_409_y_no_la_reactiva() {
+        PlantillaPlan baja = plantillaExistente(7L, "Circuito", 0);
+        baja.setActiva(false);
+        when(plantillaRepository.findByIdAndActivaFalse(7L)).thenReturn(Optional.of(baja));
+        when(plantillaRepository.existsByNombreIgnoreCaseAndActivaTrue("Circuito")).thenReturn(true);
+
+        ConflictoException e = assertThrows(ConflictoException.class, () -> plantillaService.reactivarPlantilla(7L));
+
+        assertEquals("Ya existe una plantilla activa con ese nombre", e.getMessage());
+        assertFalse(baja.isActiva());
+        verify(plantillaRepository, never()).save(any());
+    }
+
+    @Test
+    void reactivar_una_plantilla_activa_o_inexistente_da_404() {
+        when(plantillaRepository.findByIdAndActivaFalse(99L)).thenReturn(Optional.empty());
+
+        assertThrows(RecursoNoEncontradoException.class, () -> plantillaService.reactivarPlantilla(99L));
+    }
 }

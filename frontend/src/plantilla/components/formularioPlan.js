@@ -45,32 +45,53 @@ export const DESCANSO = /^\d{0,2}([.,]\d{0,2})?$/;
  * sujeto: 'la plantilla' o 'el plan', para los mensajes.
  */
 export function validarFormulario(form, sujeto = 'la plantilla') {
+  const datos = errorDeDatos(form, sujeto);
+  if (datos) return datos;
+  for (const [i, sesion] of form.sesiones.entries()) {
+    const error = errorDeSesion(sesion, i + 1);
+    if (error) return error;
+  }
+  return null;
+}
+
+/**
+ * La sesión del primer error del formulario (su clave), para abrirla y llevar la pantalla hasta ella. Null si el error
+ * está en el nombre, el nivel o el objetivo, o si no hay errores.
+ */
+export function sesionConError(form, sujeto = 'la plantilla') {
+  if (errorDeDatos(form, sujeto)) return null;
+  return form.sesiones.find((sesion, i) => errorDeSesion(sesion, i + 1))?.clave ?? null;
+}
+
+function errorDeDatos(form, sujeto) {
   if (!form.nombre.trim()) return `El nombre de ${sujeto} es obligatorio.`;
   if (!form.nivel) return `Elegí el nivel de ${sujeto}.`;
   if (!form.objetivo) return `Elegí el objetivo de ${sujeto}.`;
   if (form.sesiones.length === 0) return `${mayuscula(sujeto)} tiene que tener al menos una sesión.`;
-  for (const [i, sesion] of form.sesiones.entries()) {
-    const nSesion = `Sesión ${i + 1}`;
-    if (sesion.ejercicios.length === 0) return `${nSesion}: agregá al menos un ejercicio.`;
-    for (const [j, e] of sesion.ejercicios.entries()) {
-      const donde = `${nSesion}, ejercicio ${j + 1}`;
-      if (!e.ejercicioId) return `${donde}: elegí un ejercicio del catálogo.`;
-      const series = Number(e.series);
-      if (!esEntero(e.series) || series < 1 || series > LIMITES.seriesMax) return `${donde}: las series tienen que ser un número entero entre 1 y ${LIMITES.seriesMax}.`;
-      const reps = parsearRepeticiones(e.repeticiones);
-      if (!reps) return `${donde}: las repeticiones objetivo tienen que ser un número entero (ej. 8) o un rango (ej. 8-10).`;
-      if (reps.min < 1 || reps.min > LIMITES.repeticionesMax || reps.max > LIMITES.repeticionesMax) return `${donde}: las repeticiones objetivo tienen que estar entre 1 y ${LIMITES.repeticionesMax}.`;
-      if (reps.max != null && reps.min > reps.max) return `${donde}: en el rango de repeticiones, el mínimo no puede ser mayor al máximo.`;
-      if (e.descanso.trim()) {
-        const descanso = Number(e.descanso.replace(',', '.'));
-        if (!(descanso > 0) || descanso > LIMITES.descansoMax) return `${donde}: el descanso sugerido tiene que ser mayor a 0 y hasta ${LIMITES.descansoMax} minutos.`;
-      }
-      if (e.peso.trim()) {
-        const peso = Number(e.peso.replace(',', '.'));
-        if (!(peso > 0) || peso > LIMITES.pesoMax) return `${donde}: el peso sugerido tiene que ser mayor a 0 y hasta ${LIMITES.pesoMax} kg.`;
-      }
-      if (e.rir.trim() && (!esEntero(e.rir) || Number(e.rir) > LIMITES.rirMax)) return `${donde}: el RIR objetivo tiene que ser un número entero entre 0 y ${LIMITES.rirMax}.`;
+  return null;
+}
+
+function errorDeSesion(sesion, numero) {
+  const nSesion = `Sesión ${numero}`;
+  if (sesion.ejercicios.length === 0) return `${nSesion}: agregá al menos un ejercicio.`;
+  for (const [j, e] of sesion.ejercicios.entries()) {
+    const donde = `${nSesion}, ejercicio ${j + 1}`;
+    if (!e.ejercicioId) return `${donde}: elegí un ejercicio del catálogo.`;
+    const series = Number(e.series);
+    if (!esEntero(e.series) || series < 1 || series > LIMITES.seriesMax) return `${donde}: las series tienen que ser un número entero entre 1 y ${LIMITES.seriesMax}.`;
+    const reps = parsearRepeticiones(e.repeticiones);
+    if (!reps) return `${donde}: las repeticiones objetivo tienen que ser un número entero (ej. 8) o un rango (ej. 8-10).`;
+    if (reps.min < 1 || reps.min > LIMITES.repeticionesMax || reps.max > LIMITES.repeticionesMax) return `${donde}: las repeticiones objetivo tienen que estar entre 1 y ${LIMITES.repeticionesMax}.`;
+    if (reps.max != null && reps.min > reps.max) return `${donde}: en el rango de repeticiones, el mínimo no puede ser mayor al máximo.`;
+    if (e.descanso.trim()) {
+      const descanso = Number(e.descanso.replace(',', '.'));
+      if (!(descanso > 0) || descanso > LIMITES.descansoMax) return `${donde}: el descanso sugerido tiene que ser mayor a 0 y hasta ${LIMITES.descansoMax} minutos.`;
     }
+    if (e.peso.trim()) {
+      const peso = Number(e.peso.replace(',', '.'));
+      if (!(peso > 0) || peso > LIMITES.pesoMax) return `${donde}: el peso sugerido tiene que ser mayor a 0 y hasta ${LIMITES.pesoMax} kg.`;
+    }
+    if (e.rir.trim() && (!esEntero(e.rir) || Number(e.rir) > LIMITES.rirMax)) return `${donde}: el RIR objetivo tiene que ser un número entero entre 0 y ${LIMITES.rirMax}.`;
   }
   return null;
 }

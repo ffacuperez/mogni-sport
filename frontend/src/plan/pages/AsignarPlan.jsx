@@ -10,7 +10,7 @@ import {
   cantidadEjercicios, listarPlantillas, textoNivel, textoObjetivo, tonoNivel,
 } from '../../plantilla/services/plantillasService';
 import { DatosPlan, EditorSesiones } from '../../plantilla/components/EditorPlan';
-import { formularioVacio, validarFormulario } from '../../plantilla/components/formularioPlan';
+import { formularioVacio, sesionConError, validarFormulario } from '../../plantilla/components/formularioPlan';
 import {
   asignarDesdeCero, asignarDesdePlantilla, fechaFinPorSemanas, hoyIso, obtenerPlanActivo, textoFecha, validarSemanas,
 } from '../services/planesService';
@@ -128,6 +128,8 @@ export default function AsignarPlan({ plantillaInicialId, alumnoInicialId, onCan
   const [errorSemanas, setErrorSemanas] = useState(null);
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  // La sesión con el error de validación, para desplegarla y llevar la pantalla hasta ella
+  const [irASesion, setIrASesion] = useState(null);
 
   useEffect(() => {
     Promise.all([listarAlumnos({ activo: true }), listarPlantillas(), listarEjercicios()])
@@ -176,7 +178,11 @@ export default function AsignarPlan({ plantillaInicialId, alumnoInicialId, onCan
     if (origen === 'plantilla' && !plantilla) return onToast('Elegí la plantilla que le vas a asignar.', true);
     if (origen === 'cero') {
       const mensaje = validarFormulario(form, 'el plan');
-      if (mensaje) return onToast(mensaje, true);
+      if (mensaje) {
+        const clave = sesionConError(form, 'el plan');
+        if (clave) setIrASesion({ clave, vez: Date.now() });
+        return onToast(mensaje, true);
+      }
     }
     const mensajeSemanas = validarSemanas(semanas);
     setErrorSemanas(mensajeSemanas);
@@ -288,7 +294,7 @@ export default function AsignarPlan({ plantillaInicialId, alumnoInicialId, onCan
               <DatosPlan form={form} setForm={setForm} idPrefijo="plan" placeholderNombre="Ej. Plan de fuerza de Juan" />
               <div className="mt-8 border-t border-line pt-6">
                 <EditorSesiones form={form} setForm={setForm} catalogo={datos.catalogo}
-                  idsPermitidosInactivos={SIN_IDS_INACTIVOS} sujeto="el plan" />
+                  idsPermitidosInactivos={SIN_IDS_INACTIVOS} sujeto="el plan" irASesion={irASesion} />
               </div>
               <p className="mt-4 flex items-start gap-1.5 text-xs text-ink-soft">
                 <Info className="mt-px h-3.5 w-3.5 shrink-0" />

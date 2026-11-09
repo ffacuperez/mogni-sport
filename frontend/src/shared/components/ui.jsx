@@ -99,10 +99,11 @@ export function FormActions({ onCancel, enviando = false }) {
   );
 }
 
-export function Field({ label, htmlFor, className, children }) {
+/** labelClassName: opcional, para destacar una etiqueta; reemplaza el tamaño, el peso y el color por defecto. */
+export function Field({ label, htmlFor, className, labelClassName, children }) {
   return (
     <div className={className}>
-      <label htmlFor={htmlFor} className={labelClass}>{label}</label>
+      <label htmlFor={htmlFor} className={labelClassName ? cx('mb-1.5 block', labelClassName) : labelClass}>{label}</label>
       {children}
     </div>
   );

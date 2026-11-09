@@ -6,7 +6,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -16,7 +15,6 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-@AllArgsConstructor
 public class Membresia {
 
     @Id
@@ -34,4 +32,17 @@ public class Membresia {
 
     @Column(columnDefinition = "TEXT")
     private String descripcion;
+
+    @Column(nullable = true)
+    private Boolean activa = true;
+
+    // Constructor compatible con pruebas anteriores de 5 argumentos
+    public Membresia(Long id, String nombre, double precioActual, int frecuenciaSemanal, String descripcion) {
+        this.id = id;
+        this.nombre = nombre;
+        this.precioActual = precioActual;
+        this.frecuenciaSemanal = frecuenciaSemanal;
+        this.descripcion = descripcion;
+        this.activa = true;
+    }
 }

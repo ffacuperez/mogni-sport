@@ -69,6 +69,7 @@ public class MembresiaService {
     public void eliminarMembresia(Long id) {
         Membresia membresia = buscarMembresiaOLanzarError(id);
 
+        // 1. Si tiene inscripciones ACTIVA o PROGRAMADA, se bloquea porque hay alumnos cursando o pagos adelantados.
         if (inscripcionRepository.existsByMembresiaIdAndEstado(id, EstadoInscripcion.ACTIVA)) {
             throw new RegistroInvalidoException(
                 "No se puede eliminar la membresía porque tiene alumnos con inscripciones activas");
@@ -79,15 +80,12 @@ public class MembresiaService {
                 "No se puede eliminar la membresía porque tiene alumnos que ya la pagaron para el mes siguiente");
         }
 
-        // Las inscripciones vencidas o canceladas son historial: no se borran, así que la membresía tampoco
-        if (inscripcionRepository.existsByMembresiaId(id)) {
-            throw new RegistroInvalidoException(
-                "No se puede eliminar la membresía porque tiene historial de inscripciones (vencidas o canceladas)");
-        }
-
-        membresiaRepository.delete(membresia);
+        // 2. BAJA LÓGICA: Si solo tiene historial (alumnos inactivos, vencidos o cancelados), 
+        // en lugar de prohibirlo o borrarlo físicamente, pasamos 'activa' a false.
+        membresia.setActiva(false);
+        membresiaRepository.save(membresia);
     }
-
+    
     private void aplicarDatos(Membresia membresia, MembresiaRequest request, String nombre) {
         membresia.setNombre(nombre);
         membresia.setPrecioActual(request.getPrecioActual());

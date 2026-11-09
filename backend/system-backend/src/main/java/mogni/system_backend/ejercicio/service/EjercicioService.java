@@ -94,7 +94,6 @@ public class EjercicioService {
     private void aplicarDatos(Ejercicio ejercicio, EjercicioRequest request, String nombre) {
         ejercicio.setNombre(nombre);
         ejercicio.setGrupoMuscular(request.getGrupoMuscular());
-        ejercicio.setDescripcion(request.getDescripcion());
         if (request.getActivo() != null) {
             ejercicio.setActivo(request.getActivo());
         }
@@ -110,7 +109,6 @@ public class EjercicioService {
             ejercicio.getId(),
             ejercicio.getNombre(),
             ejercicio.getGrupoMuscular(),
-            ejercicio.getDescripcion(),
             ejercicio.isActivo()
         );
     }

@@ -42,8 +42,7 @@ function GrupoMuscular({ grupo, ejercicios, abierto, onToggle, selectedIds, onTo
               <thead className="border-b border-line bg-row-hover">
                 <tr>
                   <th scope="col" className="h-10 w-12 px-3"><span className="sr-only">Selección</span></th>
-                  <th scope="col" className="h-10 w-[28%] px-3 text-xs font-medium text-ink-soft">Nombre</th>
-                  <th scope="col" className="h-10 px-3 text-xs font-medium text-ink-soft">Descripción</th>
+                  <th scope="col" className="h-10 px-3 text-xs font-medium text-ink-soft">Nombre</th>
                   <th scope="col" className="h-10 w-32 px-4.5 text-xs font-medium text-ink-soft">Estado</th>
                 </tr>
               </thead>
@@ -55,7 +54,6 @@ function GrupoMuscular({ grupo, ejercicios, abierto, onToggle, selectedIds, onTo
                     <Row key={ej.id} selected={seleccionado} onActivate={() => onToggleSeleccion(ej.id)}>
                       <td className="px-3"><SelectDot selected={seleccionado} /></td>
                       <td className={cx('px-3 py-3 font-semibold', activo ? 'text-ink' : 'text-ink-muted')}>{ej.nombre}</td>
-                      <td className={cx('px-3 py-3', activo ? 'text-ink-soft' : 'text-ink-muted')}>{ej.descripcion || '—'}</td>
                       <td className="px-4.5 py-3">
                         <Badge tone={activo ? 'success' : 'neutral'}>{activo ? 'Activo' : 'Inactivo'}</Badge>
                       </td>

@@ -10,7 +10,6 @@ export default function EjercicioForm({
 }) {
   const [nombre, setNombre] = useState(initialData.nombre || '');
   const [grupoMuscular, setGrupoMuscular] = useState(initialData.grupoMuscular || 'Piernas');
-  const [descripcion, setDescripcion] = useState(initialData.descripcion || '');
 
   // Validación en tiempo real (solo letras, acentos, ñ y espacios)
   const handleNombreChange = (e) => {
@@ -35,8 +34,7 @@ export default function EjercicioForm({
     const ejercicioData = {
       ...initialData,
       nombre: nombreLimpio,
-      grupoMuscular,
-      descripcion
+      grupoMuscular
     };
 
     // Resuelve automáticamente según cuál prop le pasaste desde App.jsx
@@ -88,19 +86,6 @@ export default function EjercicioForm({
             <option value="Core">Core</option>
             <option value="Glúteos">Glúteos</option>
           </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Descripción (opcional)
-          </label>
-          <textarea
-            value={descripcion}
-            onChange={(e) => setDescripcion(e.target.value)}
-            placeholder="Detalles de la técnica o ejecución..."
-            rows="3"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-          />
         </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">

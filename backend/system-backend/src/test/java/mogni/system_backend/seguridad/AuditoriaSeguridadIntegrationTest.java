@@ -565,7 +565,7 @@ class AuditoriaSeguridadIntegrationTest {
         assertEquals(400, ejecutar(post("/membresias"), propietario,
                 "{\"nombre\":\"" + largo + "\",\"precioActual\":10,\"frecuenciaSemanal\":3}").status());
         assertEquals(400, ejecutar(post("/ejercicios"), propietario,
-                "{\"nombre\":\"Press\",\"grupoMuscular\":\"Pecho\",\"descripcion\":\"" + largo + "\",\"activo\":true}").status());
+                "{\"nombre\":\"" + largo + "\",\"grupoMuscular\":\"Pecho\",\"activo\":true}").status());
     }
 
     /** Contra el servidor HTTP real (embebido): MockMvc no pasa por la página de error de Spring Boot. */

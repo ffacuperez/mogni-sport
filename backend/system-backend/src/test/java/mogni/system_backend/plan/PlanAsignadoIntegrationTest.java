@@ -134,7 +134,7 @@ class PlanAsignadoIntegrationTest {
 
     private Long ejercicio(boolean activo) {
         int n = SECUENCIA.incrementAndGet();
-        return ejercicioRepository.save(new Ejercicio(null, "Ejercicio " + n, "Pecho", null, activo)).getId();
+        return ejercicioRepository.save(new Ejercicio(null, "Ejercicio " + n, "Pecho", activo)).getId();
     }
 
     private static Map<String, Object> ejercicioDeSesion(Long id, int series, int repeticiones, Integer repeticionesMax,

@@ -62,10 +62,10 @@ class PlantillaServiceTest {
     private PlantillaService plantillaService;
 
     private final Map<Long, Ejercicio> catalogo = Map.of(
-            1L, new Ejercicio(1L, "Press de banca con barra", "Pecho", null, true),
-            2L, new Ejercicio(2L, "Remo con mancuerna", "Espalda", null, true),
-            3L, new Ejercicio(3L, "Sentadilla", "Piernas", null, true),
-            9L, new Ejercicio(9L, "Peso muerto rumano", "Piernas", null, false));
+            1L, new Ejercicio(1L, "Press de banca con barra", "Pecho", true),
+            2L, new Ejercicio(2L, "Remo con mancuerna", "Espalda", true),
+            3L, new Ejercicio(3L, "Sentadilla", "Piernas", true),
+            9L, new Ejercicio(9L, "Peso muerto rumano", "Piernas", false));
 
     @BeforeEach
     void setUp() {

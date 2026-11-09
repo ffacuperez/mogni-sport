@@ -38,8 +38,9 @@ const VALORES = {
   reactivacion: (a) => (a.reactivacionRequierePago ? 1 : 0),
 };
 
-// "Sin plan" va siempre arriba en estas columnas; los demás datos vacíos, siempre al final
-const VACIOS_ARRIBA = ['plan', 'semana'];
+// En estas columnas "Sin plan" cuenta como el valor más chico: primero en ascendente y último en descendente. Hay
+// alumnos que entrenan sin plan, así que no es un dato faltante. Los demás datos vacíos van siempre al final.
+const VACIOS_MENORES = ['plan', 'semana'];
 
 const comparar = (a, b) => (typeof a === 'number' ? a - b : String(a).localeCompare(String(b), 'es'));
 
@@ -61,8 +62,8 @@ export function filtrarAlumnos(alumnos, { pestana, busqueda, filtro }) {
 export function ordenarAlumnos(alumnos, orden) {
   if (!orden) return alumnos;
   const valor = VALORES[orden.columna];
-  const posicionVacio = VACIOS_ARRIBA.includes(orden.columna) ? -1 : 1;
   const sentido = orden.direccion === 'asc' ? 1 : -1;
+  const posicionVacio = VACIOS_MENORES.includes(orden.columna) ? -sentido : 1;
   return [...alumnos].sort((x, y) => {
     const a = valor(x);
     const b = valor(y);

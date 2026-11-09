@@ -95,6 +95,17 @@ export async function listarPlantillas() {
   return data.map(fromApi);
 }
 
+/** Plantillas inactivas, para poder reactivarlas. */
+export async function listarPlantillasInactivas() {
+  const data = await request(`${BASE_PATH}/inactivas`);
+  return data.map(fromApi);
+}
+
+/** Vuelve a activar una plantilla; el backend responde 409 si ya hay una activa con el mismo nombre. */
+export async function reactivarPlantilla(id) {
+  return fromApi(await request(`${BASE_PATH}/${id}/reactivar`, { method: 'PUT' }));
+}
+
 export async function obtenerPlantilla(id) {
   return fromApi(await request(`${BASE_PATH}/${id}`));
 }

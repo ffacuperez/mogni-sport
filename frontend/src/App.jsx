@@ -476,13 +476,15 @@ function MainApp({ onLogout }) {
 
   const rol = getRol();
   const navItems = [
-    ...(puedeVerAgenda ? [{ to: '/agenda', label: 'Agenda', icon: Calendar }] : []),
     { to: '/alumnos', label: 'Alumnos', icon: Users, onClick: () => setSelectedAlumnoId(null) },
-    { to: '/membresias', label: 'Membresías', icon: CreditCard, onClick: () => setSelectedMembresiaId(null) },
-    { to: '/ejercicios', label: 'Ejercicios', icon: Dumbbell, onClick: () => setSelectedEjercicioIds([]) },
     ...(puedeVerPlanes ? [{ to: '/planes', label: 'Planes', icon: ClipboardList }] : []),
+    // Agenda y Horarios van juntas: las dos son de turnos
+    ...(puedeVerAgenda ? [{ to: '/agenda', label: 'Agenda', icon: Calendar }] : []),
     // Franjas horarias y cupo (HU-252): solo el propietario
     ...(esPropietario ? [{ to: '/horarios', label: 'Horarios', icon: Clock }] : []),
+    // De acá para abajo, las secciones de configuración
+    { to: '/membresias', label: 'Membresías', icon: CreditCard, onClick: () => setSelectedMembresiaId(null) },
+    { to: '/ejercicios', label: 'Ejercicios', icon: Dumbbell, onClick: () => setSelectedEjercicioIds([]) },
     // MOGNI-263: datos de la cuenta y cambio de contraseña (todo el personal)
     { to: '/cuenta', label: 'Mi cuenta', icon: UserCog },
   ];

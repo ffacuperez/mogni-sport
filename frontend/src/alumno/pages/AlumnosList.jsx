@@ -67,8 +67,8 @@ function CeldasActivo({ alumno }) {
           </span>
         )}
       </td>
-      <td className="px-3 text-center tabular-nums">{formatearFecha(cuota?.vencimiento)}</td>
       <td className="px-3 text-center tabular-nums">{cuota?.precio != null ? formatearMonto(cuota.precio) : '—'}</td>
+      <td className="px-3 text-center tabular-nums">{formatearFecha(cuota?.vencimiento)}</td>
       <td className="px-3 py-2 text-center">
         <Badge tone={tonoEstadoCuota(cuota?.estado)}>{cuota?.estado ?? 'Sin cuotas'}</Badge>
         {aviso && <span className="mt-1 block text-xs text-error">{aviso}</span>}

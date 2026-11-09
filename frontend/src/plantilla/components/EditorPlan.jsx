@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ChevronDown, Plus, Trash2, X } from 'lucide-react';
 
 import { Button, Field } from '../../shared/components/ui';
 import { cx, FOCUS, inputClass } from '../../shared/components/clases';
@@ -11,6 +11,10 @@ import { DESCANSO, ejercicioVacio, mayuscula, PESO, sesionVacia } from './formul
 // El estado y la validación están en formularioPlan.js; plantillasService.formularioAApi lo pasa al backend.
 
 const plural = (n, singular, varios) => `${n} ${n === 1 ? singular : varios}`;
+
+// Etiquetas principales de cada bloque de la sesión (su nombre y cada ejercicio) y la línea que separa esos bloques
+const ETIQUETA_DESTACADA = 'text-sm font-bold text-ink';
+const SEPARADOR = 'border-b-2 border-ink-muted/50';
 
 /** Selector de ejercicio agrupado por grupo muscular. Los dados de baja solo aparecen si ya estaban elegidos. */
 function SelectorEjercicio({ id, value, onChange, catalogo, idsPermitidosInactivos }) {
@@ -38,19 +42,35 @@ function SelectorEjercicio({ id, value, onChange, catalogo, idsPermitidosInactiv
   );
 }
 
-function TarjetaSesion({ sesion, numero, puedeQuitar, sujeto, catalogo, idsPermitidosInactivos, onCambiar, onQuitar }) {
+/**
+ * Una sesión del editor. Se despliega o se contrae desde su encabezado: contraída muestra solo el número, el nombre y
+ * la cantidad de ejercicios, así una plantilla larga no obliga a scrollear por todas las sesiones.
+ */
+function TarjetaSesion({ sesion, numero, abierta, onAlternar, puedeQuitar, sujeto, catalogo, idsPermitidosInactivos, onCambiar, onQuitar }) {
   const cambiarEjercicio = (clave, campo, valor) =>
     onCambiar({ ...sesion, ejercicios: sesion.ejercicios.map(e => (e.clave === clave ? { ...e, [campo]: valor } : e)) });
   const quitarEjercicio = (clave) => onCambiar({ ...sesion, ejercicios: sesion.ejercicios.filter(e => e.clave !== clave) });
   const agregarEjercicio = () => onCambiar({ ...sesion, ejercicios: [...sesion.ejercicios, ejercicioVacio()] });
 
   const pref = `sesion-${sesion.clave}`;
+  const nombre = sesion.nombre.trim();
   return (
-    <section className="rounded-lg bg-row-hover p-4 sm:p-5" aria-label={`Sesión ${numero}`}>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-sm font-bold text-ink">
-          Sesión {numero} <span className="ml-1.5 text-xs font-normal text-ink-soft">{plural(sesion.ejercicios.length, 'ejercicio', 'ejercicios')}</span>
-        </p>
+    <section id={pref} className="scroll-mt-20 rounded-lg bg-row-hover p-4 sm:p-5" aria-label={`Sesión ${numero}`}>
+      <div className={cx('flex items-center justify-between gap-3', abierta && 'mb-3')}>
+        <button
+          type="button"
+          onClick={onAlternar}
+          aria-expanded={abierta}
+          aria-controls={`${pref}-contenido`}
+          className={cx('-m-1 flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md p-1 text-left', FOCUS)}
+        >
+          <ChevronDown aria-hidden="true" className={cx('h-4 w-4 shrink-0 text-ink-soft transition-transform', !abierta && '-rotate-90')} />
+          <span className="min-w-0 text-base font-bold text-ink">
+            Sesión {numero}
+            {nombre && <span className="font-semibold"> · {nombre}</span>}
+            <span className="ml-1.5 whitespace-nowrap text-xs font-normal text-ink-soft">{plural(sesion.ejercicios.length, 'ejercicio', 'ejercicios')}</span>
+          </span>
+        </button>
         <button
           type="button"
           onClick={onQuitar}
@@ -62,18 +82,22 @@ function TarjetaSesion({ sesion, numero, puedeQuitar, sujeto, catalogo, idsPermi
         </button>
       </div>
 
-      <Field label="Nombre de la sesión (opcional)" htmlFor={`${pref}-nombre`} className="mb-4">
+      <div id={`${pref}-contenido`} hidden={!abierta}>
+      {/* Dato de toda la sesión: la línea lo separa del primer ejercicio, igual que entre ejercicios */}
+      <Field label="Nombre de la sesión (opcional)" htmlFor={`${pref}-nombre`} labelClassName={ETIQUETA_DESTACADA}
+        className={cx('mb-4 pb-4', SEPARADOR)}>
         <input id={`${pref}-nombre`} type="text" value={sesion.nombre} maxLength={LIMITES.nombreSesionMax}
           onChange={(ev) => onCambiar({ ...sesion, nombre: ev.target.value })}
           placeholder="Ej. Full body A" className={cx(inputClass, 'bg-card')} />
       </Field>
 
-      <ul className="divide-y divide-line">
+      <ul className="divide-y-2 divide-ink-muted/50">
+        {/* El número coincide con el de los mensajes de error ("Sesión 2, ejercicio 3: ...") */}
         {sesion.ejercicios.map((e, j) => {
           const idE = `${pref}-ej-${e.clave}`;
           return (
             <li key={e.clave} className="py-4 first:pt-0">
-              <Field label="Ejercicio del catálogo" htmlFor={`${idE}-ejercicio`}>
+              <Field label={`${j + 1}. Ejercicio del catálogo`} htmlFor={`${idE}-ejercicio`} labelClassName={ETIQUETA_DESTACADA}>
                 <div className="flex items-center gap-2">
                   <SelectorEjercicio id={`${idE}-ejercicio`} value={e.ejercicioId} catalogo={catalogo}
                     idsPermitidosInactivos={idsPermitidosInactivos}
@@ -129,6 +153,7 @@ function TarjetaSesion({ sesion, numero, puedeQuitar, sujeto, catalogo, idsPermi
         className={cx('mt-1 flex cursor-pointer items-center gap-1 rounded-md px-1 py-1 text-xs font-semibold text-primary hover:underline', FOCUS)}>
         <Plus className="h-3.5 w-3.5" /> Agregar ejercicio
       </button>
+      </div>
     </section>
   );
 }
@@ -162,20 +187,67 @@ export function DatosPlan({ form, setForm, idPrefijo = 'plantilla', ayudaNombre,
   );
 }
 
-/** Sesiones con sus ejercicios: agregar, quitar y completar cada una. */
-export function EditorSesiones({ form, setForm, catalogo, idsPermitidosInactivos, sujeto = 'la plantilla' }) {
+/**
+ * Sesiones con sus ejercicios: agregar, quitar y completar cada una. Al abrir el formulario, una sola sesión aparece
+ * desplegada y varias (por ejemplo, al modificar) aparecen contraídas. Una sesión nueva se despliega y contrae las demás.
+ * irASesion ({ clave, vez }): la sesión con el error de validación; se despliega y la pantalla se mueve hasta ella. vez
+ * cambia en cada intento, así vuelve a llevar hasta ahí aunque el error sea en la misma sesión.
+ */
+export function EditorSesiones({ form, setForm, catalogo, idsPermitidosInactivos, sujeto = 'la plantilla', irASesion }) {
+  const [abiertas, setAbiertas] = useState(() => new Set(form.sesiones.length === 1 ? [form.sesiones[0].clave] : []));
+  // La sesión del error queda desplegada hasta que el usuario la cierra (o contrae todas, o agrega otra sesión)
+  const [pedidoCerrado, setPedidoCerrado] = useState(null);
+  const forzada = irASesion && pedidoCerrado !== irASesion.vez ? irASesion.clave : null;
+  const estaAbierta = (clave) => abiertas.has(clave) || clave === forzada;
+  const soltarForzada = () => irASesion && setPedidoCerrado(irASesion.vez);
+
+  // El efecto corre cuando la sesión ya está desplegada en pantalla, así el desplazamiento usa su alto real
+  useEffect(() => {
+    if (!irASesion) return;
+    document.getElementById(`sesion-${irASesion.clave}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [irASesion]);
   const totalEjercicios = form.sesiones.reduce((total, s) => total + s.ejercicios.length, 0);
   const cambiarSesion = (clave, sesion) => setForm(prev => ({ ...prev, sesiones: prev.sesiones.map(s => (s.clave === clave ? sesion : s)) }));
   const quitarSesion = (clave) => setForm(prev => ({ ...prev, sesiones: prev.sesiones.filter(s => s.clave !== clave) }));
-  const agregarSesion = () => setForm(prev => ({ ...prev, sesiones: [...prev.sesiones, sesionVacia()] }));
+  const agregarSesion = () => {
+    const nueva = sesionVacia();
+    setForm(prev => ({ ...prev, sesiones: [...prev.sesiones, nueva] }));
+    setAbiertas(new Set([nueva.clave]));
+    soltarForzada();
+  };
+  const alternar = (clave) => {
+    if (estaAbierta(clave)) {
+      setAbiertas(prev => { const siguiente = new Set(prev); siguiente.delete(clave); return siguiente; });
+      if (clave === forzada) soltarForzada();
+    } else {
+      setAbiertas(prev => new Set(prev).add(clave));
+    }
+  };
+  const todasAbiertas = form.sesiones.every(s => estaAbierta(s.clave));
+  const desplegarOContraerTodas = () => {
+    if (todasAbiertas) {
+      setAbiertas(new Set());
+      soltarForzada();
+    } else {
+      setAbiertas(new Set(form.sesiones.map(s => s.clave)));
+    }
+  };
+  const botonTexto = cx('cursor-pointer rounded px-1 text-xs font-semibold text-primary hover:underline', FOCUS);
 
   return (
     <>
       <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-base font-semibold text-ink">Sesiones</h2>
-        <p className="text-xs tabular-nums text-ink-soft">
-          {plural(form.sesiones.length, 'sesión', 'sesiones')} · {plural(totalEjercicios, 'ejercicio', 'ejercicios')}
-        </p>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <p className="text-xs tabular-nums text-ink-soft">
+            {plural(form.sesiones.length, 'sesión', 'sesiones')} · {plural(totalEjercicios, 'ejercicio', 'ejercicios')}
+          </p>
+          {form.sesiones.length > 1 && (
+            <button type="button" className={botonTexto} onClick={desplegarOContraerTodas}>
+              {todasAbiertas ? 'Contraer todas' : 'Desplegar todas'}
+            </button>
+          )}
+        </div>
       </div>
       <p className="mb-4 text-xs text-ink-soft">Agregá al menos una sesión con ejercicios. Las repeticiones pueden ser un número fijo o un rango (ej. 8-10). El descanso, el peso y el RIR son opcionales.</p>
 
@@ -185,6 +257,8 @@ export function EditorSesiones({ form, setForm, catalogo, idsPermitidosInactivos
             key={sesion.clave}
             sesion={sesion}
             numero={i + 1}
+            abierta={estaAbierta(sesion.clave)}
+            onAlternar={() => alternar(sesion.clave)}
             puedeQuitar={form.sesiones.length > 1}
             sujeto={sujeto}
             catalogo={catalogo}

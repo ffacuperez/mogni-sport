@@ -28,7 +28,7 @@ import mogni.system_backend.plantilla.repository.PlantillaPlanRepository;
 
 /**
  * HU-265: alta, consulta, modificación, baja lógica y duplicado de plantillas de plan de entrenamiento.
- * Solo se trabaja con plantillas activas: una dada de baja no se lista, no se modifica y libera su nombre.
+ * Solo se trabaja con plantillas activas: una inactiva no se lista, no se modifica y libera su nombre.
  */
 @Service
 public class PlantillaService {
@@ -95,6 +95,27 @@ public class PlantillaService {
         }
         plantilla.setActiva(false);
         plantillaRepository.save(plantilla);
+    }
+
+    /** Plantillas inactivas, de la modificada más recientemente a la más antigua. */
+    @Transactional(readOnly = true)
+    public List<PlantillaResponse> listarInactivas() {
+        return plantillaRepository.findByActivaFalseOrderByFechaActualizacionDesc().stream()
+                .map(this::mapearAResponse)
+                .toList();
+    }
+
+    /** Vuelve a activar una plantilla inactiva. Falla si otra plantilla activa ya usa su nombre. */
+    @Transactional
+    public PlantillaResponse reactivarPlantilla(Long id) {
+        PlantillaPlan plantilla = plantillaRepository.findByIdAndActivaFalse(id)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No existe una plantilla inactiva con id " + id));
+        if (plantillaRepository.existsByNombreIgnoreCaseAndActivaTrue(plantilla.getNombre())) {
+            throw new ConflictoException("Ya existe una plantilla activa con ese nombre");
+        }
+        plantilla.setActiva(true);
+        plantilla.setFechaActualizacion(ZonaHoraria.ahora());
+        return mapearAResponse(guardarConNombreUnico(plantilla));
     }
 
     /** Crea una copia independiente ("Nombre (copia)") con sus propias sesiones y ejercicios. */

@@ -7,7 +7,7 @@ import lombok.Getter;
 import mogni.system_backend.cuota.entity.SituacionPago;
 
 /**
- * MOGNI-257: situación de pago del alumno según su última cuota (la misma que la pantalla de Cuotas, MOGNI-46). El
+ * MOGNI-257: situación de pago del alumno según su última cuota (la misma que el listado de alumnos, MOGNI-46). El
  * frontend la muestra con estadoVisible de cuotasService.
  */
 @Getter

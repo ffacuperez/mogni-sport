@@ -25,6 +25,8 @@ const TAMANIOS = {
   sm: 'px-3 py-1.5 text-xs',
   md: 'px-5 py-2.5 text-sm',
   lg: 'px-6 py-3 text-sm',
+  // Barra de acciones de pantallas chicas: ícono arriba y texto abajo
+  barra: 'min-h-14 flex-col px-1 py-1.5 text-center text-xs leading-tight',
 };
 
 export function Button({ variant = 'secondary', size = 'md', className, type = 'button', ...props }) {
@@ -57,7 +59,7 @@ export function Logo({ size = 'md', onDark = false, className }) {
       />
       <span className="leading-none">
         <span className={cx('block font-extrabold tracking-tight', onDark ? 'text-on-dark' : 'text-ink', grande ? 'text-2xl' : 'text-base')}>MOGNI</span>
-        <span className={cx('block font-semibold tracking-[0.3em] text-primary', onDark && 'text-primary-light', grande ? 'mt-1 text-xs' : 'mt-0.5 text-[10px]')}>SPORT</span>
+        <span className={cx('block font-semibold tracking-[0.3em] text-primary', onDark && 'text-primary-light', grande ? 'mt-1 text-xs' : 'mt-0.5 text-[10px]')}>SYSTEM</span>
       </span>
     </div>
   );
@@ -149,25 +151,50 @@ export function Badge({ tone = 'neutral', className, children }) {
   );
 }
 
-/** Tarjeta de resumen (guía 5.7): ícono + número + etiqueta, card blanca sobre fondo gris. */
-export function Stat({ label, value, tone = 'neutral', icon: Icon }) {
-  const colorIcono = { neutral: 'bg-row-hover text-ink-soft', success: 'bg-success-bg text-success', warning: 'bg-warning-bg text-warning-text', alert: 'bg-alert-bg text-alert', error: 'bg-error-bg text-error', primary: 'bg-error-bg text-primary' }[tone];
+const TONOS_STAT_FILTRO = {
+  error: { icono: 'text-error', fondoIcono: 'bg-error-bg', activo: 'border-error bg-error-bg' },
+  alert: { icono: 'text-alert', fondoIcono: 'bg-alert-bg', activo: 'border-alert bg-alert-bg' },
+  warning: { icono: 'text-warning-text', fondoIcono: 'bg-warning-bg', activo: 'border-warning-text bg-warning-bg' },
+  success: { icono: 'text-success', fondoIcono: 'bg-success-bg', activo: 'border-success bg-success-bg' },
+};
+
+/**
+ * Tarjeta de resumen (guía 5.7) que además es un botón de filtro: ícono + número + etiqueta. Al tocarla se pinta y
+ * filtra; al tocarla de nuevo saca el filtro.
+ * compacto: para cuatro columnas angostas, sin ícono y con el número del color del tono.
+ */
+export function StatFiltro({ label, value, tone, icon: Icon, activo = false, compacto = false, onClick }) {
+  const tono = TONOS_STAT_FILTRO[tone];
+  const base = cx(
+    'min-w-0 cursor-pointer rounded-lg border-2 shadow-card transition-colors',
+    activo ? tono.activo : 'border-line bg-card hover:bg-row-hover',
+    FOCUS,
+  );
+  if (compacto) {
+    return (
+      <button type="button" onClick={onClick} aria-pressed={activo} className={cx(base, 'min-h-15 px-0.5 py-1.5 text-center')}>
+        <span className={cx('block text-xl font-bold tabular-nums', tono.icono)}>{value}</span>
+        <span className="block text-[11px] leading-tight text-ink-soft">{label}</span>
+      </button>
+    );
+  }
   return (
-    <Panel className="flex items-center gap-4 p-4">
-      {Icon && (
-        <span className={cx('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', colorIcono)}>
-          <Icon className="h-5 w-5" />
-        </span>
-      )}
-      <div className="min-w-0">
-        <p className="text-2xl font-bold tabular-nums text-ink">{value}</p>
-        <p className="text-xs text-ink-soft">{label}</p>
-      </div>
-    </Panel>
+    <button type="button" onClick={onClick} aria-pressed={activo} className={cx(base, 'flex items-center gap-4 p-4 text-left')}>
+      <span className={cx('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', tono.icono, activo ? 'bg-card' : tono.fondoIcono)}>
+        <Icon className="h-5 w-5" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-2xl font-bold tabular-nums text-ink">{value}</span>
+        <span className="block text-xs text-ink-soft">{label}</span>
+      </span>
+    </button>
   );
 }
 
-/** Tabla (guía 4.6). columns: [{ label, className }] */
+/**
+ * Tabla (guía 4.6). columns: [{ label, className }]. Opcionales: key, si label no es un texto único (por ejemplo, un
+ * botón para ordenar), y ariaSort, el orden de esa columna.
+ */
 export function Table({ columns, children, cargando = false }) {
   return (
     <div className="relative overflow-x-auto rounded-lg border border-line">
@@ -176,7 +203,7 @@ export function Table({ columns, children, cargando = false }) {
         <thead className="bg-thead">
           <tr>
             {columns.map((col, i) => (
-              <th key={col.label || i} scope="col" className={cx('h-12 px-3 text-[13px] font-semibold text-ink-soft', col.className)}>
+              <th key={col.key ?? (col.label || i)} scope="col" aria-sort={col.ariaSort} className={cx('h-12 px-3 text-[13px] font-semibold text-ink-soft', col.className)}>
                 {col.label}
               </th>
             ))}

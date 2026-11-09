@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { ChevronRight, History } from 'lucide-react';
 
 import { Badge, Cargando, Panel, Row, Table } from '../../shared/components/ui';
-import { textoNivel, textoObjetivo } from '../../plantilla/services/plantillasService';
+import { textoNivel, textoObjetivo, tonoNivel } from '../../plantilla/services/plantillasService';
 import BadgeEstadoPlan from '../components/BadgeEstadoPlan';
 import ErrorConsulta from '../components/ErrorConsulta';
 import { useProgreso } from '../services/ProgresoContext';
@@ -62,7 +62,7 @@ export default function HistorialPlanes() {
               title={activo ? 'Ver el plan actual' : 'Ver el detalle del plan'}
             >
               <td className="py-3 pl-4 pr-3 font-semibold">{tituloPlan(plan)}</td>
-              <td className="px-3">{plan.nivel && <Badge className="font-semibold">{textoNivel(plan.nivel)}</Badge>}</td>
+              <td className="px-3">{plan.nivel && <Badge tone={tonoNivel(plan.nivel)} className="font-semibold">{textoNivel(plan.nivel)}</Badge>}</td>
               <td className="max-w-56 truncate px-3">{plan.objetivo ? textoObjetivo(plan.objetivo) : '—'}</td>
               <td className="px-3 tabular-nums">{textoRangoPlan(plan)}</td>
               <td className="px-3">{textoSemanas(plan.cantidadSemanas)}</td>

@@ -53,7 +53,7 @@ class SecurityHttpRealTest {
 
     @Test
     void sinTokenResponde401() throws Exception {
-        assertEquals(401, status("GET", "/cuotas", null));
+        assertEquals(401, status("POST", "/pagos", null));
         assertEquals(401, status("GET", "/alumnos", null));
     }
 
@@ -61,7 +61,6 @@ class SecurityHttpRealTest {
     void rolSinPermisoResponde403YNo401() throws Exception {
         String entrenador = token("entrenador@mogni.com", "entrenador123");
 
-        assertEquals(403, status("GET", "/cuotas", entrenador));
         assertEquals(403, status("POST", "/pagos", entrenador));
         assertEquals(403, status("GET", "/alumnos/me", entrenador));
         assertEquals(403, status("GET", "/alumnos/1/pagos", entrenador));
@@ -73,7 +72,6 @@ class SecurityHttpRealTest {
     void propietarioAccedeACobranzas() throws Exception {
         String propietario = token("admin@mogni.com", "admin123");
 
-        assertEquals(200, status("GET", "/cuotas", propietario));
         // Pasa la seguridad; el cuerpo vacío lo rechaza la validación (no se registra ningún pago)
         assertEquals(400, status("POST", "/pagos", propietario));
     }

@@ -88,13 +88,13 @@ export default function AvisosCelular() {
           {estado === 'bloqueado' && (
             <>
               <h2 className="text-sm font-bold text-ink">Las notificaciones están bloqueadas</h2>
-              <p className="mt-0.5 text-xs text-ink-soft">Para recibir avisos, permití las notificaciones de Mogni Sport en la configuración del navegador o del celular.</p>
+              <p className="mt-0.5 text-xs text-ink-soft">Para recibir avisos, permití las notificaciones de Mogni System en la configuración del navegador o del celular.</p>
             </>
           )}
           {estado === 'instalar' && (
             <>
               <h2 className="text-sm font-bold text-ink">Instalá la app para recibir avisos</h2>
-              <p className="mt-0.5 text-xs text-ink-soft">En iPhone los avisos solo llegan si agregás Mogni Sport a tu pantalla de inicio.</p>
+              <p className="mt-0.5 text-xs text-ink-soft">En iPhone los avisos solo llegan si agregás Mogni System a tu pantalla de inicio.</p>
             </>
           )}
 

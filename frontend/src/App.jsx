@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
-import { Calendar, ClipboardList, Clock, CreditCard, Dumbbell, LogOut, UserCog, Users, Wallet } from 'lucide-react';
+import { Calendar, ClipboardList, Clock, CreditCard, Dumbbell, LogOut, UserCog, Users } from 'lucide-react';
 
 import Home from './home/pages/Home';
 import Login from './auth/pages/Login';
@@ -26,9 +26,7 @@ import PlantillaForm from './plantilla/pages/PlantillaForm';
 import AsignarPlan from './plan/pages/AsignarPlan';
 import PlanAsignadoDetalle from './plan/pages/PlanAsignadoDetalle';
 import PlanAsignadoForm from './plan/pages/PlanAsignadoForm';
-import CuotasList from './cuota/pages/CuotasList';
 import RegistrarPagoModal from './cuota/pages/RegistrarPagoModal';
-import HistorialPagosModal from './cuota/pages/HistorialPagosModal';
 import HorariosGimnasio from './turno/pages/HorariosGimnasio';
 import TurnosAlumno from './turno/pages/TurnosAlumno';
 import DetallePlanAnterior from './progreso/pages/DetallePlanAnterior';
@@ -71,8 +69,6 @@ import {
   formatearFecha,
   formatearMonto,
   labelMedioDePago,
-  listarCuotas,
-  obtenerHistorialDePagos,
   registrarPago,
 } from './cuota/services/cuotasService';
 
@@ -130,7 +126,7 @@ function PlanAsignadoFormRuta(props) {
 // --- MAIN APP COMPONENT ---
 function MainApp({ onLogout }) {
   const navigate = useNavigate();
-  // Cobranzas (HU-45) es solo del propietario; el backend también lo exige
+  // Registrar pagos y ver el historial (HU-45 y HU-48) es solo del propietario; el backend también lo exige
   const esPropietario = getRol() === 'PROPIETARIO';
   // Agenda de turnos (MOGNI-257): propietario y entrenador; el backend también lo exige
   const puedeVerAgenda = esPropietario || getRol() === 'ENTRENADOR';
@@ -146,19 +142,18 @@ function MainApp({ onLogout }) {
   const [selectedEjercicioIds, setSelectedEjercicioIds] = useState([]);
   const [searchAlumno, setSearchAlumno] = useState('');
 
-  // --- Cuotas (HU-45) ---
-  const [cuotas, setCuotas] = useState([]);
-  const [cargandoCuotas, setCargandoCuotas] = useState(false);
-  // Una fila por alumno: se selecciona por alumnoId
-  const [selectedCuotaId, setSelectedCuotaId] = useState(null);
-  const [searchCuota, setSearchCuota] = useState('');
-  const [filtroCuota, setFiltroCuota] = useState('Todas');
-  const [cuotaAPagar, setCuotaAPagar] = useState(null);
+  // --- Lista de alumnos: acá arriba para que se conserve al volver de la ficha ---
+  const [pestanaAlumnos, setPestanaAlumnos] = useState('activos');
+  // Situación de pago de los recuadros; null = sin filtro
+  const [filtroAlumnos, setFiltroAlumnos] = useState(null);
+  // { columna, direccion }; null = el orden que viene del backend
+  const [ordenAlumnos, setOrdenAlumnos] = useState(null);
+  const [selectedAlumnoId, setSelectedAlumnoId] = useState(null);
+  const [recargandoAlumnos, setRecargandoAlumnos] = useState(false);
+  const ultimaRecargaAlumnos = useRef(0);
 
-  // --- Historial de pagos (HU-48) ---
-  const [alumnoHistorial, setAlumnoHistorial] = useState(null);
-  const [pagosHistorial, setPagosHistorial] = useState([]);
-  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  // --- Registrar pago (HU-45): lo que necesita RegistrarPagoModal: { alumnoId, membresiaId, nombre, apellido, dni } ---
+  const [alumnoAPagar, setAlumnoAPagar] = useState(null);
 
   // --- Reactivación con pago (MOGNI-246) ---
   const [alumnoAReactivar, setAlumnoAReactivar] = useState(null);
@@ -169,15 +164,30 @@ function MainApp({ onLogout }) {
   const displayToast = (msg, isError = false) => mostrarToast(msg, isError ? 'error' : 'success');
   const cerrarModal = () => setModalConfig(prev => ({ ...prev, isOpen: false }));
 
+  // Primero activos y después inactivos, en secuencia: cada GET /alumnos pone al día las cuotas y, en paralelo, un
+  // alumno dado de baja por mora podría quedar mal ubicado. Si llega una recarga más nueva, esta se ignora. Mientras
+  // tanto se sigue viendo la lista anterior, y si falla también.
+  const recargarAlumnos = async () => {
+    const recarga = ++ultimaRecargaAlumnos.current;
+    const esLaUltima = () => recarga === ultimaRecargaAlumnos.current;
+    setRecargandoAlumnos(true);
+    try {
+      const activos = await listarAlumnos();
+      const inactivos = await listarAlumnos({ activo: false });
+      if (esLaUltima()) setAlumnos([...activos, ...inactivos]);
+    } catch (error) {
+      if (esLaUltima()) displayToast(error.message, true);
+    } finally {
+      if (esLaUltima()) setRecargandoAlumnos(false);
+    }
+  };
+
   useEffect(() => {
     // 1. Cargamos prioritariamente alumnos y membresías para que la app nunca se quede en 0
-    Promise.all([listarAlumnos(), listarAlumnos({ activo: false }), listarMembresias()])
-      .then(([alumnosActivos, alumnosInactivos, membresiasData]) => {
-        setAlumnos([...alumnosActivos, ...alumnosInactivos]);
-        setMembresias(membresiasData);
-      })
-      .catch((error) => displayToast(error.message, true))
-      .finally(() => setCargado(true));
+    const cargarMembresias = listarMembresias()
+      .then(setMembresias)
+      .catch((error) => displayToast(error.message, true));
+    Promise.all([recargarAlumnos(), cargarMembresias]).finally(() => setCargado(true));
 
     // 2. Intentamos cargar los ejercicios por separado de forma independiente
     listarEjercicios()
@@ -189,22 +199,18 @@ function MainApp({ onLogout }) {
       });
   }, []);
 
-  const cargarCuotas = async () => {
-    setCargandoCuotas(true);
-    try {
-      setCuotas(await listarCuotas());
-    } catch (error) {
-      displayToast(error.message, true);
-    } finally {
-      setCargandoCuotas(false);
-    }
-  };
-
-
-  // Cada vez que se entra a Cuotas se trae el estado actualizado (los vencimientos cambian día a día)
+  // Cada vez que se entra a Alumnos se trae el estado actualizado (los vencimientos cambian día a día). La primera vez
+  // ya los trae la carga inicial.
   useEffect(() => {
-    if (esPropietario && pathname.startsWith('/cuotas')) cargarCuotas();
-  }, [pathname, esPropietario]);
+    if (cargado && pathname === '/alumnos') recargarAlumnos();
+  }, [pathname]);
+
+  const cambiarPestanaAlumnos = (pestana) => {
+    setPestanaAlumnos(pestana);
+    setFiltroAlumnos(null);
+    setOrdenAlumnos(null);
+    setSelectedAlumnoId(null);
+  };
 
   const cargarAlumno = async (id) => {
     try {
@@ -243,6 +249,13 @@ function MainApp({ onLogout }) {
 
   const reemplazarAlumno = (actualizado) => setAlumnos(prev => prev.map(a => a.id === actualizado.id ? actualizado : a));
 
+  // Desde la lista el alumno cambia de pestaña: se limpia la selección y se recarga. En la ficha alcanza con reemplazarlo.
+  const trasReactivar = () => {
+    if (pathname !== '/alumnos') return;
+    setSelectedAlumnoId(null);
+    recargarAlumnos();
+  };
+
   // MOGNI-246: la baja cancela la inscripción y los turnos; la reactivación cobra la primera cuota salvo que todavía
   // tenga días pagos (en ese caso vuelve con su misma inscripción, sin cobrar)
   const handleToggleEstadoAlumno = (alumno) => {
@@ -271,8 +284,9 @@ function MainApp({ onLogout }) {
       'Confirmar reactivación',
       `${nombre} todavía tiene días pagos hasta el ${formatearFecha(alumno.vencimientoUltimaCuota)}: se reactiva con su misma membresía, sin cobrar nada. ¿Confirmás?`,
       async () => {
-        await ejecutar(async () => reemplazarAlumno(await reactivarAlumno(alumno.id)),
+        const ok = await ejecutar(async () => reemplazarAlumno(await reactivarAlumno(alumno.id)),
           'El alumno ha sido activado correctamente.');
+        if (ok) trasReactivar();
       }
     );
   };
@@ -280,7 +294,10 @@ function MainApp({ onLogout }) {
   const handleReactivarConPago = async (datos) => {
     const ok = await ejecutar(async () => reemplazarAlumno(await reactivarAlumno(alumnoAReactivar.id, datos)),
       'El alumno fue reactivado y el pago de la primera cuota quedó registrado.');
-    if (ok) setAlumnoAReactivar(null);
+    if (ok) {
+      setAlumnoAReactivar(null);
+      trasReactivar();
+    }
   };
 
   const handleSaveAlumno = (formData, isEdit) => {
@@ -432,39 +449,38 @@ function MainApp({ onLogout }) {
     );
   };
 
-  // MOGNI-45: renovación
-  const handleRegistrarPago = async (datos) => {
-    const ok = await ejecutar(() => registrarPago(datos), 'El pago fue registrado correctamente.');
-    if (ok) {
-      setCuotaAPagar(null);
-      cargarCuotas();
+  const abrirPago = (alumno) => setAlumnoAPagar({
+    alumnoId: alumno.id,
+    membresiaId: alumno.membresiaId,
+    nombre: alumno.nombre,
+    apellido: alumno.apellido,
+    dni: alumno.dni,
+  });
+
+  // Trae de nuevo un alumno de la ficha, después de finalizar su plan
+  const refrescarAlumno = async (alumnoId) => {
+    try {
+      reemplazarAlumno(await obtenerAlumno(alumnoId));
+    } catch (error) {
+      displayToast(error.message, true);
     }
   };
 
-  // HU-48: historial de pagos
-  const handleVerHistorial = async (cuota) => {
-    if (!cuota) return;
-    setAlumnoHistorial({ nombre: cuota.nombre, apellido: cuota.apellido, dni: cuota.dni });
-    setCargandoHistorial(true);
-    try {
-      setPagosHistorial(await obtenerHistorialDePagos(cuota.alumnoId));
-    } catch (error) {
-      displayToast(error.message, true);
-      setAlumnoHistorial(null);
-    } finally {
-      setCargandoHistorial(false);
-    }
+  // MOGNI-45: renovación, desde la lista de alumnos
+  const handleRegistrarPago = async (datos) => {
+    const ok = await ejecutar(() => registrarPago(datos), 'El pago fue registrado correctamente.');
+    if (!ok) return;
+    setAlumnoAPagar(null);
+    recargarAlumnos();
   };
 
   const rol = getRol();
   const navItems = [
     ...(puedeVerAgenda ? [{ to: '/agenda', label: 'Agenda', icon: Calendar }] : []),
-    { to: '/alumnos', label: 'Alumnos', icon: Users },
+    { to: '/alumnos', label: 'Alumnos', icon: Users, onClick: () => setSelectedAlumnoId(null) },
     { to: '/membresias', label: 'Membresías', icon: CreditCard, onClick: () => setSelectedMembresiaId(null) },
     { to: '/ejercicios', label: 'Ejercicios', icon: Dumbbell, onClick: () => setSelectedEjercicioIds([]) },
     ...(puedeVerPlanes ? [{ to: '/planes', label: 'Planes', icon: ClipboardList }] : []),
-    // Cobranzas (HU-45) es solo del propietario
-    ...(esPropietario ? [{ to: '/cuotas', label: 'Cuotas', icon: Wallet, onClick: () => setSelectedCuotaId(null) }] : []),
     // Franjas horarias y cupo (HU-252): solo el propietario
     ...(esPropietario ? [{ to: '/horarios', label: 'Horarios', icon: Clock }] : []),
     // MOGNI-263: datos de la cuenta y cambio de contraseña (todo el personal)
@@ -482,19 +498,19 @@ function MainApp({ onLogout }) {
   const iconClass = (activo) => `h-5 w-5 shrink-0 ${activo ? 'text-on-dark' : 'text-ink-muted'}`;
 
   return (
-    <div className="flex min-h-screen flex-col bg-page text-ink md:flex-row">
+    <div className="flex min-h-screen flex-col bg-page text-ink xl:flex-row">
 
-      <aside className="z-30 flex shrink-0 flex-col bg-sidebar md:sticky md:top-0 md:h-screen md:w-60">
-        <div className="flex items-center justify-between gap-3 px-4 py-4 md:py-6">
+      <aside className="z-30 flex shrink-0 flex-col bg-sidebar xl:sticky xl:top-0 xl:h-screen xl:w-60">
+        <div className="flex items-center justify-between gap-3 px-4 py-4 xl:py-6">
           <Logo onDark />
-          {/* En celular, cerrar sesión queda junto al logo */}
-          <button type="button" onClick={onLogout} aria-label="Cerrar sesión" className={`rounded-lg p-2 text-ink-muted transition-colors hover:bg-sidebar-hover hover:text-on-dark md:hidden ${FOCUS}`}>
+          {/* En pantallas chicas, cerrar sesión queda junto al logo */}
+          <button type="button" onClick={onLogout} aria-label="Cerrar sesión" className={`rounded-lg p-2 text-ink-muted transition-colors hover:bg-sidebar-hover hover:text-on-dark xl:hidden ${FOCUS}`}>
             <LogOut className="h-5 w-5" />
           </button>
         </div>
 
-        <nav aria-label="Secciones" className="flex-1 pb-2 md:pb-0">
-          <ul className="flex overflow-x-auto md:flex-col md:overflow-visible">
+        <nav aria-label="Secciones" className="flex-1 pb-2 xl:pb-0">
+          <ul className="flex overflow-x-auto xl:flex-col xl:overflow-visible">
             {navItems.map(({ to, label, icon: Icon, onClick }) => {
               const activo = pathname.startsWith(to);
               return (
@@ -514,7 +530,7 @@ function MainApp({ onLogout }) {
           </ul>
         </nav>
 
-        <div className="hidden border-t border-sidebar-hover py-4 md:block">
+        <div className="hidden border-t border-sidebar-hover py-4 xl:block">
           <p className="mb-2 px-4 text-xs text-ink-muted">
             Sesión: <span className="font-medium capitalize text-on-dark">{rol?.toLowerCase()}</span>
           </p>
@@ -525,7 +541,7 @@ function MainApp({ onLogout }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="sticky top-0 z-20 hidden h-14 items-center border-b border-line bg-card px-8 md:flex">
+        <div className="sticky top-0 z-20 hidden h-14 items-center border-b border-line bg-card px-8 xl:flex">
           {alumnoEnRuta ? (
             <p className="text-sm text-ink-soft">
               Panel <span className="text-ink-muted">/</span>{' '}
@@ -546,12 +562,25 @@ function MainApp({ onLogout }) {
           <Route path="alumnos" element={
             <AlumnosList
               alumnos={alumnos}
-              cargando={!cargado}
-              onSelect={(id) => navigate(`/alumnos/${id}`)}
+              cargando={!cargado || recargandoAlumnos}
+              esPropietario={esPropietario}
+              puedeVerPlanes={puedeVerPlanes}
               onAdd={() => navigate('/alumnos/nuevo')}
               onReactivate={handleToggleEstadoAlumno}
+              onRegistrarPago={abrirPago}
+              onVerAlumno={(alumno) => navigate(`/alumnos/${alumno.id}`)}
+              onVerCuotas={(alumno) => navigate(`/alumnos/${alumno.id}/cuotas`)}
+              onVerProgreso={(alumno) => navigate(`/alumnos/${alumno.id}/progreso`)}
               search={searchAlumno}
               setSearch={setSearchAlumno}
+              pestana={pestanaAlumnos}
+              onCambiarPestana={cambiarPestanaAlumnos}
+              filtro={filtroAlumnos}
+              setFiltro={setFiltroAlumnos}
+              orden={ordenAlumnos}
+              setOrden={setOrdenAlumnos}
+              selectedId={selectedAlumnoId}
+              setSelectedId={setSelectedAlumnoId}
             />
           } />
 
@@ -577,7 +606,9 @@ function MainApp({ onLogout }) {
                   onToggleStatus={() => handleToggleEstadoAlumno(alumno)}
                   onVerPlan={(planId) => navigate(`/planes/asignados/${planId}`)}
                   onAsignarPlan={() => navigate(`/planes/asignar?alumno=${alumno.id}`)}
-                  onAjustarPlan={(planId) => navigate(`/planes/asignados/${planId}/editar`)}
+                  onModificarPlan={(planId) => navigate(`/planes/asignados/${planId}/editar`)}
+                  onPlanFinalizado={() => refrescarAlumno(alumno.id)}
+                  onToast={displayToast}
                 />
               )}
             </ConAlumno>
@@ -714,22 +745,6 @@ function MainApp({ onLogout }) {
             ? <PlanAsignadoFormRuta onVolver={() => navigate(-1)} onGuardado={() => navigate(-1)} onToast={displayToast} />
             : <Navigate to="/alumnos" replace />} />
 
-          <Route path="cuotas" element={esPropietario ? (
-            <CuotasList
-              cuotas={cuotas}
-              cargando={cargandoCuotas}
-              selectedId={selectedCuotaId}
-              setSelectedId={setSelectedCuotaId}
-              onRegistrarPago={setCuotaAPagar}
-              onVerHistorial={handleVerHistorial}
-              onVerAlumno={(fila) => navigate(`/alumnos/${fila.alumnoId}`)}
-              searchTerm={searchCuota}
-              setSearchTerm={setSearchCuota}
-              filtro={filtroCuota}
-              setFiltro={setFiltroCuota}
-            />
-          ) : <Navigate to="/alumnos" replace />} />
-
           <Route path="agenda" element={puedeVerAgenda
             ? <Agenda esPropietario={esPropietario} alumnos={alumnos} alumnosCargados={cargado} />
             : <Navigate to="/alumnos" replace />} />
@@ -755,12 +770,12 @@ function MainApp({ onLogout }) {
         onCancel={cerrarModal}
       />
 
-      {cuotaAPagar && (
+      {alumnoAPagar && (
         <RegistrarPagoModal
-          cuota={cuotaAPagar}
+          cuota={alumnoAPagar}
           membresias={membresias}
           onConfirm={handleRegistrarPago}
-          onCancel={() => setCuotaAPagar(null)}
+          onCancel={() => setAlumnoAPagar(null)}
           onError={(msg) => displayToast(msg, true)}
         />
       )}
@@ -772,15 +787,6 @@ function MainApp({ onLogout }) {
           onConfirm={handleReactivarConPago}
           onCancel={() => setAlumnoAReactivar(null)}
           onError={(msg) => displayToast(msg, true)}
-        />
-      )}
-
-      {alumnoHistorial && (
-        <HistorialPagosModal
-          alumno={alumnoHistorial}
-          pagos={pagosHistorial}
-          cargando={cargandoHistorial}
-          onClose={() => setAlumnoHistorial(null)}
         />
       )}
 

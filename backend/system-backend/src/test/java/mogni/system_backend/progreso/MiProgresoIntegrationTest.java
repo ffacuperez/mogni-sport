@@ -142,7 +142,7 @@ class MiProgresoIntegrationTest {
     private EjercicioSesionPlan ejercicio(String nombre, int series, int repeticiones, Integer repeticionesMax,
             String descanso, Integer rir, String indicaciones) {
         Ejercicio catalogo = ejercicioRepository.save(
-                new Ejercicio(null, nombre + " " + SECUENCIA.incrementAndGet(), "Piernas", null, true));
+                new Ejercicio(null, nombre + " " + SECUENCIA.incrementAndGet(), "Piernas", true));
         EjercicioSesionPlan ejercicio = new EjercicioSesionPlan(catalogo, series, repeticiones, repeticionesMax,
                 descanso == null ? null : new BigDecimal(descanso), null, rir);
         ejercicio.setIndicaciones(indicaciones);

@@ -273,7 +273,7 @@ public class AgendaService {
 
     /**
      * Hasta cuándo pagó cada alumno activo (última cuota de su inscripción activa o programada): la misma consulta
-     * que la pantalla de Cuotas, trae inscripción y membresía en una sola consulta.
+     * que el listado de alumnos, trae inscripción y membresía en una sola consulta.
      */
     private Map<Long, Cuota> cuotaActualPorAlumno() {
         return cuotaRepository.buscarUltimasCuotas();

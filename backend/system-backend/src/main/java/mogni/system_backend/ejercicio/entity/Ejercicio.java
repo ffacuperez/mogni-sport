@@ -29,9 +29,6 @@ public class Ejercicio {
     @Column(nullable = false)
     private String grupoMuscular;
 
-    @Column(columnDefinition = "TEXT")
-    private String descripcion;
-
     @Column(nullable = false)
     private boolean activo = true;
 }

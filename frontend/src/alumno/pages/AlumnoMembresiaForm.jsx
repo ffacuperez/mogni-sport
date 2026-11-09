@@ -75,7 +75,7 @@ export default function AlumnoMembresiaForm({ alumno, membresias, onSave, onCanc
             reembolso). No se puede cambiar con la cuota vencida o en mora, ni si ya pagó el mes siguiente. Para dejar al
             alumno sin membresía, dalo de baja.{' '}
             <strong className="font-semibold text-ink">
-              Para cambiarla desde la próxima cuota, registrá el pago desde Cuotas eligiendo la membresía nueva.
+              Para cambiarla desde la próxima cuota, registrá el pago desde Alumnos eligiendo la membresía nueva.
             </strong>
           </p>
         </div>

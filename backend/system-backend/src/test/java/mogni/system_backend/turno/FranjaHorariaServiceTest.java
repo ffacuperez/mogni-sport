@@ -110,29 +110,30 @@ class FranjaHorariaServiceTest {
 
     @ParameterizedTest
     @EnumSource(value = DayOfWeek.class, names = {"SATURDAY", "SUNDAY"})
-    void crearFranja_enFinDeSemanaFalla(DayOfWeek dia) {
-        RegistroInvalidoException ex = assertThrows(RegistroInvalidoException.class,
-                () -> franjaHorariaService.crearFranja(request(dia, "08:00", "12:00")));
+    void crearFranja_enFinDeSemanaEsValida(DayOfWeek dia) {
+        when(franjaHorariaRepository.findByDiaSemanaOrderByHoraInicioAsc(dia)).thenReturn(List.of());
+        guardarDevuelveLoMismo();
 
-        assertEquals("Las franjas solo se pueden definir de lunes a viernes.", ex.getMessage());
-        verify(franjaHorariaRepository, never()).save(any());
-        verifyNoInteractions(eventPublisher);
+        FranjaHorariaResponse response = franjaHorariaService.crearFranja(request(dia, "08:00", "12:00"));
+
+        assertEquals(dia, response.getDiaSemana());
+        assertEquals(4, response.getCantidadTurnos());
+        verify(eventPublisher).publishEvent(new FranjasModificadasEvent());
     }
 
     @ParameterizedTest
     @EnumSource(value = DayOfWeek.class, names = {"SATURDAY", "SUNDAY"})
-    void actualizarFranja_moverloAFinDeSemanaFalla(DayOfWeek dia) {
+    void actualizarFranja_moverlaAFinDeSemanaEsValido(DayOfWeek dia) {
         FranjaHoraria lunes = franja(1L, DayOfWeek.MONDAY, "08:00", "12:00");
         when(franjaHorariaRepository.findById(1L)).thenReturn(Optional.of(lunes));
+        when(franjaHorariaRepository.findByDiaSemanaOrderByHoraInicioAsc(dia)).thenReturn(List.of());
+        guardarDevuelveLoMismo();
 
-        RegistroInvalidoException ex = assertThrows(RegistroInvalidoException.class,
-                () -> franjaHorariaService.actualizarFranja(1L, request(dia, "08:00", "12:00")));
+        FranjaHorariaResponse response = franjaHorariaService.actualizarFranja(1L, request(dia, "08:00", "12:00"));
 
-        assertEquals("Las franjas solo se pueden definir de lunes a viernes.", ex.getMessage());
-        // La franja queda como estaba
-        assertEquals(DayOfWeek.MONDAY, lunes.getDiaSemana());
-        verify(franjaHorariaRepository, never()).save(any());
-        verifyNoInteractions(eventPublisher);
+        assertEquals(dia, response.getDiaSemana());
+        assertEquals(dia, lunes.getDiaSemana());
+        verify(eventPublisher).publishEvent(new FranjasModificadasEvent());
     }
 
     @Test

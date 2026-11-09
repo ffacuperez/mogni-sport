@@ -1,7 +1,6 @@
 package mogni.system_backend.progreso.service;
 
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -254,13 +253,13 @@ public class MiProgresoService {
         if (!plan.estaVigente(hoy)) {
             throw new RegistroInvalidoException("Solo podés registrar sesiones de tu plan activo");
         }
-        if (semana != semanaActual(plan, cantidadSemanas(plan), hoy)) {
+        if (semana != plan.semanaActual(hoy)) {
             throw new RegistroInvalidoException("Solo podés registrar sesiones de la semana actual");
         }
     }
 
     private static boolean esSemanaRegistrable(PlanAsignado plan, int semana, LocalDate hoy) {
-        return plan.estaVigente(hoy) && semana == semanaActual(plan, cantidadSemanas(plan), hoy);
+        return plan.estaVigente(hoy) && semana == plan.semanaActual(hoy);
     }
 
     /** Exactamente las series del plan, numeradas 1..N sin repetir; los datos de cada una ya los validó el request. */
@@ -284,9 +283,9 @@ public class MiProgresoService {
     /** MOGNI-281: el plan vigente del alumno resumido para su inicio (nombre y en qué semana va), o vacío. */
     public Optional<PlanInicioResponse> resumenPlanActivo(Alumno alumno, LocalDate hoy) {
         return buscarPlanVigente(alumno.getId(), hoy).map(plan -> {
-            int cantidadSemanas = cantidadSemanas(plan);
+            int cantidadSemanas = plan.cantidadSemanas();
             return new PlanInicioResponse(plan.getId(), plan.getNombre(), plan.getMetodo(), plan.getMesociclo(),
-                    semanaActual(plan, cantidadSemanas, hoy), cantidadSemanas);
+                    plan.semanaActual(hoy), cantidadSemanas);
         });
     }
 
@@ -322,7 +321,7 @@ public class MiProgresoService {
 
     /** registrable: si el que consulta puede registrar sus sesiones (el alumno sí; el personal, no). */
     private PlanDetalleResponse mapearDetalle(PlanAsignado plan, LocalDate hoy, boolean registrable) {
-        int cantidadSemanas = cantidadSemanas(plan);
+        int cantidadSemanas = plan.cantidadSemanas();
         List<RegistroSesion> registros = registroRepository.findByPlanId(plan.getId());
         Map<ClaveSesion, RegistroSesion> registrosPorSesion = registros.stream()
                 .collect(Collectors.toMap(r -> new ClaveSesion(r.getSemana(), r.getNumeroSesion()), Function.identity()));
@@ -343,14 +342,14 @@ public class MiProgresoService {
                 plan.getFechaAsignacion(),
                 fechaFin(plan, cantidadSemanas, hoy),
                 cantidadSemanas,
-                semanaActual(plan, cantidadSemanas, hoy),
+                plan.semanaActual(hoy),
                 contarRegistradas(plan, cantidadSemanas, registros),
                 plan.getSesiones().size() * cantidadSemanas,
                 semanas);
     }
 
     private PlanResumenResponse mapearResumen(PlanAsignado plan, LocalDate hoy) {
-        int cantidadSemanas = cantidadSemanas(plan);
+        int cantidadSemanas = plan.cantidadSemanas();
         return new PlanResumenResponse(
                 plan.getId(),
                 plan.getNombre(),
@@ -434,23 +433,6 @@ public class MiProgresoService {
     }
 
     /**
-     * La cantidad cargada. Los planes que se asignaron eligiendo una fecha fin suelta no la tienen: para esos, las
-     * semanas de 7 días que cubren del inicio al fin inclusive (si sobran días, la última queda incompleta).
-     * Sin ninguna de las dos, una sola semana.
-     */
-    private static int cantidadSemanas(PlanAsignado plan) {
-        Integer cantidad = plan.getCantidadSemanas();
-        if (cantidad != null && cantidad >= 1) {
-            return cantidad;
-        }
-        if (plan.getFechaFin() != null) {
-            long dias = ChronoUnit.DAYS.between(plan.getFechaAsignacion(), plan.getFechaFin()) + 1;
-            return (int) Math.max(1, Math.ceilDiv(dias, 7));
-        }
-        return 1;
-    }
-
-    /**
      * Activo: la fecha fin real (HU-266) o, en los planes anteriores a esa regla, el fin previsto por semanas.
      * Terminado: el día en que terminó (finalizado a mano o vencido).
      */
@@ -461,13 +443,6 @@ public class MiProgresoService {
         return plan.getFechaFin() != null
                 ? plan.getFechaFin()
                 : plan.getFechaAsignacion().plusWeeks(cantidadSemanas).minusDays(1);
-    }
-
-    private static int semanaActual(PlanAsignado plan, int cantidadSemanas, LocalDate hoy) {
-        if (!plan.estaVigente(hoy)) {
-            return cantidadSemanas;
-        }
-        return Math.clamp(plan.semanaEn(hoy), 1, cantidadSemanas);
     }
 
     private record ClaveSesion(int semana, int numeroSesion) {

@@ -19,6 +19,10 @@ import lombok.Setter;
 @AllArgsConstructor
 public class Membresia {
 
+    /** Rango de días por semana que puede tener una membresía (lo mismo valida el formulario del frontend). */
+    public static final int DIAS_POR_SEMANA_MIN = 2;
+    public static final int DIAS_POR_SEMANA_MAX = 6;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

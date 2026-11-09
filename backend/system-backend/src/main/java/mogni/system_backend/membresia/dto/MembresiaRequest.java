@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
+import mogni.system_backend.membresia.entity.Membresia;
 import lombok.Setter;
 
 @Getter
@@ -22,8 +23,8 @@ public class MembresiaRequest {
     private Double precioActual;
 
     @NotNull(message = "Los días por semana son obligatorios")
-    @Min(value = 3, message = "Los días por semana deben ser al menos 3")
-    @Max(value = 5, message = "Los días por semana no pueden ser más de 5")
+    @Min(value = Membresia.DIAS_POR_SEMANA_MIN, message = "Los días por semana deben ser al menos 2")
+    @Max(value = Membresia.DIAS_POR_SEMANA_MAX, message = "Los días por semana no pueden ser más de 6")
     private Integer frecuenciaSemanal;
 
     @Size(max = 2000, message = "La descripción puede tener hasta 2000 caracteres")

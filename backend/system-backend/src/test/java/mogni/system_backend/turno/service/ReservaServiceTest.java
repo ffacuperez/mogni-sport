@@ -386,6 +386,39 @@ class ReservaServiceTest {
     }
 
     @Test
+    void conSeisDiasLaSextaReservaDeLaSemanaEntraYDejaCeroRestantes() {
+        alumno = alumno(10L, true, 6);
+        // Semana del lunes 12/10 al domingo 18/10: ya tiene 5 reservas (todos los días menos martes y domingo)
+        for (int offset : new int[] {-1, 1, 2, 3, 4}) {
+            yaReservado(alumno, turno(MARTES.plusDays(offset), "19:00", 5), EstadoReserva.RESERVADA);
+        }
+        Turno turno = turno(MARTES, "19:00", 5);
+
+        assertEquals(0, reservar(turno).getTurnosRestantesSemana());
+        assertEquals(6, reservas.size());
+    }
+
+    @Test
+    void conSeisDiasYLaSemanaCompletaLaSeptimaDa409() {
+        alumno = alumno(10L, true, 6);
+        // Ya tiene 6 reservas: todos los días de la semana menos el martes
+        for (int offset : new int[] {-1, 1, 2, 3, 4, 5}) {
+            yaReservado(alumno, turno(MARTES.plusDays(offset), "19:00", 5), EstadoReserva.RESERVADA);
+        }
+        Turno turno = turno(MARTES, "19:00", 5);
+
+        ConflictoException ex = assertThrows(ConflictoException.class, () -> reservar(turno));
+        assertEquals("Ya usaste todos los turnos de tu membresía en esta semana.", ex.getMessage());
+    }
+
+    @Test
+    void conDosDiasLaPrimeraReservaDejaUnTurnoRestante() {
+        alumno = alumno(10L, true, 2);
+
+        assertEquals(1, reservar(turno(MARTES, "19:00", 5)).getTurnosRestantesSemana());
+    }
+
+    @Test
     void lasReservasDeOtraSemanaNoCuentanParaElTope() {
         alumno = alumno(10L, true, 1);
         // Domingo 11/10: es de la semana anterior (la semana va de lunes a domingo)

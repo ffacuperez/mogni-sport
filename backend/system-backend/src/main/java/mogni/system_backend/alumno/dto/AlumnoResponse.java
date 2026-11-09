@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import mogni.system_backend.auth.entity.Rol;
+import mogni.system_backend.cuota.dto.CuotaAlumnoResumen;
 import mogni.system_backend.inscripcion.dto.InscripcionResponse;
 
 @Getter
@@ -43,4 +44,6 @@ public class AlumnoResponse {
     private LocalDate programadaDesde;
     /** Plan de entrenamiento ACTIVO (a lo sumo uno); null si no tiene. Se calcula al vuelo, no se guarda en Alumno. */
     private PlanActivoResumen planActivo;
+    /** Situación de cuota; solo para alumnos activos (null si está inactivo). */
+    private CuotaAlumnoResumen cuotaActual;
 }

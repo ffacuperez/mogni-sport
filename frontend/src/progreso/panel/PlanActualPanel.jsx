@@ -1,24 +1,45 @@
 import { useEffect, useState } from 'react';
 import { ClipboardList, Plus } from 'lucide-react';
 
+import FinalizarPlanModal from '../../plan/components/FinalizarPlanModal';
+import { finalizarPlan } from '../../plan/services/planesService';
 import { Button, Cargando } from '../../shared/components/ui';
 import ErrorConsulta from '../components/ErrorConsulta';
 import { useProgreso } from '../services/ProgresoContext';
 import EstadoVacioPanel from './EstadoVacioPanel';
 import ResumenPlanPanel from './ResumenPlanPanel';
 import SesionesDeLaSemana from './SesionesDeLaSemana';
+import { tituloPlan } from '../services/progresoService';
 import { useSesionAbierta } from './useSesionAbierta';
 
 /**
- * Vista "Plan actual" del progreso en el panel: el resumen y las sesiones de la semana en columnas. Sin plan activo,
- * el estado vacío ofrece asignarle uno (si el alumno está activo).
+ * Vista "Plan actual" del progreso en el panel: el resumen y las sesiones de la semana en columnas, con la opción de
+ * modificar o finalizar el plan. Sin plan activo, el estado vacío ofrece asignarle uno (si el alumno está activo).
  */
-export default function PlanActualPanel({ alumno, onAsignarPlan, onAjustarPlan }) {
+export default function PlanActualPanel({ alumno, onAsignarPlan, onModificarPlan, onPlanFinalizado, onToast }) {
   const { consultas, textos } = useProgreso();
   const { abrir } = useSesionAbierta();
   // undefined: cargando; null: no tiene plan activo
   const [plan, setPlan] = useState(undefined);
   const [error, setError] = useState(null);
+  const [confirmando, setConfirmando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const nombreAlumno = `${alumno.nombre} ${alumno.apellido}`;
+
+  const finalizar = async () => {
+    setEnviando(true);
+    try {
+      await finalizarPlan(plan.id);
+      setPlan(null);
+      onToast(`Se finalizó el plan de ${nombreAlumno}. Ya le podés asignar uno nuevo.`);
+      onPlanFinalizado();
+    } catch (err) {
+      onToast(err.message, true);
+    } finally {
+      setEnviando(false);
+      setConfirmando(false);
+    }
+  };
 
   useEffect(() => {
     let vigente = true;
@@ -48,8 +69,17 @@ export default function PlanActualPanel({ alumno, onAsignarPlan, onAjustarPlan }
 
   return (
     <div className="flex flex-col gap-6">
-      <ResumenPlanPanel plan={plan} onAjustar={() => onAjustarPlan(plan.id)} />
+      <ResumenPlanPanel plan={plan} onModificar={() => onModificarPlan(plan.id)} onFinalizar={() => setConfirmando(true)} />
       <SesionesDeLaSemana key={plan.id} plan={plan} semanaInicial={plan.semanaActual} onVerRegistro={abrir} />
+      {confirmando && (
+        <FinalizarPlanModal
+          nombrePlan={tituloPlan(plan)}
+          nombreAlumno={nombreAlumno}
+          enviando={enviando}
+          onConfirm={finalizar}
+          onCancel={() => setConfirmando(false)}
+        />
+      )}
     </div>
   );
 }

@@ -3,10 +3,9 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router';
 import { ArrowRight, Phone, TriangleAlert, X } from 'lucide-react';
 
-import { Badge, Button, Cargando } from '../../shared/components/ui';
+import BotonWhatsApp from '../../shared/components/BotonWhatsApp';
+import { Badge, Cargando } from '../../shared/components/ui';
 import { cx, FOCUS } from '../../shared/components/clases';
-import { WHATSAPP_PATH } from '../../shared/components/iconoWhatsApp';
-import { linkWhatsApp } from '../../shared/services/telefono';
 import { edadAl, estadoCuotaAgenda, textoMesYAnio } from '../services/agendaService';
 
 const iniciales = (alumno) => `${alumno.nombre?.[0] ?? ''}${alumno.apellido?.[0] ?? ''}`.toUpperCase();
@@ -22,31 +21,6 @@ function Fila({ label, children }) {
       <dt className="shrink-0 text-sm text-ink-soft">{label}</dt>
       <dd className="min-w-0 text-right text-sm font-semibold text-ink">{children}</dd>
     </div>
-  );
-}
-
-function BotonWhatsApp({ telefono }) {
-  const link = linkWhatsApp(telefono);
-  if (!link) {
-    return (
-      <span className="flex flex-col items-end gap-1">
-        <Button size="sm" disabled title="El número no tiene característica o está incompleto">WhatsApp</Button>
-        <span className="text-[11px] text-ink-muted">Número incompleto</span>
-      </span>
-    );
-  }
-  return (
-    <a
-      href={link}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={cx('inline-flex shrink-0 items-center gap-2 rounded-lg bg-whatsapp px-4 py-2 text-sm font-semibold text-on-dark transition-[filter] hover:brightness-95', FOCUS)}
-    >
-      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
-        <path d={WHATSAPP_PATH} />
-      </svg>
-      WhatsApp
-    </a>
   );
 }
 

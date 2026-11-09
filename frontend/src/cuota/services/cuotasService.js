@@ -22,35 +22,6 @@ export function estadoVisible(cuota) {
   return SITUACIONES[cuota?.situacion] ?? 'Sin cuotas';
 }
 
-// Backend -> forma que usan las pantallas: una fila por alumno activo con su última cuota
-const fromApi = (c) => ({
-  alumnoId: c.alumnoId,
-  nombre: c.alumnoNombre,
-  apellido: c.alumnoApellido,
-  dni: c.alumnoDni,
-  cuotaId: c.cuotaId,
-  membresia: c.membresiaNombre,
-  membresiaId: c.membresiaId,
-  // Cambio de membresía ya pagado para el mes siguiente
-  membresiaProgramada: c.membresiaProgramada,
-  programadaDesde: c.programadaDesde,
-  inicio: c.fechaInicio,
-  vencimiento: c.fechaVencimiento,
-  // Precio actual de la membresía que va a renovar (la programada si tiene): lo que va a pagar
-  precio: c.precioMembresia != null ? Number(c.precioMembresia) : null,
-  situacion: c.situacion,
-  estado: estadoVisible(c),
-  diasEnMora: c.diasEnMora,
-  puedeRenovar: c.puedeRenovar,
-  renovableDesde: c.renovableDesde,
-});
-
-/** MOGNI-46: una fila por alumno activo, ya ordenadas por el backend (en mora, vencidas y por vencimiento). */
-export async function listarCuotas() {
-  const data = await request('/cuotas');
-  return data.map(fromApi);
-}
-
 const numeroONull = (valor) => (valor != null ? Number(valor) : null);
 
 /**
@@ -112,6 +83,12 @@ export function avisoVencimiento(cuota) {
     return cuota.diasEnMora === 1 ? 'Hace 1 día' : `Hace ${cuota.diasEnMora} días`;
   }
   return null;
+}
+
+/** Texto que explica por qué no se puede registrar el pago de esta cuota. */
+export function motivoSinRenovacion(cuota) {
+  if (cuota?.renovableDesde) return `El pago se habilita desde el ${formatearFecha(cuota.renovableDesde)}.`;
+  return 'El alumno no tiene una membresía activa.';
 }
 
 /** Tono del badge de estado (ver Badge en shared/components/ui). */

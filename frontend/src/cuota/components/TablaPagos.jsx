@@ -1,16 +1,15 @@
-import { cx } from '../../shared/components/clases';
 import { formatearFecha, formatearMonto, labelMedioDePago } from '../services/cuotasService';
 
 const COLUMNAS = ['Fecha de pago', 'Desde', 'Hasta', 'Membresía', 'Monto', 'Medio de pago'];
 
 /**
  * HU-48: cada pago con el período que cubrió (desde y hasta), su membresía y el desglose si tuvo recargo. Un cambio de
- * membresía aparece como otro pago (la diferencia, o $0 si la nueva no era más cara). La usan el modal del listado de
- * cuotas y la pestaña Cuotas de la ficha; className permite limitar el alto en el modal.
+ * membresía aparece como otro pago (la diferencia, o $0 si la nueva no era más cara). La usa la pestaña Cuotas de la
+ * ficha.
  */
-export default function TablaPagos({ pagos, className }) {
+export default function TablaPagos({ pagos }) {
   return (
-    <div className={cx('overflow-auto rounded-lg border border-line', className)}>
+    <div className="overflow-auto rounded-lg border border-line">
       <table className="w-full text-center text-sm">
         <thead className="sticky top-0 bg-thead">
           <tr>

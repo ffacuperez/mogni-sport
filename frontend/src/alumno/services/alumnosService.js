@@ -1,3 +1,4 @@
+import { estadoVisible } from '../../cuota/services/cuotasService';
 import { request } from '../../shared/services/httpClient';
 
 const BASE_PATH = '/alumnos';
@@ -20,6 +21,18 @@ export function describirMembresia(alumno) {
   return inscripcion.estado === 'Activa' ? inscripcion.membresia : `${inscripcion.membresia} (${inscripcion.estado})`;
 }
 
+// Situación de cuota del alumno activo; null si está inactivo. Sin cuotas (datos viejos): situacion y vencimiento en null
+const cuotaFromApi = (c) => (c ? {
+  situacion: c.situacion,
+  estado: estadoVisible(c),
+  vencimiento: c.fechaVencimiento,
+  // Precio actual de la membresía que va a renovar (la programada si tiene): lo que va a pagar
+  precio: c.precioMembresia != null ? Number(c.precioMembresia) : null,
+  diasEnMora: c.diasEnMora,
+  puedeRenovar: c.puedeRenovar,
+  renovableDesde: c.renovableDesde,
+} : null);
+
 // Backend -> forma que usan las pantallas
 const fromApi = (a) => ({
   id: a.id,
@@ -38,8 +51,9 @@ const fromApi = (a) => ({
   membresiaId: a.membresiaId ?? '',
   membresia: a.membresiaNombre ?? 'Sin membresía',
   estado: a.activo ? 'Activo' : 'Inactivo',
-  // Plan de entrenamiento ACTIVO ({ id, nombre }) o null si no tiene
+  // Plan de entrenamiento ACTIVO ({ id, nombre, metodo, mesociclo, semanaActual, cantidadSemanas }) o null si no tiene
   planActivo: a.planActivo ?? null,
+  cuota: cuotaFromApi(a.cuotaActual),
   fechaBaja: a.fechaBaja ?? '',
   inscripcion: inscripcionFromApi(a.inscripcionActual),
   // Solo para inactivos: si al reactivarlo hay que cobrar la primera cuota o todavía tiene días pagos

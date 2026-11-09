@@ -166,6 +166,31 @@ public class PlanAsignado {
         return (int) ChronoUnit.WEEKS.between(fechaAsignacion, dia) + 1;
     }
 
+    /**
+     * La cantidad cargada. Los planes que se asignaron eligiendo una fecha fin suelta no la tienen: para esos, las
+     * semanas de 7 días que cubren del inicio al fin inclusive (si sobran días, la última queda incompleta).
+     * Sin ninguna de las dos, una sola semana.
+     */
+    public int cantidadSemanas() {
+        if (cantidadSemanas != null && cantidadSemanas >= 1) {
+            return cantidadSemanas;
+        }
+        if (fechaFin != null) {
+            long dias = ChronoUnit.DAYS.between(fechaAsignacion, fechaFin) + 1;
+            return (int) Math.max(1, Math.ceilDiv(dias, 7));
+        }
+        return 1;
+    }
+
+    /** La semana en curso, entre 1 y la última. Un plan que ya no está vigente queda en su última semana. */
+    public int semanaActual(LocalDate hoy) {
+        int cantidad = cantidadSemanas();
+        if (!estaVigente(hoy)) {
+            return cantidad;
+        }
+        return Math.clamp(semanaEn(hoy), 1, cantidad);
+    }
+
     /** Reemplaza todas las sesiones y las numera 1, 2, 3... en el orden recibido. */
     public void reemplazarSesiones(List<SesionPlan> nuevas) {
         sesiones.clear();

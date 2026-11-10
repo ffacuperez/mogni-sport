@@ -1,6 +1,7 @@
 package mogni.system_backend.turno.repository;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -16,6 +17,7 @@ import org.springframework.data.repository.query.Param;
 
 import mogni.system_backend.turno.entity.Asistencia;
 import mogni.system_backend.turno.entity.EstadoReserva;
+import mogni.system_backend.turno.entity.EstadoTurno;
 import mogni.system_backend.turno.entity.Reserva;
 
 public interface ReservaRepository extends JpaRepository<Reserva, Long> {
@@ -60,4 +62,30 @@ public interface ReservaRepository extends JpaRepository<Reserva, Long> {
     int registrarAsistenciaSinMarcarAntesDe(@Param("fecha") LocalDate fecha,
                                             @Param("estado") EstadoReserva estado,
                                             @Param("asistencia") Asistencia asistencia);
+
+    /** Panel del propietario: reservas con una marca de asistencia. */
+    interface ReservasPorAsistencia {
+        Asistencia getAsistencia();
+        Long getCantidad();
+    }
+
+    /** Panel del propietario: reservas con ese estado en turnos con ese estado que ya empezaron (mismo rango que el cupo). */
+    @Query("""
+            select count(r) from Reserva r join r.turno t
+            where r.estado = :estadoReserva and t.estado = :estadoTurno and t.fecha >= :desde
+              and (t.fecha < :hoy or (t.fecha = :hoy and t.horaInicio <= :hora))
+            """)
+    long contarEnTurnosComenzados(@Param("estadoReserva") EstadoReserva estadoReserva,
+                                  @Param("estadoTurno") EstadoTurno estadoTurno, @Param("desde") LocalDate desde,
+                                  @Param("hoy") LocalDate hoy, @Param("hora") LocalTime hora);
+
+    /** Panel del propietario: reservas con ese estado y asistencia marcada en turnos entre dos fechas. */
+    @Query("""
+            select r.asistencia as asistencia, count(r) as cantidad
+            from Reserva r join r.turno t
+            where r.estado = :estado and r.asistencia is not null and t.fecha between :desde and :hasta
+            group by r.asistencia
+            """)
+    List<ReservasPorAsistencia> contarPorAsistencia(@Param("estado") EstadoReserva estado,
+                                                    @Param("desde") LocalDate desde, @Param("hasta") LocalDate hasta);
 }

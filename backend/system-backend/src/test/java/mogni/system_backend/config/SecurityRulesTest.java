@@ -40,6 +40,15 @@ class SecurityRulesTest {
     }
 
     @Test
+    void elPanelEsSoloDelPropietario() throws Exception {
+        mockMvc.perform(get("/panel")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/panel").with(user("a@x.com").roles("ALUMNO"))).andExpect(status().isForbidden());
+        mockMvc.perform(get("/panel").with(user("e@x.com").roles("ENTRENADOR"))).andExpect(status().isForbidden());
+        mockMvc.perform(get("/panel").with(user("n@x.com").roles("NUTRICIONISTA"))).andExpect(status().isForbidden());
+        mockMvc.perform(get("/panel").with(user("p@x.com").roles("PROPIETARIO"))).andExpect(status().isOk());
+    }
+
+    @Test
     void recuperarPasswordNoRequiereSesion() throws Exception {
         // Responde lo mismo exista o no el email (no revela qué cuentas existen)
         mockMvc.perform(post("/auth/recuperar-password").contentType("application/json")

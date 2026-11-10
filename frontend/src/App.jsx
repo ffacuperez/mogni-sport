@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
-import { Calendar, ClipboardList, Clock, CreditCard, Dumbbell, LogOut, UserCog, Users } from 'lucide-react';
+import { Calendar, ClipboardList, Clock, CreditCard, Dumbbell, House, LogOut, UserCog, Users } from 'lucide-react';
 
 import Home from './home/pages/Home';
 import Login from './auth/pages/Login';
@@ -16,6 +16,7 @@ import ReactivarAlumnoModal from './alumno/pages/ReactivarAlumnoModal';
 import AlumnoLayout from './alumno/pages/AlumnoLayout';
 import AlumnoPerfil from './alumno/pages/AlumnoPerfil';
 import MiInicio from './inicio/pages/MiInicio';
+import PanelPropietario from './panel/pages/PanelPropietario';
 import Notificaciones from './notificacion/pages/Notificaciones';
 import MembresiasList from './membresia/pages/MembresiasList';
 import MembresiaForm from './membresia/pages/MembresiaForm';
@@ -210,6 +211,14 @@ function MainApp({ onLogout }) {
     setFiltroAlumnos(null);
     setOrdenAlumnos(null);
     setSelectedAlumnoId(null);
+  };
+
+  // Panel del propietario: la tarjeta de mora abre Alumnos (pestaña Activos) con el recuadro "En mora" aplicado
+  const verAlumnosEnMora = () => {
+    cambiarPestanaAlumnos('activos');
+    setFiltroAlumnos('EN_MORA');
+    setSearchAlumno('');
+    navigate('/alumnos');
   };
 
   const cargarAlumno = async (id) => {
@@ -476,6 +485,8 @@ function MainApp({ onLogout }) {
 
   const rol = getRol();
   const navItems = [
+    // Panel del propietario: su pantalla de inicio, primera del menú
+    ...(esPropietario ? [{ to: '/inicio', label: 'Inicio', icon: House }] : []),
     { to: '/alumnos', label: 'Alumnos', icon: Users, onClick: () => setSelectedAlumnoId(null) },
     ...(puedeVerPlanes ? [{ to: '/planes', label: 'Planes', icon: ClipboardList }] : []),
     // Agenda y Horarios van juntas: las dos son de turnos
@@ -757,7 +768,12 @@ function MainApp({ onLogout }) {
 
           <Route path="cuenta" element={<MiCuenta />} />
 
-          <Route path="*" element={<Navigate to="/alumnos" replace />} />
+          {/* Panel del propietario: solo PROPIETARIO; el backend también lo exige */}
+          <Route path="inicio" element={esPropietario
+            ? <PanelPropietario onVerMora={verAlumnosEnMora} />
+            : <Navigate to="/alumnos" replace />} />
+
+          <Route path="*" element={<Navigate to={esPropietario ? '/inicio' : '/alumnos'} replace />} />
         </Routes>
 
       </main>
@@ -803,6 +819,8 @@ const esRolValido = (rol) => rol === ROL_ALUMNO || ROLES_GESTION.includes(rol);
 // Pantalla a la que va cada rol al iniciar sesión
 const rutaInicial = (rol) => {
   if (rol === ROL_ALUMNO) return '/mi-cuenta';
+  // El propietario entra a su panel; entrenador y nutricionista siguen yendo a Alumnos
+  if (rol === 'PROPIETARIO') return '/inicio';
   if (ROLES_GESTION.includes(rol)) return '/alumnos';
   return '/login';
 };

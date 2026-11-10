@@ -5,7 +5,7 @@ import { Button } from '../../shared/components/ui';
 import { cx } from '../../shared/components/clases';
 import { InstruccionesIOS } from '../../shared/components/BotonInstalarApp';
 import {
-  activarPush, desactivarPush, enviarPushDePrueba, necesitaInstalarParaPush, permisoPush, soportaPush, sincronizarPush,
+  activarPush, desactivarPush, necesitaInstalarParaPush, permisoPush, soportaPush, sincronizarPush,
 } from '../services/pushService';
 
 /** Tarjeta para activar las notificaciones push en este dispositivo (arriba de la lista de notificaciones). */
@@ -53,11 +53,6 @@ export default function AvisosCelular() {
     setEstado('inactivo');
   });
 
-  const probar = () => ejecutar(async () => {
-    const enviadas = await enviarPushDePrueba();
-    setMensaje({ texto: enviadas > 0 ? 'Enviada. Debería llegarte en unos segundos.' : 'No se pudo enviar. Probá desactivar y volver a activar.', error: enviadas === 0 });
-  });
-
   if (estado === 'cargando' || estado === 'sin-soporte') return null;
 
   const activo = estado === 'activo';
@@ -101,12 +96,7 @@ export default function AvisosCelular() {
           <div className="mt-3 flex flex-wrap gap-2">
             {estado === 'inactivo' && <Button variant="primary" size="sm" onClick={activar} disabled={ocupado}>Activar avisos</Button>}
             {estado === 'instalar' && <Button variant="primary" size="sm" onClick={() => setVerInstrucciones(true)}>Cómo instalar</Button>}
-            {activo && (
-              <>
-                <Button variant="secondary" size="sm" onClick={probar} disabled={ocupado}>Enviar prueba</Button>
-                <Button variant="ghost" size="sm" onClick={desactivar} disabled={ocupado}>Desactivar</Button>
-              </>
-            )}
+            {activo && <Button variant="ghost" size="sm" onClick={desactivar} disabled={ocupado}>Desactivar</Button>}
           </div>
 
           {mensaje && (

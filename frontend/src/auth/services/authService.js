@@ -1,4 +1,4 @@
-import { request } from '../../shared/services/httpClient';
+import { renovarSesion, request } from '../../shared/services/httpClient';
 import { clearToken, getDebeCambiarPasswordFromToken, getEmailFromToken, getRolFromToken, getToken, saveToken } from '../../shared/services/tokenStorage';
 
 export const ROL_ALUMNO = 'ALUMNO';
@@ -18,10 +18,20 @@ export async function login(email, password) {
 
 export function logout() {
   clearToken();
+  // Cierra la sesión también en el servidor (la cookie dice cuál es); sin conexión, igual queda cerrada en este dispositivo
+  request('/auth/logout', { method: 'POST', auth: false }).catch(() => {});
 }
 
 export function hasSession() {
   return getToken() !== null;
+}
+
+/**
+ * Al abrir la app sin token de acceso vigente (vence a los 15 minutos): si la sesión del dispositivo sigue abierta,
+ * trae uno nuevo con la cookie y el usuario entra sin volver a iniciar sesión. Devuelve si quedó con sesión.
+ */
+export async function restaurarSesion() {
+  return hasSession() || renovarSesion();
 }
 
 export function getRol() {

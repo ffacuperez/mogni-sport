@@ -50,6 +50,7 @@ import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
 import mogni.system_backend.auth.repository.CuentaRepository;
+import mogni.system_backend.auth.service.SesionService;
 import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.security.JwtService;
 import mogni.system_backend.turno.entity.EstadoTurno;
@@ -109,6 +110,9 @@ class AuditoriaSeguridadIntegrationTest {
     private JwtService jwtService;
 
     @Autowired
+    private SesionService sesionService;
+
+    @Autowired
     private javax.sql.DataSource dataSource;
 
     @LocalServerPort
@@ -131,8 +135,9 @@ class AuditoriaSeguridadIntegrationTest {
         return cuentaRepository.save(cuenta);
     }
 
+    /** Token de acceso de una sesión recién abierta, como el que entrega el login. */
     private String token(Cuenta cuenta) {
-        return jwtService.generarToken(cuenta);
+        return jwtService.generarToken(cuenta, sesionService.iniciar(cuenta).sesion().getId());
     }
 
     private String tokenDe(Rol rol) {
@@ -507,18 +512,32 @@ class AuditoriaSeguridadIntegrationTest {
         }
     }
 
+    // HALLAZGO M-2, corregido con las sesiones (SesionService): cerrar sesión o cambiar la contraseña corta el token
     @Test
-    @Disabled("HALLAZGO M-2: el token sigue sirviendo después de cerrar sesión y de cambiar la contraseña")
-    void despues_de_cerrar_sesion_o_cambiar_la_contrasenia_el_token_viejo_no_sirve() throws Exception {
+    void despues_de_cerrar_sesion_el_token_viejo_no_sirve() throws Exception {
         Cuenta cuenta = cuenta(Rol.ENTRENADOR, "clave-inicial", false);
         String viejo = token(cuenta);
-        Thread.sleep(1100); // el token nuevo tiene que tener otro "iat"
+        assertEquals(200, ejecutar(get("/alumnos"), viejo).status());
 
         ejecutar(post("/auth/logout"), viejo);
-        ejecutar(post("/auth/cambiar-password"), viejo,
-                "{\"passwordActual\":\"clave-inicial\",\"passwordNueva\":\"nueva-clave-9\",\"passwordConfirmacion\":\"nueva-clave-9\"}");
 
         assertEquals(401, ejecutar(get("/alumnos"), viejo).status());
+    }
+
+    @Test
+    void despues_de_cambiar_la_contrasenia_el_token_de_otro_dispositivo_no_sirve() throws Exception {
+        Cuenta cuenta = cuenta(Rol.ENTRENADOR, "clave-inicial", false);
+        String otroDispositivo = token(cuenta);
+        String esteDispositivo = token(cuenta);
+
+        Respuesta cambio = ejecutar(post("/auth/cambiar-password"), esteDispositivo,
+                "{\"passwordActual\":\"clave-inicial\",\"passwordNueva\":\"nueva-clave-9\",\"passwordConfirmacion\":\"nueva-clave-9\"}");
+
+        assertEquals(200, cambio.status());
+        assertEquals(401, ejecutar(get("/alumnos"), otroDispositivo).status());
+        assertEquals(401, ejecutar(get("/alumnos"), esteDispositivo).status());
+        // El token que devuelve el cambio es el de la sesión nueva de este dispositivo: sigue adentro
+        assertEquals(200, ejecutar(get("/alumnos"), cambio.cuerpo().get("token").asText()).status());
     }
 
     // ===================================================================================================

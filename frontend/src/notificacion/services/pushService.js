@@ -18,7 +18,7 @@ export function permisoPush() {
   return 'Notification' in window ? Notification.permission : 'denied';
 }
 
-// En `npm run dev` no hay service worker (solo con build + preview o en Vercel)
+// En `npm run dev` no hay service worker (solo con build + preview o en el servidor)
 async function registroServiceWorker() {
   const registro = await navigator.serviceWorker.getRegistration();
   if (!registro) {
@@ -88,10 +88,4 @@ export async function desactivarPush() {
   } finally {
     await suscripcion.unsubscribe();
   }
-}
-
-/** Le pide al backend que mande ya mismo una push a este alumno. Devuelve cuántas salieron. */
-export async function enviarPushDePrueba() {
-  const { enviadas } = await request(`${BASE_PATH}/prueba`, { method: 'POST' });
-  return enviadas;
 }

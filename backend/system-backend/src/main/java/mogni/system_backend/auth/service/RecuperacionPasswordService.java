@@ -129,13 +129,14 @@ public class RecuperacionPasswordService {
         buscarValido(token, ZonaHoraria.ahora());
     }
 
+    /** Devuelve la cuenta, para cerrarle las sesiones abiertas (ver AuthController). */
     @Transactional
-    public void restablecer(RestablecerPasswordRequest request) {
-        restablecer(request, ZonaHoraria.ahora());
+    public Cuenta restablecer(RestablecerPasswordRequest request) {
+        return restablecer(request, ZonaHoraria.ahora());
     }
 
     /** Igual que el anterior, con "ahora" como parámetro para poder probarlo con cualquier fecha y hora. */
-    void restablecer(RestablecerPasswordRequest request, LocalDateTime ahora) {
+    Cuenta restablecer(RestablecerPasswordRequest request, LocalDateTime ahora) {
         if (!request.getPasswordNueva().equals(request.getPasswordConfirmacion())) {
             throw new RegistroInvalidoException("La confirmación no coincide con la contraseña nueva");
         }
@@ -148,6 +149,7 @@ public class RecuperacionPasswordService {
         cuentaRepository.save(cuenta);
         invalidarPendientes(cuenta, ahora);
         log.info("Recuperar contraseña: la cuenta {} restableció su contraseña", cuenta.getId());
+        return cuenta;
     }
 
     private TokenRecuperacionPassword buscarValido(String token, LocalDateTime ahora) {

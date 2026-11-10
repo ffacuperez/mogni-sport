@@ -1,0 +1,8 @@
+# Vite también lee .env.local al compilar para producción: si entrara, el front de la imagen apuntaría a otro backend
+*.local
+.env*
+node_modules/
+dist/
+frontend/
+.vscode/
+.idea/

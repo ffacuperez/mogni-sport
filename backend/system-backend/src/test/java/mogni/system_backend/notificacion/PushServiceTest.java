@@ -214,4 +214,41 @@ class PushServiceTest {
         // La prueba no consume el aviso: la tarea diaria igual lo manda
         verify(avisoRepository, never()).save(any());
     }
+
+    @Test
+    void aviso_de_turno_llega_a_cada_dispositivo_de_la_cuenta_con_su_tag() throws Exception {
+        when(suscripcionRepository.findByCuentaId(3L))
+                .thenReturn(List.of(dispositivo("https://push/1"), dispositivo("https://push/2")));
+        when(sender.enviar(anyString(), anyString(), anyString(), anyString())).thenReturn(new WebPushSender.Resultado(201));
+
+        assertEquals(2, pushService.enviarAviso(3L, "turno-7", "Turno cancelado por el gimnasio", "Se canceló tu turno"));
+
+        ArgumentCaptor<String> mensaje = ArgumentCaptor.forClass(String.class);
+        verify(sender, times(2)).enviar(anyString(), anyString(), anyString(), mensaje.capture());
+        Map<?, ?> json = new tools.jackson.databind.json.JsonMapper().readValue(mensaje.getValue(), Map.class);
+        assertEquals("Turno cancelado por el gimnasio", json.get("titulo"));
+        assertEquals("Se canceló tu turno", json.get("mensaje"));
+        assertEquals("turno-7", json.get("tag"));
+        assertEquals("/mi-cuenta/notificaciones", json.get("url"));
+    }
+
+    @Test
+    void aviso_de_turno_sigue_con_los_demas_dispositivos_si_uno_falla() throws Exception {
+        when(suscripcionRepository.findByCuentaId(3L))
+                .thenReturn(List.of(dispositivo("https://push/1"), dispositivo("https://push/2")));
+        when(sender.enviar(eq("https://push/1"), anyString(), anyString(), anyString()))
+                .thenThrow(new java.io.IOException("sin conexión"));
+        when(sender.enviar(eq("https://push/2"), anyString(), anyString(), anyString()))
+                .thenReturn(new WebPushSender.Resultado(201));
+
+        assertEquals(1, pushService.enviarAviso(3L, "turno-7", "Turno cancelado por el gimnasio", "Se canceló tu turno"));
+    }
+
+    @Test
+    void aviso_de_turno_sin_push_configuradas_no_manda_nada() throws Exception {
+        when(sender.estaConfigurado()).thenReturn(false);
+
+        assertEquals(0, pushService.enviarAviso(3L, "turno-7", "Turno cancelado por el gimnasio", "Se canceló tu turno"));
+        verify(sender, never()).enviar(anyString(), anyString(), anyString(), anyString());
+    }
 }

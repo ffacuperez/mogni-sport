@@ -107,6 +107,19 @@ public class PushService {
         return enviadas;
     }
 
+    /** Manda un aviso a todos los dispositivos de la cuenta; devuelve a cuántos llegó. Sin push configuradas, a ninguno. */
+    public int enviarAviso(Long cuentaId, String tag, String titulo, String texto) {
+        if (!sender.estaConfigurado()) {
+            return 0;
+        }
+        String mensaje = mensaje(titulo, texto, tag);
+        int enviadas = 0;
+        for (SuscripcionPush suscripcion : suscripcionRepository.findByCuentaId(cuentaId)) {
+            if (enviar(suscripcion, mensaje)) enviadas++;
+        }
+        return enviadas;
+    }
+
     /**
      * Todos los días a las 10:00 (hora de Argentina). La situación de pago se calcula con la fecha (no hay tarea que
      * marque estados), así que no depende del orden respecto de la tarea de la 01:00.

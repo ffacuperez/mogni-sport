@@ -3,6 +3,7 @@ package mogni.system_backend.cuota.entity;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
 
 /**
@@ -13,11 +14,17 @@ public final class ReglasCuota {
 
     /**
      * Vencimiento de una cuota que empieza en {@code inicio} (regla C2): el mismo día del mes siguiente, así el alumno
-     * paga siempre el mismo día (del 13 al 13). Si el mes siguiente no tiene ese día, vence el último del mes
-     * (31/01 → 28/02) y desde ahí sigue ese día.
+     * paga siempre el mismo día (del 13 al 13). Si el mes siguiente no tiene ese día (29, 30 o 31), vence el 1 del mes
+     * posterior y desde ahí paga los 1: 31/01 → 01/03, 31/03 → 01/05. Ese período sale unos días más largo, nunca más
+     * corto.
      */
     public static LocalDate vencimientoDesde(LocalDate inicio) {
-        return inicio.plusMonths(1);
+        LocalDate mismoDia = inicio.plusMonths(1);
+        // plusMonths ajusta al último día del mes cuando ese día no existe (31/01 → 28/02): ahí corresponde el 1 siguiente
+        if (mismoDia.getDayOfMonth() == inicio.getDayOfMonth()) {
+            return mismoDia;
+        }
+        return YearMonth.from(inicio).plusMonths(2).atDay(1);
     }
 
     /** Desde cuántos días antes del vencimiento el alumno está "Próxima a vencer" (y recibe el aviso). */

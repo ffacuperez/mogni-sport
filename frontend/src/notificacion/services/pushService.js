@@ -89,9 +89,3 @@ export async function desactivarPush() {
     await suscripcion.unsubscribe();
   }
 }
-
-/** Le pide al backend que mande ya mismo una push a este alumno. Devuelve cuántas salieron. */
-export async function enviarPushDePrueba() {
-  const { enviadas } = await request(`${BASE_PATH}/prueba`, { method: 'POST' });
-  return enviadas;
-}

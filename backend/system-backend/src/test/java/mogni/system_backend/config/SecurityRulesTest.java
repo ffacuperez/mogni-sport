@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,43 @@ class SecurityRulesTest {
     void alumnoNoPuedeAccederALaGestion() throws Exception {
         mockMvc.perform(get("/alumnos").with(user("a@x.com").roles("ALUMNO"))).andExpect(status().isForbidden());
         mockMvc.perform(get("/membresias").with(user("a@x.com").roles("ALUMNO"))).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void elPanelEsSoloDelPropietario() throws Exception {
+        mockMvc.perform(get("/panel")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/panel").with(user("a@x.com").roles("ALUMNO"))).andExpect(status().isForbidden());
+        mockMvc.perform(get("/panel").with(user("e@x.com").roles("ENTRENADOR"))).andExpect(status().isForbidden());
+        mockMvc.perform(get("/panel").with(user("n@x.com").roles("NUTRICIONISTA"))).andExpect(status().isForbidden());
+        mockMvc.perform(get("/panel").with(user("p@x.com").roles("PROPIETARIO"))).andExpect(status().isOk());
+    }
+
+    @Test
+    void elEntrenadorRecibePlanesPorVencerPeroNoLosIngresos() throws Exception {
+        mockMvc.perform(get("/panel/planes").with(user("e@x.com").roles("ENTRENADOR")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.planes").isArray())
+                .andExpect(jsonPath("$.diasAviso").value(7))
+                .andExpect(jsonPath("$.ingresos").doesNotExist());
+        mockMvc.perform(get("/panel").with(user("e@x.com").roles("ENTRENADOR"))).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void elPropietarioRecibeLosDosBloquesDeInicio() throws Exception {
+        mockMvc.perform(get("/panel").with(user("p@x.com").roles("PROPIETARIO")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ingresos").exists())
+                .andExpect(jsonPath("$.alumnos").exists());
+        mockMvc.perform(get("/panel/planes").with(user("p@x.com").roles("PROPIETARIO")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.planes").isArray());
+    }
+
+    @Test
+    void losPlanesPorVencerSonDelPropietarioYDelEntrenador() throws Exception {
+        mockMvc.perform(get("/panel/planes")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/panel/planes").with(user("a@x.com").roles("ALUMNO"))).andExpect(status().isForbidden());
+        mockMvc.perform(get("/panel/planes").with(user("n@x.com").roles("NUTRICIONISTA"))).andExpect(status().isForbidden());
     }
 
     @Test

@@ -73,7 +73,7 @@ public class PagoService {
         }
 
         LocalDate vencimiento() {
-            return inicio != null ? inicio.plusDays(ReglasCuota.DIAS_CUOTA) : null;
+            return inicio != null ? ReglasCuota.vencimientoDesde(inicio) : null;
         }
 
         BigDecimal total() {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
-import { Calendar, ClipboardList, Clock, CreditCard, Dumbbell, LogOut, UserCog, Users } from 'lucide-react';
+import { Calendar, ClipboardList, Clock, CreditCard, Dumbbell, House, LogOut, UserCog, Users } from 'lucide-react';
 
 import Home from './home/pages/Home';
 import Login from './auth/pages/Login';
@@ -16,6 +16,7 @@ import ReactivarAlumnoModal from './alumno/pages/ReactivarAlumnoModal';
 import AlumnoLayout from './alumno/pages/AlumnoLayout';
 import AlumnoPerfil from './alumno/pages/AlumnoPerfil';
 import MiInicio from './inicio/pages/MiInicio';
+import InicioPanel from './panel/pages/InicioPanel';
 import Notificaciones from './notificacion/pages/Notificaciones';
 import MembresiasList from './membresia/pages/MembresiasList';
 import MembresiaForm from './membresia/pages/MembresiaForm';
@@ -132,6 +133,9 @@ function MainApp({ onLogout }) {
   const puedeVerAgenda = esPropietario || getRol() === 'ENTRENADOR';
   // Plantillas de plan de entrenamiento (HU-265): propietario y entrenador; el backend también lo exige
   const puedeVerPlanes = esPropietario || getRol() === 'ENTRENADOR';
+  // Inicio: el propietario ve los números del negocio y el entrenador, los planes por revisar
+  const esEntrenador = getRol() === 'ENTRENADOR';
+  const tieneInicio = esPropietario || esEntrenador;
   const { pathname } = useLocation();
   const [alumnos, setAlumnos] = useState([]);
   const [membresias, setMembresias] = useState([]);
@@ -210,6 +214,14 @@ function MainApp({ onLogout }) {
     setFiltroAlumnos(null);
     setOrdenAlumnos(null);
     setSelectedAlumnoId(null);
+  };
+
+  // Panel del propietario: la tarjeta de mora abre Alumnos (pestaña Activos) con el recuadro "En mora" aplicado
+  const verAlumnosEnMora = () => {
+    cambiarPestanaAlumnos('activos');
+    setFiltroAlumnos('EN_MORA');
+    setSearchAlumno('');
+    navigate('/alumnos');
   };
 
   const cargarAlumno = async (id) => {
@@ -476,6 +488,8 @@ function MainApp({ onLogout }) {
 
   const rol = getRol();
   const navItems = [
+    // Inicio de propietario y entrenador, primero en el menú
+    ...(tieneInicio ? [{ to: '/inicio', label: 'Inicio', icon: House }] : []),
     { to: '/alumnos', label: 'Alumnos', icon: Users, onClick: () => setSelectedAlumnoId(null) },
     ...(puedeVerPlanes ? [{ to: '/planes', label: 'Planes', icon: ClipboardList }] : []),
     // Agenda y Horarios van juntas: las dos son de turnos
@@ -757,7 +771,17 @@ function MainApp({ onLogout }) {
 
           <Route path="cuenta" element={<MiCuenta />} />
 
-          <Route path="*" element={<Navigate to="/alumnos" replace />} />
+          {/* Inicio: propietario y entrenador; cada uno ve lo suyo y el backend también lo exige */}
+          <Route path="inicio" element={tieneInicio
+            ? <InicioPanel
+                esPropietario={esPropietario}
+                puedeVerPlanes={esPropietario || esEntrenador}
+                onVerMora={verAlumnosEnMora}
+                onVerAlumno={(alumnoId) => navigate(`/alumnos/${alumnoId}`)}
+              />
+            : <Navigate to="/alumnos" replace />} />
+
+          <Route path="*" element={<Navigate to={tieneInicio ? '/inicio' : '/alumnos'} replace />} />
         </Routes>
 
       </main>
@@ -803,6 +827,8 @@ const esRolValido = (rol) => rol === ROL_ALUMNO || ROLES_GESTION.includes(rol);
 // Pantalla a la que va cada rol al iniciar sesión
 const rutaInicial = (rol) => {
   if (rol === ROL_ALUMNO) return '/mi-cuenta';
+  // Propietario y entrenador entran a Inicio; la nutricionista sigue yendo a Alumnos
+  if (rol === 'PROPIETARIO' || rol === 'ENTRENADOR') return '/inicio';
   if (ROLES_GESTION.includes(rol)) return '/alumnos';
   return '/login';
 };

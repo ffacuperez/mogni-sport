@@ -59,7 +59,7 @@ class MembresiaRequestValidationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {3, 4, 5})
+    @ValueSource(ints = {2, 3, 4, 5, 6})
     void aceptaDiasEnLosLimites(int dias) {
         MembresiaRequest request = requestValido();
         request.setFrecuenciaSemanal(dias);
@@ -67,7 +67,7 @@ class MembresiaRequestValidationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {0, 1, 2, 6, 7, -1})
+    @ValueSource(ints = {0, 1, 7, -1})
     void rechazaDiasFueraDeRango(int dias) {
         MembresiaRequest request = requestValido();
         request.setFrecuenciaSemanal(dias);

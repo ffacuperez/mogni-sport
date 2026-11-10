@@ -25,6 +25,7 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import mogni.system_backend.cuota.CuotasDePrueba;
 import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
@@ -74,7 +75,7 @@ class PuestaAlDiaServiceTest {
         Inscripcion inscripcion = new Inscripcion(id, HOY.minusDays(90), null, EstadoInscripcion.ACTIVA, alumno,
                 new Membresia(7L, "Pro", 25000.0, 3, null));
         alumno.getInscripciones().add(inscripcion);
-        Cuota cuota = inscripcion.agregarCuota(HOY.minusDays(diasDesdeVencimiento).minusDays(30));
+        Cuota cuota = CuotasDePrueba.queVence(inscripcion, HOY.minusDays(diasDesdeVencimiento));
         ultimas.put(id, cuota);
         return alumno;
     }

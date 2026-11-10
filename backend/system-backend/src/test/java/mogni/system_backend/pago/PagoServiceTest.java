@@ -22,6 +22,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import mogni.system_backend.cuota.CuotasDePrueba;
 import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.auth.entity.Cuenta;
@@ -88,7 +89,7 @@ class PagoServiceTest {
 
     /** Última cuota del alumno: vence dentro de {@code dias} días (negativo si ya venció). */
     private Cuota cuotaQueVenceEn(int dias) {
-        Cuota cuota = inscripcion.agregarCuota(hoy.plusDays(dias).minusDays(30));
+        Cuota cuota = CuotasDePrueba.queVence(inscripcion, hoy.plusDays(dias));
         cuota.setId(100L);
         return cuota;
     }
@@ -127,7 +128,7 @@ class PagoServiceTest {
         PagoResponse response = registrar();
 
         assertEquals(hoy.plusDays(3), response.getFechaInicio());
-        assertEquals(hoy.plusDays(33), response.getFechaVencimiento());
+        assertEquals(hoy.plusDays(3).plusMonths(1), response.getFechaVencimiento());
         assertEquals(new BigDecimal("15420.00"), response.getPrecio());
         assertEquals(new BigDecimal("0.00"), response.getRecargo());
         assertEquals(new BigDecimal("15420.00"), response.getMonto());
@@ -168,7 +169,7 @@ class PagoServiceTest {
         PagoResponse response = registrar();
 
         assertEquals(hoy, response.getFechaInicio());
-        assertEquals(hoy.plusDays(30), response.getFechaVencimiento());
+        assertEquals(hoy.plusMonths(1), response.getFechaVencimiento());
         assertEquals(new BigDecimal("15420.00"), response.getPrecio());
         assertEquals(new BigDecimal("1550.00"), response.getRecargo());
         assertEquals(new BigDecimal("16970.00"), response.getMonto());
@@ -243,7 +244,7 @@ class PagoServiceTest {
         assertEquals("30111222", vista.getDni());
         assertEquals("Pro", vista.getMembresiaNombre());
         assertEquals(hoy, vista.getFechaInicio());
-        assertEquals(hoy.plusDays(30), vista.getFechaVencimiento());
+        assertEquals(hoy.plusMonths(1), vista.getFechaVencimiento());
         assertEquals(new BigDecimal("15420.00"), vista.getPrecio());
         assertEquals(new BigDecimal("1550.00"), vista.getRecargo());
         assertEquals(new BigDecimal("16970.00"), vista.getTotal());
@@ -340,10 +341,10 @@ class PagoServiceTest {
         verify(inscripcionRepository).save(programada);
         assertEquals("Full", response.getMembresiaNombre());
         assertEquals(hoy.plusDays(3), response.getFechaInicio());
-        assertEquals(hoy.plusDays(33), response.getFechaVencimiento());
+        assertEquals(hoy.plusDays(3).plusMonths(1), response.getFechaVencimiento());
         assertEquals(new BigDecimal("38000.00"), response.getMonto());
         // Hasta cuándo pagó incluye la programada: sigue "Al día" y la ventana se cerró
-        assertEquals(hoy.plusDays(33), alumno.buscarUltimaCuotaPagada().orElseThrow().getFechaVencimiento());
+        assertEquals(hoy.plusDays(3).plusMonths(1), alumno.buscarUltimaCuotaPagada().orElseThrow().getFechaVencimiento());
         assertEquals("Pro", alumno.buscarInscripcionActiva().orElseThrow().getMembresia().getNombre());
     }
 

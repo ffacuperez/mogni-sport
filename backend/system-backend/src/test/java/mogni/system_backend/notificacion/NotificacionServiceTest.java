@@ -16,11 +16,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import mogni.system_backend.cuota.CuotasDePrueba;
 import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.cuota.entity.Cuota;
-import mogni.system_backend.cuota.entity.ReglasCuota;
 import mogni.system_backend.cuota.repository.CuotaRepository;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
@@ -74,7 +74,7 @@ class NotificacionServiceTest {
         Membresia membresia = new Membresia(7L, "HIIT", 25000.0, 3, null);
         Inscripcion inscripcion = new Inscripcion(5L, vencimiento.minusDays(60), null,
                 EstadoInscripcion.ACTIVA, alumno, membresia);
-        Cuota cuota = inscripcion.agregarCuota(vencimiento.minusDays(ReglasCuota.DIAS_CUOTA));
+        Cuota cuota = CuotasDePrueba.queVence(inscripcion, vencimiento);
         cuota.setId(id);
         return cuota;
     }

@@ -96,6 +96,35 @@ class CuotaTest {
         assertEquals(HOY, ReglasCuota.inicioRenovacion(HOY.minusDays(2), HOY));
     }
 
+    // --- Período mensual: se paga siempre el mismo día ---
+
+    @ParameterizedTest
+    @CsvSource({
+        "2026-01-13, 2026-02-13",
+        // con 30 días hubiera vencido el 15/03
+        "2026-02-13, 2026-03-13",
+        "2026-12-13, 2027-01-13",
+        // el mes siguiente no tiene ese día: vence el último del mes
+        "2026-01-31, 2026-02-28",
+        "2028-01-31, 2028-02-29",
+        "2026-03-31, 2026-04-30",
+    })
+    void la_cuota_vence_el_mismo_dia_del_mes_siguiente(LocalDate inicio, LocalDate vencimiento) {
+        assertEquals(vencimiento, ReglasCuota.vencimientoDesde(inicio));
+    }
+
+    @Test
+    void renovando_a_tiempo_un_anio_entero_vence_siempre_el_mismo_dia() {
+        Inscripcion inscripcion = inscripcion();
+        LocalDate inicio = LocalDate.of(2026, 1, 13);
+        for (int mes = 1; mes <= 12; mes++) {
+            Cuota cuota = inscripcion.agregarCuota(inicio);
+            assertEquals(13, cuota.getFechaVencimiento().getDayOfMonth());
+            inicio = ReglasCuota.inicioRenovacion(cuota.getFechaVencimiento(), cuota.getFechaVencimiento());
+        }
+        assertEquals(LocalDate.of(2027, 1, 13), inicio);
+    }
+
     // --- Recargo ---
 
     @Test
@@ -133,13 +162,13 @@ class CuotaTest {
     // --- Entidad ---
 
     @Test
-    void cuota_nueva_cubre_30_dias_al_precio_actual_con_su_membresia() {
+    void cuota_nueva_cubre_un_mes_al_precio_actual_con_su_membresia() {
         Inscripcion inscripcion = inscripcion();
 
         Cuota cuota = inscripcion.agregarCuota(HOY);
 
         assertEquals(HOY, cuota.getFechaInicio());
-        assertEquals(HOY.plusDays(30), cuota.getFechaVencimiento());
+        assertEquals(HOY.plusMonths(1), cuota.getFechaVencimiento());
         assertEquals(new BigDecimal("25000.00"), cuota.getPrecio());
         assertSame(inscripcion.getMembresia(), cuota.membresiaCubierta());
         assertSame(inscripcion, cuota.getInscripcion());

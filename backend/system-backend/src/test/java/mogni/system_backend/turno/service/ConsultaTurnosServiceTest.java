@@ -28,6 +28,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import mogni.system_backend.cuota.CuotasDePrueba;
 import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.auth.entity.Cuenta;
@@ -426,7 +427,7 @@ class ConsultaTurnosServiceTest {
 
     @Test
     void alumnoEnMoraVeLosTurnosPeroNoPuedeElegirNinguno() {
-        alumno.buscarInscripcionActiva().orElseThrow().agregarCuota(MARTES.minusDays(32)); // venció hace 2 días
+        CuotasDePrueba.queVence(alumno.buscarInscripcionActiva().orElseThrow(), MARTES.minusDays(2)); // venció hace 2 días
         turno(MARTES, "19:00", 5);
 
         TurnosDisponiblesResponse response = consultar(null, MARTES_10_30);
@@ -439,7 +440,7 @@ class ConsultaTurnosServiceTest {
     @Test
     void conElMesSiguientePagadoEnUnaProgramadaNoEstaEnMora() {
         // La cuota de la activa venció hace 2 días, pero ya pagó el período siguiente con otra membresía
-        alumno.buscarInscripcionActiva().orElseThrow().agregarCuota(MARTES.minusDays(32));
+        CuotasDePrueba.queVence(alumno.buscarInscripcionActiva().orElseThrow(), MARTES.minusDays(2));
         Inscripcion.nueva(alumno, new Membresia(9L, "Full", 38000.0, 5, null), MARTES.minusDays(2),
                 EstadoInscripcion.PROGRAMADA).agregarCuota(MARTES.minusDays(2));
         turno(MARTES, "19:00", 5);
@@ -486,7 +487,7 @@ class ConsultaTurnosServiceTest {
 
     @Test
     void alumnoVencidoNoEstaBloqueado() {
-        alumno.buscarInscripcionActiva().orElseThrow().agregarCuota(MARTES.minusDays(31)); // venció ayer
+        CuotasDePrueba.queVence(alumno.buscarInscripcionActiva().orElseThrow(), MARTES.minusDays(1)); // venció ayer
         turno(MARTES, "19:00", 5);
 
         TurnosDisponiblesResponse response = consultar(null, MARTES_10_30);

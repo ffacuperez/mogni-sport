@@ -114,59 +114,77 @@ FROM (VALUES
 JOIN alumnos a ON a.dni = i.dni
 JOIN membresias m ON m.nombre = i.membresia;
 
--- 7) Cuotas: períodos ya pagados (inicio → vencimiento), con su precio sin recargo. Son de 30 días, salvo la
---    diferencia del cambio de membresía de Nicolás, que termina el mismo día que la cuota original ($38.000 −
---    $18.000 = $20.000). La situación de cada alumno se calcula con su última cuota (activa o programada).
+-- 7) Cuotas: períodos ya pagados, con su precio sin recargo. Son mensuales: vencen el mismo día del mes siguiente al
+--    inicio (del 13 al 13), así cada alumno paga siempre el mismo día. Cada fila fija el día de vencimiento que
+--    define el caso (ancla, en días desde hoy) y cuántos meses antes de él empieza el período (meses: -1 = la cuota
+--    que vence en el ancla, -2 = la anterior, 0 = la siguiente). Así las cuotas encadenadas quedan pegadas.
 INSERT INTO cuotas (inscripcion_id, fecha_inicio, fecha_vencimiento, precio)
-SELECT i.id, CURRENT_DATE + c.inicio, CURRENT_DATE + c.fin, c.precio
+SELECT i.id,
+       (CURRENT_DATE + c.ancla + make_interval(months => c.meses))::date,
+       (CURRENT_DATE + c.ancla + make_interval(months => c.meses + 1))::date,
+       c.precio
 FROM (VALUES
-    ('30111222', 'ACTIVA',     -70, -40, 25000),
-    ('30111222', 'ACTIVA',     -35,  -5, 25000),
-    ('35222333', 'ACTIVA',     -27,   3, 38000),
-    ('38333444', 'ACTIVA',     -31,  -1, 18000),
-    ('40444555', 'ACTIVA',     -40, -10, 25000),
-    ('40444555', 'ACTIVA',     -10,  20, 25000),
-    ('42555666', 'ACTIVA',       0,  30, 38000),
-    ('36111000', 'ACTIVA',     -26,   4, 25000),
-    ('36111000', 'PROGRAMADA',   4,  34, 38000),
-    ('37222000', 'ACTIVA',     -62, -32, 18000),
-    ('39333000', 'ACTIVA',     -32,  -2, 25000),
-    ('41444000', 'ACTIVA',     -22,   8, 18000),
-    ('33555000', 'CANCELADA',  -10,  20, 18000),
-    ('33555000', 'ACTIVA',      -3,  20, 20000),
-    ('34666000', 'CANCELADA',  -20,  10, 25000),
-    ('43777000', 'CANCELADA',  -50, -20, 38000)
-) AS c(dni, estado, inicio, fin, precio)
+    ('30111222', 'ACTIVA',     -40, -1, 25000),  -- Lucía: la 1ª venció hace 40 días...
+    ('30111222', 'ACTIVA',      -5, -1, 25000),  -- ...y la 2ª la pagó en mora: empezó el día que pagó
+    ('35222333', 'ACTIVA',       3, -1, 38000),
+    ('38333444', 'ACTIVA',      -1, -1, 18000),
+    ('40444555', 'ACTIVA',      20, -2, 25000),  -- Tomás: dos cuotas encadenadas
+    ('40444555', 'ACTIVA',      20, -1, 25000),
+    ('42555666', 'ACTIVA',       0,  0, 38000),  -- Valentina: alta hoy
+    ('36111000', 'ACTIVA',       4, -1, 25000),
+    ('36111000', 'PROGRAMADA',   4,  0, 38000),  -- Joaquín: el mes siguiente, ya pagado con x5
+    ('37222000', 'ACTIVA',     -32, -1, 18000),
+    ('39333000', 'ACTIVA',      -2, -1, 25000),
+    ('41444000', 'ACTIVA',       8, -1, 18000),
+    ('33555000', 'CANCELADA',   20, -1, 18000),
+    ('34666000', 'CANCELADA',   10, -1, 25000),
+    ('43777000', 'CANCELADA',  -20, -1, 38000)
+) AS c(dni, estado, ancla, meses, precio)
 JOIN alumnos a ON a.dni = c.dni
 JOIN inscripciones i ON i.alumno_id = a.id AND i.estado = c.estado;
 
--- 8) Un pago por cuota. El monto es el total (precio + recargo).
---    Lucía renovó en mora (hace 35 días, 5 días después del vencimiento): recargo del 10% redondeado a la decena
---    hacia arriba ($25.000 → total $27.500, recargo $2.500).
---    Joaquín pagó ayer el mes siguiente con x5 (queda programado).
+--    La diferencia del cambio de membresía de Nicolás va de hace 3 días al mismo vencimiento que la cuota original
+--    ($38.000 − $18.000 = $20.000).
+INSERT INTO cuotas (inscripcion_id, fecha_inicio, fecha_vencimiento, precio)
+SELECT i.id, CURRENT_DATE - 3, CURRENT_DATE + 20, 20000
+FROM alumnos a
+JOIN inscripciones i ON i.alumno_id = a.id AND i.estado = 'ACTIVA'
+WHERE a.dni = '33555000';
+
+--    Cada inscripción empieza con su primera cuota (las fechas de arriba dependen de cuántos días tiene cada mes).
+UPDATE inscripciones i
+SET fecha_inicio = (SELECT min(cu.fecha_inicio) FROM cuotas cu WHERE cu.inscripcion_id = i.id)
+WHERE EXISTS (SELECT 1 FROM cuotas cu WHERE cu.inscripcion_id = i.id);
+
+-- 8) Un pago por cuota. El monto es el total (precio + recargo). Cada pago se identifica por el número de cuota
+--    dentro de su inscripción (1 = la más vieja) y su fecha va en días desde el inicio de esa cuota.
+--    Lucía renovó en mora (pocos días después del vencimiento): recargo del 10% redondeado a la decena hacia arriba
+--    ($25.000 → total $27.500, recargo $2.500). Tomás pagó la 2ª dos días antes de que empezara.
+--    Joaquín pagó ayer el mes siguiente con x5 (queda programado; empieza dentro de 4 días).
 INSERT INTO pagos (cuota_id, monto, recargo, medio_de_pago, fecha_pago)
-SELECT cu.id, cu.precio + p.recargo, p.recargo, p.medio, CURRENT_DATE + p.fecha_pago
+SELECT cu.id, cu.precio + p.recargo, p.recargo, p.medio, cu.fecha_inicio + p.dias_desde_inicio
 FROM (VALUES
-    ('30111222', 'ACTIVA',     -70, 0,    'EFECTIVO',      -70),
-    ('30111222', 'ACTIVA',     -35, 2500, 'TRANSFERENCIA', -35),
-    ('35222333', 'ACTIVA',     -27, 0,    'TRANSFERENCIA', -27),
-    ('38333444', 'ACTIVA',     -31, 0,    'EFECTIVO',      -31),
-    ('40444555', 'ACTIVA',     -40, 0,    'EFECTIVO',      -40),
-    ('40444555', 'ACTIVA',     -10, 0,    'TRANSFERENCIA', -12),
-    ('42555666', 'ACTIVA',       0, 0,    'EFECTIVO',        0),
-    ('36111000', 'ACTIVA',     -26, 0,    'EFECTIVO',      -26),
-    ('36111000', 'PROGRAMADA',   4, 0,    'TRANSFERENCIA',  -1),
-    ('37222000', 'ACTIVA',     -62, 0,    'EFECTIVO',      -62),
-    ('39333000', 'ACTIVA',     -32, 0,    'TRANSFERENCIA', -32),
-    ('41444000', 'ACTIVA',     -22, 0,    'EFECTIVO',      -22),
-    ('33555000', 'CANCELADA',  -10, 0,    'EFECTIVO',      -10),
-    ('33555000', 'ACTIVA',      -3, 0,    'TRANSFERENCIA',  -3),
-    ('34666000', 'CANCELADA',  -20, 0,    'EFECTIVO',      -20),
-    ('43777000', 'CANCELADA',  -50, 0,    'TRANSFERENCIA', -50)
-) AS p(dni, estado, inicio, recargo, medio, fecha_pago)
+    ('30111222', 'ACTIVA',     1, 0,    'EFECTIVO',       0),
+    ('30111222', 'ACTIVA',     2, 2500, 'TRANSFERENCIA',  0),
+    ('35222333', 'ACTIVA',     1, 0,    'TRANSFERENCIA',  0),
+    ('38333444', 'ACTIVA',     1, 0,    'EFECTIVO',       0),
+    ('40444555', 'ACTIVA',     1, 0,    'EFECTIVO',       0),
+    ('40444555', 'ACTIVA',     2, 0,    'TRANSFERENCIA', -2),
+    ('42555666', 'ACTIVA',     1, 0,    'EFECTIVO',       0),
+    ('36111000', 'ACTIVA',     1, 0,    'EFECTIVO',       0),
+    ('36111000', 'PROGRAMADA', 1, 0,    'TRANSFERENCIA', -5),
+    ('37222000', 'ACTIVA',     1, 0,    'EFECTIVO',       0),
+    ('39333000', 'ACTIVA',     1, 0,    'TRANSFERENCIA',  0),
+    ('41444000', 'ACTIVA',     1, 0,    'EFECTIVO',       0),
+    ('33555000', 'CANCELADA',  1, 0,    'EFECTIVO',       0),
+    ('33555000', 'ACTIVA',     1, 0,    'TRANSFERENCIA',  0),
+    ('34666000', 'CANCELADA',  1, 0,    'EFECTIVO',       0),
+    ('43777000', 'CANCELADA',  1, 0,    'TRANSFERENCIA',  0)
+) AS p(dni, estado, numero, recargo, medio, dias_desde_inicio)
 JOIN alumnos a ON a.dni = p.dni
 JOIN inscripciones i ON i.alumno_id = a.id AND i.estado = p.estado
-JOIN cuotas cu ON cu.inscripcion_id = i.id AND cu.fecha_inicio = CURRENT_DATE + p.inicio;
+JOIN (SELECT c.*, row_number() OVER (PARTITION BY c.inscripcion_id ORDER BY c.fecha_inicio) AS numero
+      FROM cuotas c) cu ON cu.inscripcion_id = i.id AND cu.numero = p.numero;
 
 -- 9) Franjas horarias: lunes a viernes, mañana y tarde
 INSERT INTO franjas_horarias (dia_semana, hora_inicio, hora_fin)

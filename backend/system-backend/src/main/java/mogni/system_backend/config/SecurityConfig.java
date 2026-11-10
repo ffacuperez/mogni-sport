@@ -87,6 +87,10 @@ public class SecurityConfig {
                 .requestMatchers("/mi-progreso/**").hasRole("ALUMNO")
                 // Mi inicio (MOGNI-281): el resumen del alumno logueado; el servicio exige además cuenta activa
                 .requestMatchers("/mi-inicio").hasRole("ALUMNO")
+                // Inicio del personal: los datos del negocio solo para el propietario; los planes por vencer, para el
+                // propietario y el entrenador (dos endpoints, así un entrenador nunca recibe los ingresos)
+                .requestMatchers("/panel").hasRole("PROPIETARIO")
+                .requestMatchers("/panel/planes").hasAnyRole("PROPIETARIO", "ENTRENADOR")
                 // Historial de pagos (HU-48): solo el propietario, también antes de /alumnos/**
                 .requestMatchers(HttpMethod.GET, "/alumnos/*/pagos").hasRole("PROPIETARIO")
                 // Vista previa de la renovación (MOGNI-45): es parte del registro de pago, solo el propietario

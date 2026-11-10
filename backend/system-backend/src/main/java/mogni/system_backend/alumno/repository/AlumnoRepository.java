@@ -1,5 +1,6 @@
 package mogni.system_backend.alumno.repository;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,4 +40,28 @@ public interface AlumnoRepository extends JpaRepository<Alumno, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from Alumno a where a.id = :id")
     Optional<Alumno> findByIdConBloqueo(@Param("id") Long id);
+
+    /** Panel del propietario: cantidad de alumnos activos (true) o dados de baja (false). */
+    long countByCuentaActiva(boolean activa);
+
+    /**
+     * Panel del propietario: alumnos nuevos entre dos fechas, es decir, cuya primera inscripción empieza en ese
+     * rango. Los cambios de membresía (HU-274), las renovaciones con otra membresía (HU-275) y las reactivaciones
+     * (HU-271) crean inscripciones posteriores, así que no cuentan.
+     */
+    @Query("""
+            select count(a) from Alumno a
+            where (select min(i.fechaInicio) from Inscripcion i where i.alumno = a) between :desde and :hasta
+            """)
+    long contarNuevos(@Param("desde") LocalDate desde, @Param("hasta") LocalDate hasta);
+
+    /**
+     * Panel del propietario: alumnos dados de baja entre dos fechas. Sale de cuentas.fecha_baja, que se borra al
+     * reactivar: un alumno que se dio de baja y volvió en el mismo mes no cuenta (decidido para el panel).
+     */
+    @Query("""
+            select count(a) from Alumno a
+            where a.cuenta.activa = false and a.cuenta.fechaBaja between :desde and :hasta
+            """)
+    long contarBajas(@Param("desde") LocalDate desde, @Param("hasta") LocalDate hasta);
 }

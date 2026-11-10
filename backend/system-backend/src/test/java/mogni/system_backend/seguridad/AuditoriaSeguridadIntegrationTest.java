@@ -528,9 +528,9 @@ class AuditoriaSeguridadIntegrationTest {
     @Test
     void los_dtos_rechazan_valores_fuera_de_rango_y_formatos_invalidos() throws Exception {
         String propietario = tokenDe(Rol.PROPIETARIO);
-        // Membresía: precio > 0, días <= 5
+        // Membresía: precio > 0, días <= 6
         assertEquals(400, ejecutar(post("/membresias"), propietario, "{\"nombre\":\"A\",\"precioActual\":0,\"frecuenciaSemanal\":3}").status());
-        assertEquals(400, ejecutar(post("/membresias"), propietario, "{\"nombre\":\"A\",\"precioActual\":10,\"frecuenciaSemanal\":6}").status());
+        assertEquals(400, ejecutar(post("/membresias"), propietario, "{\"nombre\":\"A\",\"precioActual\":10,\"frecuenciaSemanal\":7}").status());
         // Cupo > 0
         assertEquals(400, ejecutar(put("/configuracion-gimnasio/cupo-maximo"), propietario, "{\"cupoMaximo\":0}").status());
         // Semanas 1-52
@@ -545,9 +545,16 @@ class AuditoriaSeguridadIntegrationTest {
     }
 
     @Test
-    void la_membresia_exige_entre_3_y_5_dias() throws Exception {
-        assertEquals(400, ejecutar(post("/membresias"), tokenDe(Rol.PROPIETARIO),
+    void la_membresia_exige_entre_2_y_6_dias() throws Exception {
+        String propietario = tokenDe(Rol.PROPIETARIO);
+        // Los extremos se crean (membresia() ya verifica el 201)...
+        membresia("20000", 2);
+        membresia("20000", 6);
+        // ...y uno de cada lado queda afuera
+        assertEquals(400, ejecutar(post("/membresias"), propietario,
                 "{\"nombre\":\"Corta" + SECUENCIA.incrementAndGet() + "\",\"precioActual\":10,\"frecuenciaSemanal\":1}").status());
+        assertEquals(400, ejecutar(post("/membresias"), propietario,
+                "{\"nombre\":\"Larga" + SECUENCIA.incrementAndGet() + "\",\"precioActual\":10,\"frecuenciaSemanal\":7}").status());
     }
 
     @Test

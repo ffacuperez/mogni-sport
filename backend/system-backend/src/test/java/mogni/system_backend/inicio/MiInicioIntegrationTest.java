@@ -26,6 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
+import mogni.system_backend.cuota.CuotasDePrueba;
 import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.auth.entity.Cuenta;
@@ -142,7 +143,7 @@ class MiInicioIntegrationTest {
     private Alumno alumno(int diasPorSemana, int diasHastaVencimiento) {
         Alumno alumno = alumnoSinInscripcion();
         Inscripcion inscripcion = Inscripcion.nueva(alumno, membresia(diasPorSemana), hoy().minusDays(60), EstadoInscripcion.ACTIVA);
-        inscripcion.agregarCuota(hoy().plusDays(diasHastaVencimiento).minusDays(30));
+        CuotasDePrueba.queVence(inscripcion, hoy().plusDays(diasHastaVencimiento));
         return alumnoRepository.save(alumno);
     }
 

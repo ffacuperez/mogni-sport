@@ -122,7 +122,7 @@ export default function AlumnoForm({ alumnoToEdit, membresias, onSave, onCancel,
               ))}
             </div>
             <p className="mt-3 text-xs text-ink-muted">
-              La primera cuota cubre 30 días desde hoy y el pago se registra con la fecha de hoy.
+              La primera cuota cubre un mes: vence el mismo día del mes que viene. El pago se registra con la fecha de hoy.
             </p>
           </fieldset>
         )}

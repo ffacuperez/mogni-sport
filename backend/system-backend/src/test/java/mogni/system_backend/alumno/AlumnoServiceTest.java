@@ -29,6 +29,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import mogni.system_backend.cuota.CuotasDePrueba;
 import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.alumno.dto.ActualizarAlumnoRequest;
 import mogni.system_backend.alumno.dto.AlumnoResponse;
@@ -143,7 +144,7 @@ class AlumnoServiceTest {
         Alumno alumno = alumnoExistente();
         Inscripcion inscripcion = new Inscripcion(1L, hoy.minusDays(60), null, EstadoInscripcion.ACTIVA, null, actual);
         alumno.agregarInscripcion(inscripcion);
-        Cuota cuota = inscripcion.agregarCuota(hoy.plusDays(diasHastaVencimiento).minusDays(30));
+        Cuota cuota = CuotasDePrueba.queVence(inscripcion, hoy.plusDays(diasHastaVencimiento));
         cuota.setId(100L);
         if (recargo != null) {
             Pago pago = Pago.de(cuota, recargo, MedioDePago.TRANSFERENCIA, hoy.minusDays(20));
@@ -224,7 +225,7 @@ class AlumnoServiceTest {
         assertEquals(1, inscripcion.getCuotas().size());
         Cuota cuota = inscripcion.getCuotas().get(0);
         assertEquals(hoy, cuota.getFechaInicio());
-        assertEquals(hoy.plusDays(30), cuota.getFechaVencimiento());
+        assertEquals(hoy.plusMonths(1), cuota.getFechaVencimiento());
         assertEquals(new BigDecimal("40000.00"), cuota.getPrecio());
         assertSame(membresia, cuota.membresiaCubierta());
 
@@ -877,7 +878,7 @@ class AlumnoServiceTest {
         assertEquals(hoy, nueva.getFechaInicio());
         Cuota cuota = nueva.getCuotas().get(0);
         assertEquals(hoy, cuota.getFechaInicio());
-        assertEquals(hoy.plusDays(30), cuota.getFechaVencimiento());
+        assertEquals(hoy.plusMonths(1), cuota.getFechaVencimiento());
         Pago pago = pagoCapturado();
         assertEquals(new BigDecimal("40000.00"), pago.getMonto());
         assertEquals(new BigDecimal("0.00"), pago.getRecargo());
@@ -1035,7 +1036,7 @@ class AlumnoServiceTest {
         Inscripcion inscripcion = new Inscripcion(id, hoy.minusDays(60), null, EstadoInscripcion.ACTIVA, null, membresia);
         alumno.agregarInscripcion(inscripcion);
         if (dias != null) {
-            ultimasCuotas.put(id, inscripcion.agregarCuota(hoy.plusDays(dias).minusDays(30)));
+            ultimasCuotas.put(id, CuotasDePrueba.queVence(inscripcion, hoy.plusDays(dias)));
         }
         return alumno;
     }
@@ -1076,7 +1077,7 @@ class AlumnoServiceTest {
         assertEquals("Full", fila.getMembresiaProgramada());
         assertEquals(hoy.plusDays(3), fila.getProgramadaDesde());
         assertEquals(new BigDecimal("38000.00"), fila.getCuotaActual().getPrecioMembresia());
-        assertEquals(hoy.plusDays(33), fila.getCuotaActual().getFechaVencimiento());
+        assertEquals(hoy.plusDays(3).plusMonths(1), fila.getCuotaActual().getFechaVencimiento());
         assertEquals(SituacionPago.AL_DIA, fila.getCuotaActual().getSituacion());
         assertFalse(fila.getCuotaActual().isPuedeRenovar());
     }

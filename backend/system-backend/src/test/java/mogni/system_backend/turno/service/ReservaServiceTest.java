@@ -26,6 +26,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import mogni.system_backend.cuota.CuotasDePrueba;
 import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.auth.entity.Cuenta;
@@ -459,7 +460,7 @@ class ReservaServiceTest {
 
     /** El alumno queda con una cuota que vence {@code dias} días después del martes (negativo = ya venció). */
     private void cuotaQueVenceEn(int dias) {
-        alumno.buscarInscripcionActiva().orElseThrow().agregarCuota(MARTES.plusDays(dias).minusDays(30));
+        CuotasDePrueba.queVence(alumno.buscarInscripcionActiva().orElseThrow(), MARTES.plusDays(dias));
     }
 
     @Test

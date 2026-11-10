@@ -11,8 +11,14 @@ import java.time.temporal.ChronoUnit;
  */
 public final class ReglasCuota {
 
-    /** Días que cubre cada cuota (regla C2). */
-    public static final int DIAS_CUOTA = 30;
+    /**
+     * Vencimiento de una cuota que empieza en {@code inicio} (regla C2): el mismo día del mes siguiente, así el alumno
+     * paga siempre el mismo día (del 13 al 13). Si el mes siguiente no tiene ese día, vence el último del mes
+     * (31/01 → 28/02) y desde ahí sigue ese día.
+     */
+    public static LocalDate vencimientoDesde(LocalDate inicio) {
+        return inicio.plusMonths(1);
+    }
 
     /** Desde cuántos días antes del vencimiento el alumno está "Próxima a vencer" (y recibe el aviso). */
     public static final int DIAS_AVISO_VENCIMIENTO = 5;

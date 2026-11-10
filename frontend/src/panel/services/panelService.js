@@ -28,6 +28,21 @@ export async function consultarPanel() {
   return panelFromApi(await request('/panel'));
 }
 
+/**
+ * Planes de alumnos activos que vencen en los próximos días (diasAviso, incluido hoy). Qué plan es vigente lo decide
+ * el backend, con la misma regla que el resto de la app.
+ */
+export async function consultarPlanesPorVencer() {
+  const d = await request('/panel/planes');
+  return { diasAviso: d.diasAviso, planes: d.planes };
+}
+
+/** 0 -> "Vence hoy", 1 -> "Vence en 1 día", 3 -> "Vence en 3 días" */
+export function textoVencePlan(dias) {
+  if (dias === 0) return 'Vence hoy';
+  return `Vence en ${dias} ${dias === 1 ? 'día' : 'días'}`;
+}
+
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const MESES_LARGOS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre',
   'octubre', 'noviembre', 'diciembre'];

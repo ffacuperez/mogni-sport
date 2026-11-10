@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react';
 import {
-  Banknote, CalendarCheck, ChevronRight, CircleAlert, Landmark, OctagonAlert, UserMinus, UserPlus, Users, Wallet,
+  Banknote, CalendarCheck, ChevronRight, Landmark, OctagonAlert, UserMinus, UserPlus, Users, Wallet,
 } from 'lucide-react';
 
 import { cx, FOCUS } from '../../shared/components/clases';
-import { Cargando, PageHeader, Panel } from '../../shared/components/ui';
+import { Panel } from '../../shared/components/ui';
 import { formatearMonto } from '../../shared/services/texto';
+import { CLASE_TARJETA, GRILLA_TARJETAS, TONOS_ICONO } from '../components/estilos';
 import GraficoIngresos from '../components/GraficoIngresos';
-import { consultarPanel, textoMes, textoPorcentaje, textoVariacion } from '../services/panelService';
+import { textoMes, textoPorcentaje, textoVariacion } from '../services/panelService';
 
 const TONO_VARIACION = (valor) => {
   if (valor == null || valor === 0) return 'bg-row-hover text-ink-soft';
@@ -16,12 +16,7 @@ const TONO_VARIACION = (valor) => {
 
 /** Número clave con ícono y etiqueta. Con onClick es un botón que lleva a otra pantalla. */
 function Tarjeta({ label, value, detalle, icon: Icon, tono = 'neutral', onClick }) {
-  const colores = {
-    neutral: 'bg-row-hover text-ink-soft',
-    primary: 'bg-error-bg text-primary',
-    success: 'bg-success-bg text-success',
-    error: 'bg-error-bg text-error',
-  }[tono];
+  const colores = TONOS_ICONO[tono];
   const contenido = (
     <>
       <span className={cx('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', colores)}>
@@ -35,7 +30,7 @@ function Tarjeta({ label, value, detalle, icon: Icon, tono = 'neutral', onClick 
       {onClick && <ChevronRight className="h-4 w-4 shrink-0 text-ink-muted" />}
     </>
   );
-  const clases = 'flex min-w-0 items-center gap-3 rounded-lg border border-line bg-card p-4 text-left shadow-card';
+  const clases = cx(CLASE_TARJETA, 'flex min-w-0 items-center gap-3 text-left');
   if (!onClick) return <div className={clases}>{contenido}</div>;
   return (
     <button type="button" onClick={onClick} className={cx(clases, 'cursor-pointer transition-colors hover:bg-row-hover', FOCUS)}>
@@ -101,39 +96,21 @@ function ActivosPorMembresia({ filas, total }) {
   );
 }
 
-/** Panel del propietario: los números clave del mes arriba y el gráfico de ingresos abajo. */
-export default function PanelPropietario({ onVerMora }) {
-  const [panel, setPanel] = useState(null);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    let vigente = true;
-    consultarPanel()
-      .then((datos) => { if (vigente) setPanel(datos); })
-      .catch((err) => { if (vigente) setError(err); });
-    return () => { vigente = false; };
-  }, []);
-
-  if (error) {
-    return (
-      <div role="alert" className="flex items-center gap-3 rounded-lg border border-line bg-error-bg p-4 text-error">
-        <CircleAlert className="h-5 w-5 shrink-0" />
-        <span className="text-sm">{error.message}</span>
-      </div>
-    );
-  }
-
-  if (!panel) return <Cargando texto="Cargando el panel" />;
-
+/**
+ * Indicadores del negocio (solo propietario): los números clave del mes arriba y el gráfico de ingresos abajo. Solo
+ * dibuja: los datos los trae InicioPanel. {@code planesPorVencer} es la tarjeta de planes, que va en la misma grilla,
+ * debajo de los indicadores.
+ */
+export default function PanelPropietario({ panel, planesPorVencer, onVerMora }) {
   const { fecha, ingresos, ingresosPorMes, alumnos, activosPorMembresia, ocupacion, asistencia } = panel;
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Inicio" subtitle={`Resumen de ${textoMes(fecha)}`} />
+      <p className="text-sm text-ink-soft">Resumen de {textoMes(fecha)}</p>
 
       <Ingresos ingresos={ingresos} />
 
-      <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 lg:grid-cols-3">
+      <div className={GRILLA_TARJETAS}>
         <Tarjeta label="Alumnos activos" value={alumnos.activos} icon={Users} tono="primary" />
         <Tarjeta label="Inscripciones nuevas del mes" value={alumnos.nuevosDelMes} icon={UserPlus} tono="success" />
         <Tarjeta label="Bajas del mes" value={alumnos.bajasDelMes} icon={UserMinus} />
@@ -143,6 +120,7 @@ export default function PanelPropietario({ onVerMora }) {
           detalle={`${ocupacion.reservas} reservas sobre ${ocupacion.cupo} lugares`} />
         <Tarjeta label="Asistencia del mes" value={textoPorcentaje(asistencia.porcentaje)} icon={CalendarCheck}
           detalle={`${asistencia.presentes} presentes · ${asistencia.ausentes} ausentes`} />
+        {planesPorVencer}
       </div>
 
       <ActivosPorMembresia filas={activosPorMembresia} total={alumnos.activos} />

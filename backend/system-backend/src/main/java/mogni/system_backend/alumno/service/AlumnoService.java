@@ -102,7 +102,7 @@ public class AlumnoService {
 
     /**
      * MOGNI-73: el alta siempre se hace con la primera cuota pagada. En la misma transacción se crean el alumno, su
-     * cuenta, la inscripción, la primera cuota (de hoy al mismo día del mes siguiente, al precio vigente) y su pago.
+     * cuenta, la inscripción, la primera cuota (un mes desde hoy, ver ReglasCuota.vencimientoDesde, al precio vigente) y su pago.
      */
     @Transactional
     public AlumnoResponse registrarAlumno(RegistrarAlumnoRequest request) {
@@ -324,7 +324,7 @@ public class AlumnoService {
     /**
      * Reactivación (MOGNI-246). Si su última cuota todavía cubre hoy, se reactiva la misma inscripción sin cobrar
      * nada. Si no, es como un alta: se crean una inscripción nueva con la membresía elegida y su primera cuota pagada
-     * (de hoy al mismo día del mes siguiente), sin recargo: la deuda anterior se olvida.
+     * (un mes desde hoy), sin recargo: la deuda anterior se olvida.
      */
     @Transactional
     public AlumnoResponse reactivarAlumno(Long id, ReactivarAlumnoRequest request) {
@@ -469,7 +469,7 @@ public class AlumnoService {
         return new CambioMembresia(true, null, cuota, pagado, ReglasCuota.diferenciaCambio(pagado, precio(nueva)));
     }
 
-    /** Inscripción nueva desde hoy con su primera cuota (hasta el mismo día del mes siguiente). El pago lo guarda quien la llama. */
+    /** Inscripción nueva desde hoy con su primera cuota (un mes desde hoy). El pago lo guarda quien la llama. */
     private static Cuota inscribirConPrimeraCuota(Alumno alumno, Membresia membresia, LocalDate hoy) {
         Inscripcion inscripcion = nuevaInscripcion(membresia, hoy);
         alumno.agregarInscripcion(inscripcion);

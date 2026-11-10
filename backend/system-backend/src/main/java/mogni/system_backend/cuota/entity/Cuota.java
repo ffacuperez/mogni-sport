@@ -44,7 +44,10 @@ public class Cuota {
     @Column(nullable = false)
     private LocalDate fechaInicio;
 
-    /** Fin del período: el mismo día del mes siguiente (salvo la cuota de un cambio de membresía, que termina con la anterior). */
+    /**
+     * Fin del período: el mismo día del mes siguiente, o el 1 del posterior si ese día no existe (ver
+     * {@link ReglasCuota#vencimientoDesde}). La cuota de un cambio de membresía termina con la anterior.
+     */
     @Column(nullable = false)
     private LocalDate fechaVencimiento;
 
@@ -55,7 +58,7 @@ public class Cuota {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal precio;
 
-    /** Cuota de un mes desde {@code inicio} (vence el mismo día del mes siguiente), al precio actual de la membresía. */
+    /** Cuota de un mes desde {@code inicio} (ver {@link ReglasCuota#vencimientoDesde}), al precio actual de la membresía. */
     public static Cuota nueva(Inscripcion inscripcion, LocalDate inicio) {
         return conPeriodo(inscripcion, inicio, ReglasCuota.vencimientoDesde(inicio),
                 BigDecimal.valueOf(inscripcion.getMembresia().getPrecioActual()).setScale(2));

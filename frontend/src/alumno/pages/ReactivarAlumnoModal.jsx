@@ -7,7 +7,7 @@ import { inputClass } from '../../shared/components/clases';
 
 /**
  * MOGNI-246: reactivar a un alumno que ya no tiene días pagos es como un alta. Se elige la membresía y el medio de pago
- * de la primera cuota (de hoy al mismo día del mes siguiente), sin recargo: la deuda anterior se olvida.
+ * de la primera cuota (un mes desde hoy), sin recargo: la deuda anterior se olvida.
  */
 export default function ReactivarAlumnoModal({ alumno, membresias, onConfirm, onCancel, onError }) {
   const [membresiaId, setMembresiaId] = useState(alumno.inscripcion?.membresiaId ? String(alumno.inscripcion.membresiaId) : '');

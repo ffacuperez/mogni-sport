@@ -84,8 +84,8 @@ public class AsistenciaService {
     }
 
     /**
-     * Al terminar el día, las reservas que quedaron sin marcar pasan a AUSENTE. Corre a las 00:05 y, como en Railway
-     * el servidor puede estar dormido a esa hora, también antes de consultar la agenda (igual que la puesta al día de
+     * Al terminar el día, las reservas que quedaron sin marcar pasan a AUSENTE. Corre a las 00:05 y, como el back puede
+     * estar apagado a esa hora (un reinicio o un deploy), también antes de consultar la agenda (igual que la puesta al día de
      * cuotas). Es idempotente: solo toca reservas sin marcar de días anteriores a hoy.
      */
     @Transactional

@@ -17,8 +17,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @Configuration
 public class CorsConfig {
 
-    // Se puede sobrescribir en el deploy con la variable de entorno APP_CORS_ALLOWED_ORIGINS (separada por comas)
-    @Value("${app.cors.allowed-origins:https://mogni-sport.vercel.app,http://localhost:5173,http://localhost:5176,http://localhost:3000}")
+    // Los fronts de la compu. En el servidor no hace falta: Caddy sirve front y back en el mismo dominio. Se puede
+    // sobrescribir con la variable de entorno APP_CORS_ALLOWED_ORIGINS (separada por comas)
+    @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:5176,http://localhost:3000}")
     private List<String> allowedOrigins;
 
     @Bean

@@ -9,6 +9,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -104,13 +107,51 @@ class CuotaTest {
         // con 30 días hubiera vencido el 15/03
         "2026-02-13, 2026-03-13",
         "2026-12-13, 2027-01-13",
-        // el mes siguiente no tiene ese día: vence el último del mes
-        "2026-01-31, 2026-02-28",
-        "2028-01-31, 2028-02-29",
-        "2026-03-31, 2026-04-30",
+        // el mes siguiente tiene ese día: vence ese día aunque sea 29, 30 o 31
+        "2026-12-31, 2027-01-31",
+        "2026-07-31, 2026-08-31",
+        "2026-04-30, 2026-05-30",
+        "2028-01-29, 2028-02-29",
+        "2028-02-29, 2028-03-29",
+        // el mes siguiente no tiene ese día: vence el 1 del mes posterior
+        "2026-01-31, 2026-03-01",
+        "2026-01-30, 2026-03-01",
+        "2026-01-29, 2026-03-01",
+        "2028-01-31, 2028-03-01",
+        "2028-01-30, 2028-03-01",
+        "2026-03-31, 2026-05-01",
+        "2026-05-31, 2026-07-01",
+        "2026-08-31, 2026-10-01",
+        "2026-10-31, 2026-12-01",
     })
-    void la_cuota_vence_el_mismo_dia_del_mes_siguiente(LocalDate inicio, LocalDate vencimiento) {
+    void la_cuota_vence_el_mismo_dia_del_mes_siguiente_o_el_1_si_ese_dia_no_existe(LocalDate inicio, LocalDate vencimiento) {
         assertEquals(vencimiento, ReglasCuota.vencimientoDesde(inicio));
+    }
+
+    @Test
+    void quien_empieza_el_31_pasa_a_pagar_los_1_y_queda_ahi() {
+        Inscripcion inscripcion = inscripcion();
+        LocalDate inicio = LocalDate.of(2026, 1, 31);
+        List<LocalDate> vencimientos = new ArrayList<>();
+        for (int mes = 1; mes <= 4; mes++) {
+            Cuota cuota = inscripcion.agregarCuota(inicio);
+            vencimientos.add(cuota.getFechaVencimiento());
+            inicio = ReglasCuota.inicioRenovacion(cuota.getFechaVencimiento(), cuota.getFechaVencimiento());
+        }
+        assertEquals(List.of(LocalDate.of(2026, 3, 1), LocalDate.of(2026, 4, 1), LocalDate.of(2026, 5, 1),
+                LocalDate.of(2026, 6, 1)), vencimientos);
+    }
+
+    @Test
+    void todo_periodo_dura_entre_28_y_31_dias_y_vence_el_mismo_dia_o_el_1() {
+        // Todos los días de 2026 a 2028 (incluye un año bisiesto)
+        for (LocalDate inicio = LocalDate.of(2026, 1, 1); inicio.isBefore(LocalDate.of(2029, 1, 1)); inicio = inicio.plusDays(1)) {
+            LocalDate vencimiento = ReglasCuota.vencimientoDesde(inicio);
+            long dias = ChronoUnit.DAYS.between(inicio, vencimiento);
+            assertTrue(dias >= 28 && dias <= 31, inicio + " -> " + vencimiento + " (" + dias + " días)");
+            assertTrue(vencimiento.getDayOfMonth() == inicio.getDayOfMonth() || vencimiento.getDayOfMonth() == 1,
+                    inicio + " -> " + vencimiento);
+        }
     }
 
     @Test

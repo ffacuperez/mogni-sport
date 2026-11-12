@@ -64,12 +64,14 @@ public class MiInicioService {
                 .map(turno -> new MiInicioResponse.ProximoTurno(turno.getFecha(), turno.getHoraInicio(), turno.getHoraFin()))
                 .orElse(null);
         int frecuencia = ReglasReserva.frecuenciaSemanal(alumno);
+        LocalDate lunes = ReglasReserva.lunesDe(hoy);
         int quedan = ReglasReserva.turnosQueQuedan(frecuencia,
                 ReglasReserva.reservasDeLaSemana(reservaRepository, alumno.getId(), hoy).size(),
-                claseExtraRepository.contarDisponibles(alumno.getId(), hoy));
-        // Con una clase por recuperar de otra semana le pueden quedar más turnos que los de la membresía
+                claseExtraRepository.contarDeLaSemana(alumno.getId(), hoy, lunes));
+        // Con dos turnos cancelados la misma semana le pueden quedar más que los de la membresía
         int total = Math.max(frecuencia, quedan);
         int usados = total - quedan;
+        int paraRecuperar = (int) claseExtraRepository.contarDeSemanasAnteriores(alumno.getId(), hoy, lunes);
         MotivoNoReserva motivo = motivoNoReserva(alumno, hoy);
 
         return new MiInicioResponse(
@@ -80,7 +82,7 @@ public class MiInicioService {
                 alumno.getCuenta().isActiva(),
                 cuota,
                 proximoTurno,
-                new MiInicioResponse.TurnosSemana(usados, total),
+                new MiInicioResponse.TurnosSemana(usados, total, paraRecuperar),
                 motivo == null,
                 motivo,
                 miProgresoService.resumenPlanActivo(alumno, hoy).orElse(null));

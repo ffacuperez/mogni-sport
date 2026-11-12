@@ -18,7 +18,11 @@ const inicioFromApi = (d) => ({
   activo: d.activo,
   cuota: cuotaFromApi(d.cuota),
   proximoTurno: d.proximoTurno ?? null,
-  turnosSemana: { usados: d.turnosSemana.usados, total: d.turnosSemana.total },
+  turnosSemana: {
+    usados: d.turnosSemana.usados,
+    total: d.turnosSemana.total,
+    paraRecuperar: d.turnosSemana.paraRecuperar ?? 0,
+  },
   puedeReservar: d.puedeReservar,
   motivoNoReserva: d.motivoNoReserva ?? null,
   planActivo: d.planActivo ?? null,

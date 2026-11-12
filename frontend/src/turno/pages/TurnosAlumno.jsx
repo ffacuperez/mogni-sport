@@ -13,6 +13,7 @@ import {
   reservarTurno,
   textoDiaCompleto,
   textoLugaresLibres,
+  textoParaRecuperar,
   textoTurnosRestantes,
 } from '../services/turnosService';
 
@@ -284,7 +285,9 @@ function ReservarTurnos() {
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-error-bg text-primary">
           <CalendarDays className="h-5 w-5" />
         </span>
-        <p className="text-sm font-semibold text-ink">{textoTurnosRestantes(turnosRestantesSemana, turnosPorSemana)}</p>
+        <p className="text-sm font-semibold text-ink">
+          {textoTurnosRestantes(turnosRestantesSemana, turnosPorSemana)}{textoParaRecuperar(datos.clasesParaRecuperar)}
+        </p>
       </Panel>
 
       <SelectorDias dias={datos.dias} hoy={datos.hoy} seleccionada={datos.fechaSeleccionada} conReserva={tieneReservaEnElDia} onElegir={elegirDia} />
@@ -322,8 +325,8 @@ function ReservarTurnos() {
         </div>
       )}
 
-      {/* Las clases por recuperar ya suman en turnosRestantesSemana: con 0 no le queda ninguna */}
-      {sinTurnosEnLaSemana && !datos.bloqueadoPorMora && !datos.bloqueadoPorCuotaVencida && (
+      {/* Sin turnos de la semana ni clases para recuperar de otras semanas */}
+      {sinTurnosEnLaSemana && !datos.clasesParaRecuperar && !datos.bloqueadoPorMora && !datos.bloqueadoPorCuotaVencida && (
         <p className="mt-4 flex items-center gap-2 rounded-lg bg-thead/60 px-3 py-2.5 text-xs text-ink-soft">
           <Info className="h-4 w-4 shrink-0" /> Podés volver a reservar desde el lunes
         </p>

@@ -379,7 +379,7 @@ class ConsultaTurnosServiceTest {
         reservar(alumno, lunes, EstadoReserva.RESERVADA);
         turno(MIERCOLES, "08:00", 5);
         lenient().when(claseExtraRepository.existeDisponible(10L, MIERCOLES)).thenReturn(true);
-        lenient().when(claseExtraRepository.contarDisponibles(10L, MIERCOLES)).thenReturn(1L);
+        lenient().when(claseExtraRepository.contarDeLaSemana(10L, MIERCOLES, LocalDate.of(2026, 10, 12))).thenReturn(1L);
 
         TurnosDisponiblesResponse response = consultar(MIERCOLES, MARTES_10_30);
 
@@ -394,12 +394,30 @@ class ConsultaTurnosServiceTest {
         reservar(alumno, turno(MARTES, "08:00", 5, EstadoTurno.CANCELADO), EstadoReserva.CANCELADA_POR_GIMNASIO);
         turno(MIERCOLES, "08:00", 5);
         lenient().when(claseExtraRepository.existeDisponible(10L, MIERCOLES)).thenReturn(true);
-        lenient().when(claseExtraRepository.contarDisponibles(10L, MIERCOLES)).thenReturn(1L);
+        lenient().when(claseExtraRepository.contarDeLaSemana(10L, MIERCOLES, LocalDate.of(2026, 10, 12))).thenReturn(1L);
 
         TurnosDisponiblesResponse response = consultar(MIERCOLES, MARTES_10_30);
 
         // 2 de la membresía, uno usado y otro cancelado por el gimnasio: le queda 1, el que va a recuperar
         assertEquals(1, response.getTurnosRestantesSemana());
+        assertEquals(0, response.getClasesParaRecuperar());
+        assertTrue(response.getTurnos().get(0).isSeleccionable());
+    }
+
+    @Test
+    void laClaseDeUnaSemanaAnteriorSeMuestraAparteParaRecuperar() {
+        alumno = alumno(10L, true, 1);
+        reservar(alumno, turno(MARTES.minusDays(1), "08:00", 5), EstadoReserva.RESERVADA);
+        turno(MIERCOLES, "08:00", 5);
+        lenient().when(claseExtraRepository.existeDisponible(10L, MIERCOLES)).thenReturn(true);
+        lenient().when(claseExtraRepository.contarDeSemanasAnteriores(10L, MIERCOLES, LocalDate.of(2026, 10, 12)))
+                .thenReturn(1L);
+
+        TurnosDisponiblesResponse response = consultar(MIERCOLES, MARTES_10_30);
+
+        // Usó el turno de la semana; le queda la clase de la semana pasada, aparte
+        assertEquals(0, response.getTurnosRestantesSemana());
+        assertEquals(1, response.getClasesParaRecuperar());
         assertTrue(response.getTurnos().get(0).isSeleccionable());
     }
 

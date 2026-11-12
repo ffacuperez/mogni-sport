@@ -90,7 +90,7 @@ public class ReservaService {
         int restantes = ReglasReserva.turnosQueQuedan(
                 ReglasReserva.frecuenciaSemanal(alumno),
                 ReglasReserva.reservasDeLaSemana(reservaRepository, alumno.getId(), turno.getFecha()).size(),
-                claseExtraRepository.contarDisponibles(alumno.getId(), turno.getFecha()));
+                claseExtraRepository.contarDeLaSemana(alumno.getId(), turno.getFecha(), ReglasReserva.lunesDe(turno.getFecha())));
         return new ReservaResponse(
                 reserva.getId(),
                 turno.getId(),

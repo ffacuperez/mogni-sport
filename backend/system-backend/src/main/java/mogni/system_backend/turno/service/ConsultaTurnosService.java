@@ -82,8 +82,10 @@ public class ConsultaTurnosService {
         // Reservas del alumno que cuentan en la semana (lunes a domingo) del día seleccionado
         List<Reserva> reservasDeLaSemana = ReglasReserva.reservasDeLaSemana(reservaRepository, alumno.getId(), seleccionada);
         int frecuenciaSemanal = ReglasReserva.frecuenciaSemanal(alumno);
+        LocalDate lunes = ReglasReserva.lunesDe(seleccionada);
         int turnosRestantes = ReglasReserva.turnosQueQuedan(frecuenciaSemanal, reservasDeLaSemana.size(),
-                claseExtraRepository.contarDisponibles(alumno.getId(), seleccionada));
+                claseExtraRepository.contarDeLaSemana(alumno.getId(), seleccionada, lunes));
+        int clasesParaRecuperar = (int) claseExtraRepository.contarDeSemanasAnteriores(alumno.getId(), seleccionada, lunes);
 
         Set<Long> turnosReservadosEnElDia = reservasDeLaSemana.stream()
                 .filter(ReglasReserva::estaActiva)
@@ -123,7 +125,8 @@ public class ConsultaTurnosService {
                 .toList();
 
         return new TurnosDisponiblesResponse(hoy, seleccionada, dias, turnosRestantes, frecuenciaSemanal,
-                tieneReservaEnElDia, turnos, bloqueadoPorMora, tieneClaseExtra, bloqueadoPorCuotaVencida);
+                tieneReservaEnElDia, turnos, bloqueadoPorMora, tieneClaseExtra, bloqueadoPorCuotaVencida,
+                clasesParaRecuperar);
     }
 
     /** Solo los alumnos con la cuenta activa acceden a los turnos (y a su inicio, MOGNI-281). */

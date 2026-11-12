@@ -42,6 +42,7 @@ public record MiInicioResponse(
     public record ProximoTurno(LocalDate fecha, String horaInicio, String horaFin) {
     }
 
-    public record TurnosSemana(int usados, int total) {
+    /** paraRecuperar: clases de turnos que el gimnasio le canceló en semanas anteriores, aparte de los de la semana. */
+    public record TurnosSemana(int usados, int total, int paraRecuperar) {
     }
 }

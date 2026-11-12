@@ -35,6 +35,10 @@ import mogni.system_backend.turno.repository.ClaseExtraRepository;
 @Service
 public class ReservaService {
 
+    /** Día de gracia: puede reservar los turnos de hoy, pero no los de mañana, cuando ya va a estar en mora. */
+    static final String MENSAJE_CUOTA_VENCIDA =
+            "Tu cuota venció y hoy es el último día para pagarla: para reservar turnos de mañana, regularizá el pago.";
+
     /** MOGNI-254: anticipación mínima para reservar un turno. */
     static final Duration ANTICIPACION_MINIMA = Duration.ofHours(1);
 
@@ -72,6 +76,9 @@ public class ReservaService {
                 .orElseThrow(() -> new RecursoNoEncontradoException("No existe el turno que querés reservar."));
 
         validarTurno(turno, ahora);
+        if (ReglasReserva.requierePagoPara(alumno, ahora.toLocalDate(), turno.getFecha())) {
+            throw new AccesoDenegadoException(MENSAJE_CUOTA_VENCIDA);
+        }
         ClaseExtra claseExtra = validarAlumno(alumno, turno);
         validarCupo(turno);
 
@@ -141,6 +148,7 @@ public class ReservaService {
                 case SIN_MEMBRESIA_ACTIVA -> new AccesoDenegadoException("No tenés una membresía activa para reservar turnos.");
                 case CUPO_SEMANAL_AGOTADO -> new ConflictoException("Ya usaste todos los turnos de tu membresía en esta semana.");
                 case EN_MORA -> new AccesoDenegadoException("Tenés la cuota en mora: regularizá el pago para reservar turnos.");
+                case CUOTA_VENCIDA -> new AccesoDenegadoException(MENSAJE_CUOTA_VENCIDA);
             };
         }
         return clasesExtra.isEmpty() ? null : clasesExtra.get(0);

@@ -529,6 +529,25 @@ class ReservaServiceTest {
     }
 
     @Test
+    void enElDiaDeGraciaNoPuedeReservarUnTurnoDeManiana() {
+        cuotaQueVenceEn(-1); // venció ayer: hoy está vencida y mañana va a estar en mora
+        Turno turno = turno(MIERCOLES, "19:00", 5);
+
+        AccesoDenegadoException ex = assertThrows(AccesoDenegadoException.class, () -> reservar(turno));
+
+        assertEquals(ReservaService.MENSAJE_CUOTA_VENCIDA, ex.getMessage());
+        assertTrue(reservas.isEmpty());
+    }
+
+    @Test
+    void conLaCuotaQueVenceHoyPuedeReservarManiana() {
+        cuotaQueVenceEn(0); // mañana es su día de gracia, todavía no está en mora
+        Turno turno = turno(MIERCOLES, "19:00", 5);
+
+        assertEquals(EstadoReserva.RESERVADA, reservar(turno).getEstado());
+    }
+
+    @Test
     void alRenovarPuedeVolverAReservarEnElMomento() {
         cuotaQueVenceEn(-5);
         // Renovó en mora: la cuota nueva empieza hoy

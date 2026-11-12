@@ -4,6 +4,11 @@ package mogni.system_backend.turno.dto;
 public enum MotivoNoReserva {
     /** La cuota está en mora: no puede reservar hasta regularizar el pago. */
     EN_MORA,
+    /**
+     * La cuota venció ayer: hoy es su día de gracia y puede reservar los turnos de hoy, pero mañana ya va a estar en
+     * mora, así que para reservar los de mañana tiene que regularizar el pago.
+     */
+    CUOTA_VENCIDA,
     /** No tiene una inscripción activa, así que su membresía no le da turnos. */
     SIN_MEMBRESIA_ACTIVA,
     /** Usó todos los turnos de la semana y no le queda ninguna clase extra. */

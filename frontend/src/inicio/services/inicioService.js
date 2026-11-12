@@ -32,6 +32,7 @@ export async function consultarMiInicio() {
 /** Por qué no puede reservar, como se le explica al alumno debajo del botón. */
 export const TEXTO_MOTIVO_NO_RESERVA = {
   EN_MORA: 'Tenés la cuota en mora: regularizá el pago para volver a reservar.',
+  CUOTA_VENCIDA: 'Tu cuota venció: pagala hoy para poder reservar los turnos de mañana.',
   CUPO_SEMANAL_AGOTADO: 'Ya usaste todos tus turnos de esta semana.',
   SIN_MEMBRESIA_ACTIVA: 'No tenés una membresía activa para reservar turnos.',
   SIN_DIAS_DISPONIBLES: 'Ya tenés un turno hoy y otro mañana.',

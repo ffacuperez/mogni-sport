@@ -65,6 +65,15 @@ public final class ReglasReserva {
     }
 
     /**
+     * Hoy todavía no está en mora (es su día de gracia, con la cuota vencida), pero el día del turno sí lo va a estar:
+     * no puede reservarlo hasta regularizar el pago. Si no, reservaría un turno que la puesta al día le cancela a la
+     * noche. Los turnos de hoy los puede reservar igual.
+     */
+    public static boolean requierePagoPara(Alumno alumno, LocalDate hoy, LocalDate dia) {
+        return !estaEnMora(alumno, hoy) && estaEnMora(alumno, dia);
+    }
+
+    /**
      * Si el alumno puede reservar algún turno de ese día, en el orden en que lo valida la reserva: un solo turno por día,
      * membresía activa y tope semanal. Con la semana completa todavía puede usar una clase extra: hayClaseExtra solo se
      * consulta en ese caso (la reserva la bloquea; las consultas, no). La mora se valida aparte, antes.

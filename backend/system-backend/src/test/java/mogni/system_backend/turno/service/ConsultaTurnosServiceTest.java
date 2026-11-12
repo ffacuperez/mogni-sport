@@ -438,6 +438,33 @@ class ConsultaTurnosServiceTest {
     }
 
     @Test
+    void enElDiaDeGraciaLosTurnosDeHoySeEligenYLosDeManianaNo() {
+        CuotasDePrueba.queVence(alumno.buscarInscripcionActiva().orElseThrow(), MARTES.minusDays(1)); // venció ayer
+        turno(MARTES, "19:00", 5);
+        turno(MIERCOLES, "19:00", 5);
+
+        TurnosDisponiblesResponse hoy = consultar(null, MARTES_10_30);
+        assertFalse(hoy.isBloqueadoPorMora());
+        assertFalse(hoy.isBloqueadoPorCuotaVencida());
+        assertTrue(buscar(hoy, "19:00").isSeleccionable());
+
+        TurnosDisponiblesResponse maniana = consultar(MIERCOLES, MARTES_10_30);
+        assertFalse(maniana.isBloqueadoPorMora());
+        assertTrue(maniana.isBloqueadoPorCuotaVencida());
+        assertFalse(buscar(maniana, "19:00").isSeleccionable());
+    }
+
+    @Test
+    void conLaCuotaAlDiaManianaNoQuedaBloqueado() {
+        turno(MIERCOLES, "19:00", 5);
+
+        TurnosDisponiblesResponse maniana = consultar(MIERCOLES, MARTES_10_30);
+
+        assertFalse(maniana.isBloqueadoPorCuotaVencida());
+        assertTrue(buscar(maniana, "19:00").isSeleccionable());
+    }
+
+    @Test
     void conElMesSiguientePagadoEnUnaProgramadaNoEstaEnMora() {
         // La cuota de la activa venció hace 2 días, pero ya pagó el período siguiente con otra membresía
         CuotasDePrueba.queVence(alumno.buscarInscripcionActiva().orElseThrow(), MARTES.minusDays(2));

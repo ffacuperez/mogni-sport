@@ -32,4 +32,9 @@ public class TurnosDisponiblesResponse {
      * (los turnos vienen seleccionables), como lo permite la reserva.
      */
     private boolean tieneClaseExtra;
+    /**
+     * Día de gracia: la cuota venció ayer y fechaSeleccionada es mañana, cuando ya va a estar en mora. Ve los turnos
+     * pero no puede elegir ninguno hasta que regularice el pago. Los de hoy los puede reservar.
+     */
+    private boolean bloqueadoPorCuotaVencida;
 }

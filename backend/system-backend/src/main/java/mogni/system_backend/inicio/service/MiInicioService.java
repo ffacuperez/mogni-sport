@@ -91,9 +91,11 @@ public class MiInicioService {
             return MotivoNoReserva.EN_MORA;
         }
         List<MotivoNoReserva> porDia = Stream.of(hoy, hoy.plusDays(1))
-                .map(dia -> ReglasReserva.motivoParaElDia(alumno, dia,
-                        ReglasReserva.reservasDeLaSemana(reservaRepository, alumno.getId(), dia),
-                        () -> claseExtraRepository.existeDisponible(alumno.getId(), dia)).orElse(null))
+                .map(dia -> ReglasReserva.requierePagoPara(alumno, hoy, dia)
+                        ? MotivoNoReserva.CUOTA_VENCIDA
+                        : ReglasReserva.motivoParaElDia(alumno, dia,
+                                ReglasReserva.reservasDeLaSemana(reservaRepository, alumno.getId(), dia),
+                                () -> claseExtraRepository.existeDisponible(alumno.getId(), dia)).orElse(null))
                 .toList();
         if (porDia.contains(null)) {
             return null;
@@ -103,6 +105,10 @@ public class MiInicioService {
         }
         if (porDia.contains(MotivoNoReserva.CUPO_SEMANAL_AGOTADO)) {
             return MotivoNoReserva.CUPO_SEMANAL_AGOTADO;
+        }
+        // Hoy ya tiene turno (o no le quedan) y mañana necesita pagar: pagar es lo que le sirve
+        if (porDia.contains(MotivoNoReserva.CUOTA_VENCIDA)) {
+            return MotivoNoReserva.CUOTA_VENCIDA;
         }
         return MotivoNoReserva.SIN_DIAS_DISPONIBLES;
     }

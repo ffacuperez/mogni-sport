@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
 
@@ -12,6 +13,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -94,15 +96,15 @@ class CancelacionServiceTest {
                         .filter(r -> r.getTurno().getId().equals(inv.<Long>getArgument(0))
                                 && r.getEstado() == inv.<EstadoReserva>getArgument(1))
                         .count());
-        lenient().when(reservaRepository.findByAlumnoIdAndEstadoAndTurnoFechaBetween(
-                        anyLong(), any(EstadoReserva.class), any(LocalDate.class), any(LocalDate.class)))
+        lenient().when(reservaRepository.findByAlumnoIdAndEstadoInAndTurnoFechaBetween(
+                        anyLong(), anyCollection(), any(LocalDate.class), any(LocalDate.class)))
                 .thenAnswer(inv -> {
                     Long alumnoId = inv.getArgument(0);
-                    EstadoReserva estado = inv.getArgument(1);
+                    Collection<EstadoReserva> estados = inv.getArgument(1);
                     LocalDate desde = inv.getArgument(2);
                     LocalDate hasta = inv.getArgument(3);
                     return reservas.stream()
-                            .filter(r -> r.getAlumno().getId().equals(alumnoId) && r.getEstado() == estado)
+                            .filter(r -> r.getAlumno().getId().equals(alumnoId) && estados.contains(r.getEstado()))
                             .filter(r -> !r.getTurno().getFecha().isBefore(desde) && !r.getTurno().getFecha().isAfter(hasta))
                             .toList();
                 });

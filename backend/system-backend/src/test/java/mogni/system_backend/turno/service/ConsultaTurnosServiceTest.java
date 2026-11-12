@@ -99,15 +99,15 @@ class ConsultaTurnosServiceTest {
                             .filter(r -> ids.contains(r.getTurno().getId()) && r.getEstado() == estado)
                             .toList();
                 });
-        lenient().when(reservaRepository.findByAlumnoIdAndEstadoAndTurnoFechaBetween(
-                        anyLong(), any(EstadoReserva.class), any(LocalDate.class), any(LocalDate.class)))
+        lenient().when(reservaRepository.findByAlumnoIdAndEstadoInAndTurnoFechaBetween(
+                        anyLong(), anyCollection(), any(LocalDate.class), any(LocalDate.class)))
                 .thenAnswer(inv -> {
                     Long alumnoId = inv.getArgument(0);
-                    EstadoReserva estado = inv.getArgument(1);
+                    Collection<EstadoReserva> estados = inv.getArgument(1);
                     LocalDate desde = inv.getArgument(2);
                     LocalDate hasta = inv.getArgument(3);
                     return reservas.stream()
-                            .filter(r -> r.getAlumno().getId().equals(alumnoId) && r.getEstado() == estado)
+                            .filter(r -> r.getAlumno().getId().equals(alumnoId) && estados.contains(r.getEstado()))
                             .filter(r -> !r.getTurno().getFecha().isBefore(desde) && !r.getTurno().getFecha().isAfter(hasta))
                             .toList();
                 });
@@ -419,8 +419,8 @@ class ConsultaTurnosServiceTest {
         reservar(alumno, turno(MARTES, "08:00", 5), EstadoReserva.RESERVADA);
 
         assertEquals(0, consultar(MIERCOLES, MARTES_10_30).getTurnosRestantesSemana());
-        verify(reservaRepository).findByAlumnoIdAndEstadoAndTurnoFechaBetween(
-                eq(10L), eq(EstadoReserva.RESERVADA), eq(LocalDate.of(2026, 10, 12)), eq(LocalDate.of(2026, 10, 18)));
+        verify(reservaRepository).findByAlumnoIdAndEstadoInAndTurnoFechaBetween(
+                eq(10L), eq(ReglasReserva.CUENTAN_PARA_LA_SEMANA), eq(LocalDate.of(2026, 10, 12)), eq(LocalDate.of(2026, 10, 18)));
     }
 
     // --- Cuota en mora (MOGNI-259) ---

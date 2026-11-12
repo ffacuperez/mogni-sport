@@ -125,7 +125,7 @@ public class ReservaService {
      */
     private ClaseExtra validarAlumno(Alumno alumno, Turno turno) {
         List<Reserva> deLaSemana = ReglasReserva.reservasDeLaSemana(reservaRepository, alumno.getId(), turno.getFecha());
-        if (deLaSemana.stream().anyMatch(r -> r.getTurno().getId().equals(turno.getId()))) {
+        if (deLaSemana.stream().anyMatch(r -> ReglasReserva.estaActiva(r) && r.getTurno().getId().equals(turno.getId()))) {
             throw new ConflictoException("Ya reservaste este turno.");
         }
 

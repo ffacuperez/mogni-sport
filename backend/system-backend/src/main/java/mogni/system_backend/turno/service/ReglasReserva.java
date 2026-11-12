@@ -31,11 +31,25 @@ public final class ReglasReserva {
         return fecha.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
     }
 
-    /** Las reservas activas del alumno en la semana de esa fecha. Las canceladas no cuentan; las ausentes sí. */
+    /**
+     * Las reservas que cuentan para el límite semanal: las activas (también las ausentes) y las canceladas por el
+     * gimnasio. Estas últimas se compensan con la clase extra, que es la única compensación: si no contaran, el
+     * alumno recuperaría el día en la semana y además tendría la clase extra. Las que cancela el alumno o el
+     * sistema no cuentan.
+     */
+    public static final List<EstadoReserva> CUENTAN_PARA_LA_SEMANA =
+            List.of(EstadoReserva.RESERVADA, EstadoReserva.CANCELADA_POR_GIMNASIO);
+
+    /** Las reservas del alumno que cuentan para el límite semanal (ver CUENTAN_PARA_LA_SEMANA) en la semana de esa fecha. */
     public static List<Reserva> reservasDeLaSemana(ReservaRepository reservaRepository, Long alumnoId, LocalDate fecha) {
         LocalDate lunes = lunesDe(fecha);
-        return reservaRepository.findByAlumnoIdAndEstadoAndTurnoFechaBetween(
-                alumnoId, EstadoReserva.RESERVADA, lunes, lunes.plusDays(6));
+        return reservaRepository.findByAlumnoIdAndEstadoInAndTurnoFechaBetween(
+                alumnoId, CUENTAN_PARA_LA_SEMANA, lunes, lunes.plusDays(6));
+    }
+
+    /** Si la reserva sigue activa (las canceladas por el gimnasio cuentan para la semana, pero ya no son un turno). */
+    public static boolean estaActiva(Reserva reserva) {
+        return reserva.getEstado() == EstadoReserva.RESERVADA;
     }
 
     /** Turnos por semana que da la membresía de la inscripción activa; 0 si no tiene. */
@@ -57,7 +71,8 @@ public final class ReglasReserva {
      */
     public static Optional<MotivoNoReserva> motivoParaElDia(Alumno alumno, LocalDate dia, List<Reserva> deLaSemana,
                                                             BooleanSupplier hayClaseExtra) {
-        if (deLaSemana.stream().anyMatch(reserva -> reserva.getTurno().getFecha().equals(dia))) {
+        // Un turno por día: el que le canceló el gimnasio no le impide reservar otro horario ese mismo día
+        if (deLaSemana.stream().anyMatch(reserva -> estaActiva(reserva) && reserva.getTurno().getFecha().equals(dia))) {
             return Optional.of(MotivoNoReserva.SIN_DIAS_DISPONIBLES);
         }
         int frecuencia = frecuenciaSemanal(alumno);

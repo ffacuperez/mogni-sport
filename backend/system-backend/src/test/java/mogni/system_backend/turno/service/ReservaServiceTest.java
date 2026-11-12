@@ -1,9 +1,11 @@
 package mogni.system_backend.turno.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
@@ -15,6 +17,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -95,15 +98,15 @@ class ReservaServiceTest {
                         .filter(r -> r.getTurno().getId().equals(inv.<Long>getArgument(0))
                                 && r.getEstado() == inv.<EstadoReserva>getArgument(1))
                         .count());
-        lenient().when(reservaRepository.findByAlumnoIdAndEstadoAndTurnoFechaBetween(
-                        anyLong(), any(EstadoReserva.class), any(LocalDate.class), any(LocalDate.class)))
+        lenient().when(reservaRepository.findByAlumnoIdAndEstadoInAndTurnoFechaBetween(
+                        anyLong(), anyCollection(), any(LocalDate.class), any(LocalDate.class)))
                 .thenAnswer(inv -> {
                     Long alumnoId = inv.getArgument(0);
-                    EstadoReserva estado = inv.getArgument(1);
+                    Collection<EstadoReserva> estados = inv.getArgument(1);
                     LocalDate desde = inv.getArgument(2);
                     LocalDate hasta = inv.getArgument(3);
                     return reservas.stream()
-                            .filter(r -> r.getAlumno().getId().equals(alumnoId) && r.getEstado() == estado)
+                            .filter(r -> r.getAlumno().getId().equals(alumnoId) && estados.contains(r.getEstado()))
                             .filter(r -> !r.getTurno().getFecha().isBefore(desde) && !r.getTurno().getFecha().isAfter(hasta))
                             .toList();
                 });
@@ -438,6 +441,49 @@ class ReservaServiceTest {
         Turno turno = turno(MARTES, "19:00", 5);
 
         reservar(turno);
+
+        assertEquals(2, reservas.size());
+    }
+
+    // --- La clase extra es la única compensación de un turno cancelado por el gimnasio ---
+
+    @Test
+    void laReservaCanceladaPorElGimnasioSigueContandoParaElTopeSemanal() {
+        alumno = alumno(10L, true, 1);
+        yaReservado(alumno, turno(MARTES.minusDays(1), "19:00", 5, EstadoTurno.CANCELADO),
+                EstadoReserva.CANCELADA_POR_GIMNASIO);
+        conClasesExtra();
+        Turno turno = turno(MARTES, "19:00", 5);
+
+        ConflictoException ex = assertThrows(ConflictoException.class, () -> reservar(turno));
+        assertEquals("Ya usaste todos los turnos de tu membresía en esta semana.", ex.getMessage());
+    }
+
+    @Test
+    void conLaClaseExtraDelTurnoCanceladoRecuperaLaClaseUnaSolaVez() {
+        alumno = alumno(10L, true, 1);
+        yaReservado(alumno, turno(MARTES.minusDays(1), "19:00", 5, EstadoTurno.CANCELADO),
+                EstadoReserva.CANCELADA_POR_GIMNASIO);
+        ClaseExtra claseExtra = new ClaseExtra(alumno, 1L, MARTES.minusDays(1), MARTES.plusDays(20));
+        conClasesExtra(claseExtra);
+
+        reservar(turno(MARTES, "19:00", 5));
+        assertNotNull(claseExtra.getReservaUsoId());
+
+        // Ya usó la clase extra: no le queda otra recuperación en la semana
+        ConflictoException ex = assertThrows(ConflictoException.class,
+                () -> reservar(turno(MIERCOLES, "19:00", 5)));
+        assertEquals("Ya usaste todos los turnos de tu membresía en esta semana.", ex.getMessage());
+    }
+
+    @Test
+    void unTurnoCanceladoPorElGimnasioNoImpideReservarOtroHorarioEseDia() {
+        Turno cancelado = turno(MARTES, "12:00", 5, EstadoTurno.CANCELADO);
+        yaReservado(alumno, cancelado, EstadoReserva.CANCELADA_POR_GIMNASIO);
+        ClaseExtra claseExtra = new ClaseExtra(alumno, 1L, MARTES.minusDays(1), MARTES.plusDays(20));
+        conClasesExtra(claseExtra);
+
+        reservar(turno(MARTES, "19:00", 5));
 
         assertEquals(2, reservas.size());
     }

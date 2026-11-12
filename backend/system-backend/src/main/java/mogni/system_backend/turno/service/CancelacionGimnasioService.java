@@ -11,8 +11,10 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.config.ZonaHoraria;
+import mogni.system_backend.cuota.entity.Cuota;
 import mogni.system_backend.exception.ConflictoException;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.notificacion.entity.AvisoTurno;
@@ -140,7 +142,8 @@ public class CancelacionGimnasioService {
 
     /**
      * Cancela el turno (que ya tiene que venir bloqueado), pasa sus reservas a CANCELADA_POR_GIMNASIO y les da a los
-     * alumnos una clase extra y un aviso. Lo usa la cancelación manual y la reconciliación de franjas.
+     * alumnos una clase extra y un aviso. Lo usa la cancelación manual y la reconciliación de franjas. La clase extra es
+     * la única compensación: la reserva cancelada sigue contando para el límite semanal (ver ReglasReserva).
      * Si la canceló el propietario, el aviso también sale por push (al confirmarse la cancelación, ver
      * PushTurnoCanceladoListener). Por cambio de franja, por ahora, solo queda en la app.
      */
@@ -155,8 +158,8 @@ public class CancelacionGimnasioService {
         turno.cancelar(motivo);
         turnoRepository.save(turno);
         LocalDate desde = turno.getFecha().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-        LocalDate hasta = desde.plusDays(13);
         for (Reserva reserva : reservas) {
+            LocalDate hasta = vigenciaClaseExtra(reserva.getAlumno(), turno.getFecha());
             reserva.setEstado(EstadoReserva.CANCELADA_POR_GIMNASIO);
             claseExtraRepository.save(new ClaseExtra(reserva.getAlumno(), reserva.getId(), desde, hasta));
             AvisoTurno aviso = avisoTurnoRepository.save(new AvisoTurno(
@@ -177,6 +180,18 @@ public class CancelacionGimnasioService {
         }
         reservaRepository.saveAll(reservas);
         return new CancelacionGimnasioResponse(1, reservas.size(), reservas.size());
+    }
+
+    /**
+     * La clase extra vale desde el lunes de la semana del turno hasta el vencimiento de la cuota que el alumno tiene
+     * paga (la última, contando un cambio de membresía ya pagado): es la clase de ese período que no pudo hacer. Nunca
+     * termina antes del día del turno cancelado. Sin cuotas (datos viejos), la semana del turno y la siguiente.
+     */
+    static LocalDate vigenciaClaseExtra(Alumno alumno, LocalDate fechaTurno) {
+        LocalDate hasta = alumno.buscarUltimaCuotaPagada()
+                .map(Cuota::getFechaVencimiento)
+                .orElseGet(() -> fechaTurno.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusDays(13));
+        return hasta.isBefore(fechaTurno) ? fechaTurno : hasta;
     }
 
     private static void validarFecha(LocalDate fecha, LocalDateTime ahora) {

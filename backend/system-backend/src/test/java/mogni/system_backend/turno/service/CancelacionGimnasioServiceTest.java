@@ -139,7 +139,7 @@ class CancelacionGimnasioServiceTest {
 
         assertEquals(LocalDate.of(2026, 11, 1), clasesExtra.get(0).getVigenteHasta());
         assertEquals(LocalDate.of(2026, 10, 12), clasesExtra.get(0).getVigenteDesde());
-        assertEquals("Se canceló tu turno del 13/10 a las 11:30. Recibiste una clase extra, válida hasta el 01/11.",
+        assertEquals("Se canceló tu turno del 13/10 a las 11:30. Podés recuperar la clase cualquier día hasta que venza tu cuota.",
                 avisos.get(0).getMensaje());
     }
 
@@ -153,6 +153,8 @@ class CancelacionGimnasioServiceTest {
         service.cancelarTurno(HOY, "11:30", AHORA);
 
         assertEquals(HOY, clasesExtra.get(0).getVigenteHasta());
+        assertEquals("Se canceló tu turno del 13/10 a las 11:30. Podés recuperar la clase en otro horario de ese día.",
+                avisos.get(0).getMensaje());
     }
 
     @Test
@@ -269,7 +271,7 @@ class CancelacionGimnasioServiceTest {
         TurnoCanceladoPorGimnasioEvent evento = eventos.getAllValues().get(0);
         assertEquals("Turno cancelado por el gimnasio", evento.titulo());
         // La push muestra fecha, hora y la clase extra, igual que el aviso de la app
-        assertEquals("Se canceló tu turno del 15/10 a las 18:00. Recibiste una clase extra, válida hasta el 25/10.",
+        assertEquals("Se canceló tu turno del 15/10 a las 18:00. Podés recuperar la clase cualquier día hasta que venza tu cuota.",
                 evento.mensaje());
         assertEquals(evento.mensaje(), avisos.get(0).getMensaje());
     }

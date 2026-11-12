@@ -82,7 +82,8 @@ public class ConsultaTurnosService {
         // Reservas del alumno que cuentan en la semana (lunes a domingo) del día seleccionado
         List<Reserva> reservasDeLaSemana = ReglasReserva.reservasDeLaSemana(reservaRepository, alumno.getId(), seleccionada);
         int frecuenciaSemanal = ReglasReserva.frecuenciaSemanal(alumno);
-        int turnosRestantes = Math.max(0, frecuenciaSemanal - reservasDeLaSemana.size());
+        int turnosRestantes = ReglasReserva.turnosQueQuedan(frecuenciaSemanal, reservasDeLaSemana.size(),
+                claseExtraRepository.contarDisponibles(alumno.getId(), seleccionada));
 
         Set<Long> turnosReservadosEnElDia = reservasDeLaSemana.stream()
                 .filter(ReglasReserva::estaActiva)

@@ -87,8 +87,10 @@ public class ReservaService {
             claseExtra.setReservaUsoId(reserva.getId());
             claseExtraRepository.save(claseExtra);
         }
-        long reservasEnLaSemana = ReglasReserva.reservasDeLaSemana(reservaRepository, alumno.getId(), turno.getFecha()).size();
-        int restantes = Math.max(0, ReglasReserva.frecuenciaSemanal(alumno) - (int) reservasEnLaSemana);
+        int restantes = ReglasReserva.turnosQueQuedan(
+                ReglasReserva.frecuenciaSemanal(alumno),
+                ReglasReserva.reservasDeLaSemana(reservaRepository, alumno.getId(), turno.getFecha()).size(),
+                claseExtraRepository.contarDisponibles(alumno.getId(), turno.getFecha()));
         return new ReservaResponse(
                 reserva.getId(),
                 turno.getId(),

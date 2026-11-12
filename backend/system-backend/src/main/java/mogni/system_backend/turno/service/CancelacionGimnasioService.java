@@ -171,7 +171,7 @@ public class CancelacionGimnasioService {
                     "Turno cancelado por el gimnasio",
                     "Se canceló tu turno del " + turno.getFecha().format(FECHA)
                             + " a las " + FranjaHorariaService.formatearHora(turno.getHoraInicio())
-                            + ". Recibiste una clase extra, válida hasta el " + hasta.format(FECHA) + "."));
+                            + ". " + textoRecuperacion(hasta, turno.getFecha())));
             Cuenta cuenta = reserva.getAlumno().getCuenta();
             if (motivo == MotivoCancelacionTurno.MANUAL && cuenta != null) {
                 eventPublisher.publishEvent(new TurnoCanceladoPorGimnasioEvent(
@@ -192,6 +192,16 @@ public class CancelacionGimnasioService {
                 .map(Cuota::getFechaVencimiento)
                 .orElseGet(() -> fechaTurno.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusDays(13));
         return hasta.isBefore(fechaTurno) ? fechaTurno : hasta;
+    }
+
+    /**
+     * Cómo se le cuenta al alumno que puede recuperar la clase. Si la cuota ya venció antes del turno, la recuperación
+     * vale solo ese día (ver vigenciaClaseExtra): decirle "hasta que venza tu cuota" lo confundiría.
+     */
+    static String textoRecuperacion(LocalDate hasta, LocalDate fechaTurno) {
+        return hasta.equals(fechaTurno)
+                ? "Podés recuperar la clase en otro horario de ese día."
+                : "Podés recuperar la clase cualquier día hasta que venza tu cuota.";
     }
 
     private static void validarFecha(LocalDate fecha, LocalDateTime ahora) {

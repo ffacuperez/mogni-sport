@@ -367,7 +367,7 @@ export default function Agenda({ esPropietario, alumnos, alumnosCargados }) {
                     ? `Se cancelarán ${confirmacion.turnosAfectados} turnos futuros y ${confirmacion.reservasAfectadas} reservas activas del ${textoFechaLarga(confirmacion.fecha)}.`
                     : `Se cancelará el turno de las ${confirmacion.horaInicio} del ${textoFechaLarga(confirmacion.fecha)} y ${confirmacion.reservasAfectadas} reservas activas.`}
                 {!confirmacion.cargando && (
-                  <> Cada alumno afectado recibirá una clase extra, válida hasta el vencimiento de su cuota, además de una notificación en la app.</>
+                  <> Cada alumno afectado va a poder recuperar la clase hasta que venza su cuota y recibe una notificación en la app.</>
                 )}
               </p>
             )}

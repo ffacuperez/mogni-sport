@@ -371,19 +371,35 @@ class ConsultaTurnosServiceTest {
         assertFalse(response.getTurnos().get(0).isSeleccionable());
     }
 
-    // MOGNI-281: igual que la reserva, con la semana completa una clase extra deja elegir los turnos
+    // MOGNI-281: igual que la reserva, con la semana completa una clase por recuperar deja elegir los turnos
     @Test
-    void conElContadorEnCeroYUnaClaseExtraSePuedeElegir() {
+    void conLaSemanaCompletaYUnaClasePorRecuperarElContadorLaSumaYSePuedeElegir() {
         alumno = alumno(10L, true, 1);
         Turno lunes = turno(MARTES.minusDays(1), "08:00", 5);
         reservar(alumno, lunes, EstadoReserva.RESERVADA);
         turno(MIERCOLES, "08:00", 5);
         lenient().when(claseExtraRepository.existeDisponible(10L, MIERCOLES)).thenReturn(true);
+        lenient().when(claseExtraRepository.contarDisponibles(10L, MIERCOLES)).thenReturn(1L);
 
         TurnosDisponiblesResponse response = consultar(MIERCOLES, MARTES_10_30);
 
-        assertEquals(0, response.getTurnosRestantesSemana());
-        assertTrue(response.isTieneClaseExtra());
+        assertEquals(1, response.getTurnosRestantesSemana());
+        assertTrue(response.getTurnos().get(0).isSeleccionable());
+    }
+
+    @Test
+    void cuandoElGimnasioLeCancelaUnTurnoElContadorSeLoDevuelve() {
+        alumno = alumno(10L, true, 2);
+        reservar(alumno, turno(MARTES.minusDays(1), "08:00", 5), EstadoReserva.RESERVADA);
+        reservar(alumno, turno(MARTES, "08:00", 5, EstadoTurno.CANCELADO), EstadoReserva.CANCELADA_POR_GIMNASIO);
+        turno(MIERCOLES, "08:00", 5);
+        lenient().when(claseExtraRepository.existeDisponible(10L, MIERCOLES)).thenReturn(true);
+        lenient().when(claseExtraRepository.contarDisponibles(10L, MIERCOLES)).thenReturn(1L);
+
+        TurnosDisponiblesResponse response = consultar(MIERCOLES, MARTES_10_30);
+
+        // 2 de la membresía, uno usado y otro cancelado por el gimnasio: le queda 1, el que va a recuperar
+        assertEquals(1, response.getTurnosRestantesSemana());
         assertTrue(response.getTurnos().get(0).isSeleccionable());
     }
 

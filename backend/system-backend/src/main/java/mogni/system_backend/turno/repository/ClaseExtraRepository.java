@@ -35,5 +35,14 @@ public interface ClaseExtraRepository extends JpaRepository<ClaseExtra, Long> {
             """)
     boolean existeDisponible(@Param("alumnoId") Long alumnoId, @Param("fecha") LocalDate fecha);
 
+    /** Cuántas clases le quedan por recuperar para esa fecha: suman al contador de turnos que le quedan. */
+    @Query("""
+            select count(c) from ClaseExtra c
+            where c.alumno.id = :alumnoId
+              and c.reservaUsoId is null
+              and c.vigenteDesde <= :fecha and c.vigenteHasta >= :fecha
+            """)
+    long contarDisponibles(@Param("alumnoId") Long alumnoId, @Param("fecha") LocalDate fecha);
+
     Optional<ClaseExtra> findByReservaUsoId(Long reservaUsoId);
 }

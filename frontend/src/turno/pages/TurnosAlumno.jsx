@@ -322,16 +322,12 @@ function ReservarTurnos() {
         </div>
       )}
 
-      {/* MOGNI-281: con la semana completa, una clase extra todavía le deja reservar (como en el backend) */}
-      {sinTurnosEnLaSemana && !datos.bloqueadoPorMora && !datos.bloqueadoPorCuotaVencida && (datos.tieneClaseExtra ? (
-        <p className="mt-4 flex items-center gap-2 rounded-lg bg-info-bg px-3 py-2.5 text-xs font-semibold text-info">
-          <Info className="h-4 w-4 shrink-0" /> Tenés una clase extra para usar
-        </p>
-      ) : (
+      {/* Las clases por recuperar ya suman en turnosRestantesSemana: con 0 no le queda ninguna */}
+      {sinTurnosEnLaSemana && !datos.bloqueadoPorMora && !datos.bloqueadoPorCuotaVencida && (
         <p className="mt-4 flex items-center gap-2 rounded-lg bg-thead/60 px-3 py-2.5 text-xs text-ink-soft">
           <Info className="h-4 w-4 shrink-0" /> Podés volver a reservar desde el lunes
         </p>
-      ))}
+      )}
 
       <section aria-label="Turnos del día" aria-busy={cargando}
         aria-disabled={datos.bloqueadoPorMora || datos.bloqueadoPorCuotaVencida || undefined}

@@ -71,7 +71,6 @@ public class MiInicioService {
         // Con dos turnos cancelados la misma semana le pueden quedar más que los de la membresía
         int total = Math.max(frecuencia, quedan);
         int usados = total - quedan;
-        int paraRecuperar = (int) claseExtraRepository.contarDeSemanasAnteriores(alumno.getId(), hoy, lunes);
         MotivoNoReserva motivo = motivoNoReserva(alumno, hoy);
 
         return new MiInicioResponse(
@@ -82,7 +81,7 @@ public class MiInicioService {
                 alumno.getCuenta().isActiva(),
                 cuota,
                 proximoTurno,
-                new MiInicioResponse.TurnosSemana(usados, total, paraRecuperar),
+                new MiInicioResponse.TurnosSemana(usados, total),
                 motivo == null,
                 motivo,
                 miProgresoService.resumenPlanActivo(alumno, hoy).orElse(null));

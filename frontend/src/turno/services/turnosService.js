@@ -47,9 +47,6 @@ export function textoTurnosRestantes(cantidad, total = 0) {
   return `Te quedan ${cantidad} turnos esta semana`;
 }
 
-/** Clases de turnos que el gimnasio le canceló en semanas anteriores: van aparte del contador. "" si no tiene. */
-export const textoParaRecuperar = (cantidad) => (cantidad > 0 ? ` · +${cantidad} para recuperar` : '');
-
 export const textoLugaresLibres = (lugares) => (lugares === 1 ? '1 lugar libre' : `${lugares} lugares libres`);
 
 const sumarDias = (fechaISO, dias) => {

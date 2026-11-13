@@ -13,7 +13,6 @@ import {
   reservarTurno,
   textoDiaCompleto,
   textoLugaresLibres,
-  textoParaRecuperar,
   textoTurnosRestantes,
 } from '../services/turnosService';
 
@@ -286,7 +285,7 @@ function ReservarTurnos() {
           <CalendarDays className="h-5 w-5" />
         </span>
         <p className="text-sm font-semibold text-ink">
-          {textoTurnosRestantes(turnosRestantesSemana, turnosPorSemana)}{textoParaRecuperar(datos.clasesParaRecuperar)}
+          {textoTurnosRestantes(turnosRestantesSemana, turnosPorSemana)}
         </p>
       </Panel>
 
@@ -325,7 +324,8 @@ function ReservarTurnos() {
         </div>
       )}
 
-      {/* Sin turnos de la semana ni clases para recuperar de otras semanas */}
+      {/* Sin turnos de la semana ni clases para recuperar de otras semanas (esas no se muestran: se las avisó la
+          notificación, pero mientras tenga alguna todavía puede reservar) */}
       {sinTurnosEnLaSemana && !datos.clasesParaRecuperar && !datos.bloqueadoPorMora && !datos.bloqueadoPorCuotaVencida && (
         <p className="mt-4 flex items-center gap-2 rounded-lg bg-thead/60 px-3 py-2.5 text-xs text-ink-soft">
           <Info className="h-4 w-4 shrink-0" /> Podés volver a reservar desde el lunes

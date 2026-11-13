@@ -7,7 +7,7 @@ import { Badge, Button, Cargando, Panel } from '../../shared/components/ui';
 import BarraSemanas from '../../progreso/components/BarraSemanas';
 import { tituloPlan } from '../../progreso/services/progresoService';
 import AccesoBloqueado from '../../turno/components/AccesoBloqueado';
-import { partesFecha, textoParaRecuperar } from '../../turno/services/turnosService';
+import { partesFecha } from '../../turno/services/turnosService';
 import { avisoCuota, consultarMiInicio, TEXTO_MOTIVO_NO_RESERVA, textoTurnosQueQuedan } from '../services/inicioService';
 
 const ESTILO_AVISO = {
@@ -78,18 +78,13 @@ function ProximoTurno({ turno, hoy }) {
   );
 }
 
-function TurnosDeLaSemana({ usados, total, paraRecuperar }) {
+function TurnosDeLaSemana({ usados, total }) {
   return (
     <Panel className="rounded-xl p-4">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <p className="text-sm text-ink-soft">Turnos de esta semana</p>
-          <p className="text-xl font-bold text-ink">
-            {textoTurnosQueQuedan(usados, total)}
-            {paraRecuperar > 0 && (
-              <span className="text-base font-semibold text-ink-soft">{textoParaRecuperar(paraRecuperar)}</span>
-            )}
-          </p>
+          <p className="text-xl font-bold text-ink">{textoTurnosQueQuedan(usados, total)}</p>
         </div>
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-error-bg text-primary">
           <CalendarDays className="h-5 w-5" />
@@ -184,7 +179,7 @@ export default function MiInicio() {
 
       <AvisoCuota cuota={cuota} />
       <ProximoTurno turno={proximoTurno} hoy={hoy} />
-      <TurnosDeLaSemana usados={turnosSemana.usados} total={turnosSemana.total} paraRecuperar={turnosSemana.paraRecuperar} />
+      <TurnosDeLaSemana usados={turnosSemana.usados} total={turnosSemana.total} />
       <ReservarTurno puedeReservar={puedeReservar} motivo={motivoNoReserva} />
       <TusRutinas plan={planActivo} />
     </div>

@@ -39,7 +39,8 @@ public class TurnosDisponiblesResponse {
     private boolean bloqueadoPorCuotaVencida;
     /**
      * Clases que le quedan por recuperar de turnos que el gimnasio le canceló en semanas anteriores (las de esta
-     * semana ya suman en turnosRestantesSemana). Se muestran aparte: «+N para recuperar».
+     * semana ya suman en turnosRestantesSemana). No se muestran (se las avisó la notificación), pero mientras tenga
+     * alguna puede reservar aunque haya usado los turnos de la semana.
      */
     private int clasesParaRecuperar;
 }

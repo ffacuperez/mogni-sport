@@ -50,7 +50,7 @@ public interface ClaseExtraRepository extends JpaRepository<ClaseExtra, Long> {
     long contarDeLaSemana(@Param("alumnoId") Long alumnoId, @Param("fecha") LocalDate fecha,
                           @Param("lunes") LocalDate lunes);
 
-    /** Las que quedaron de semanas anteriores: se muestran aparte, «+N para recuperar». */
+    /** Las que quedaron de semanas anteriores: no suman al contador, pero le dejan reservar con la semana completa. */
     @Query("""
             select count(c) from ClaseExtra c
             where c.alumno.id = :alumnoId

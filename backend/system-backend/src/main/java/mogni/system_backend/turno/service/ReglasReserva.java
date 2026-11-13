@@ -50,7 +50,7 @@ public final class ReglasReserva {
     /**
      * Los turnos que le quedan en la semana, como se le muestran al alumno: los de la membresía que no usó más las
      * clases por recuperar de turnos que el gimnasio le canceló esa misma semana (el contador se los devuelve). Las que
-     * quedaron de semanas anteriores no suman acá: se muestran aparte («+N para recuperar»).
+     * quedaron de semanas anteriores no suman acá (las avisó la notificación), pero le dejan reservar igual.
      */
     public static int turnosQueQuedan(int frecuenciaSemanal, int cuentanEnLaSemana, long clasesDeLaSemana) {
         return Math.max(0, frecuenciaSemanal - cuentanEnLaSemana) + (int) clasesDeLaSemana;

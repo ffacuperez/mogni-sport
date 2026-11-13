@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router';
 import { CalendarDays, ChevronRight, CircleAlert, CreditCard, KeyRound, LogOut, Mail, Phone, Target } from 'lucide-react';
 
 import { obtenerMiPerfil } from '../services/alumnosService';
+import { tonoEstadoCuota } from '../../cuota/services/cuotasService';
 import { desactivarPush } from '../../notificacion/services/pushService';
 import { formatearFecha } from '../../shared/services/texto';
 import { Badge, Cargando, Panel } from '../../shared/components/ui';
@@ -60,7 +61,6 @@ export default function AlumnoPerfil() {
   const inscripcion = alumno.inscripcion;
   const activa = inscripcion?.estado === 'Activa';
   const cuota = alumno.cuota;
-  const vencida = cuota?.situacion === 'VENCIDA' || cuota?.situacion === 'EN_MORA';
 
   return (
     <div className="flex min-h-[calc(100vh-11rem)] flex-col animate-fade-in">
@@ -91,7 +91,7 @@ export default function AlumnoPerfil() {
               icono={CalendarDays}
               etiqueta="Vigencia de la cuota"
               valor={`${formatearFecha(cuota.vigenteDesde)} al ${formatearFecha(cuota.vencimiento)}`}
-              extra={vencida && <Badge tone="error">Vencida</Badge>}
+              extra={<Badge tone={tonoEstadoCuota(cuota.estado)}>{cuota.estado}</Badge>}
             />
           )}
         </ul>

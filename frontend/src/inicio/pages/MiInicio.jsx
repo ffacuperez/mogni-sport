@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { CalendarCheck, CalendarDays, ChevronRight, CircleAlert, Clock, Dumbbell, Plus, TriangleAlert } from 'lucide-react';
+import { CalendarDays, ChevronRight, CircleAlert, Clock, Dumbbell, Plus, TriangleAlert } from 'lucide-react';
 
 import { cx, FOCUS } from '../../shared/components/clases';
 import { Badge, Button, Cargando, Panel } from '../../shared/components/ui';
 import BarraSemanas from '../../progreso/components/BarraSemanas';
 import { tituloPlan } from '../../progreso/services/progresoService';
 import AccesoBloqueado from '../../turno/components/AccesoBloqueado';
+import { formatearFecha } from '../../shared/services/texto';
 import { partesFecha } from '../../turno/services/turnosService';
 import { avisoCuota, consultarMiInicio, TEXTO_MOTIVO_NO_RESERVA, textoTurnosQueQuedan } from '../services/inicioService';
 
@@ -96,28 +97,33 @@ function TurnosDeLaSemana({ usados, total }) {
   );
 }
 
-const diaMes = (fechaISO) => {
-  const [, m, d] = fechaISO.split('-').map(Number);
-  return `${d}/${m}`;
-};
-
-/** A cuántas clases fue en el período de su cuota. Sin tope: es para que vea cuánto aprovecha lo que pagó. */
+/** A cuántas clases fue en el período de su cuota, de cuántas podía ir, y cuál fue la última. */
 function ClasesDeLaCuota({ clases }) {
   if (!clases) return null;
-  const { presentes, desde, hasta } = clases;
-  const texto = presentes === 0
-    ? 'Todavía no fuiste a ninguna'
-    : `Fuiste a ${presentes} ${presentes === 1 ? 'clase' : 'clases'}`;
+  const { presentes, total, ultima } = clases;
+  const porcentaje = total > 0 ? Math.min(100, (presentes / total) * 100) : 0;
   return (
-    <Panel className="flex items-center gap-3 rounded-xl p-4">
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-error-bg text-primary">
-        <CalendarCheck className="h-5 w-5" />
-      </span>
-      <div className="min-w-0">
+    <Panel className="rounded-xl p-4">
+      <div className="mb-2 flex items-baseline justify-between gap-3">
         <p className="text-sm text-ink-soft">Clases de tu cuota</p>
-        <p className="text-xl font-bold text-ink">{texto}</p>
-        <p className="text-xs text-ink-muted">Del {diaMes(desde)} al {diaMes(hasta)}</p>
+        <p className="text-lg font-bold tabular-nums text-ink">{presentes}/{total}</p>
       </div>
+      <div
+        role="progressbar"
+        aria-label="Clases de tu cuota"
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={presentes}
+        className="h-2 overflow-hidden rounded-full bg-line"
+      >
+        <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${porcentaje}%` }} />
+      </div>
+      <p className="mt-3 flex items-center gap-2 rounded-lg bg-row-hover px-3 py-2.5 text-sm text-ink-soft">
+        <Clock className="h-4 w-4 shrink-0" />
+        {ultima
+          ? <span>Última clase: <span className="font-semibold tabular-nums text-ink">{formatearFecha(ultima.fecha)} {ultima.horaInicio} hs</span></span>
+          : 'Todavía no fuiste a ninguna clase'}
+      </p>
     </Panel>
   );
 }

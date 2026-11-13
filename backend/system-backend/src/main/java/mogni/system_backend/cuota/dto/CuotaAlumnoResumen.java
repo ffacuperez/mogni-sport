@@ -24,4 +24,9 @@ public class CuotaAlumnoResumen {
     private boolean puedeRenovar;
     /** Desde qué día se puede renovar (10 días antes del vencimiento); null si no tiene cuotas. */
     private LocalDate renovableDesde;
+    /**
+     * Inicio de la vigencia que se le muestra al alumno (hasta fechaVencimiento): el del período que cubre hoy o, si
+     * ya venció, el del último período pago. Null si no tiene cuotas.
+     */
+    private LocalDate vigenteDesde;
 }

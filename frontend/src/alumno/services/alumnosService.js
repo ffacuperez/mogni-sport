@@ -31,6 +31,8 @@ const cuotaFromApi = (c) => (c ? {
   diasEnMora: c.diasEnMora,
   puedeRenovar: c.puedeRenovar,
   renovableDesde: c.renovableDesde,
+  // Inicio de la vigencia que ve el alumno en su perfil (hasta vencimiento)
+  vigenteDesde: c.vigenteDesde ?? null,
 } : null);
 
 // Backend -> forma que usan las pantallas

@@ -42,6 +42,11 @@ public interface ReservaRepository extends JpaRepository<Reserva, Long> {
                                                                   Asistencia asistencia, LocalDate desde,
                                                                   LocalDate hasta);
 
+    /** La última clase del alumno con esa asistencia (la "Última clase" del inicio). */
+    @EntityGraph(attributePaths = {"turno"})
+    Optional<Reserva> findFirstByAlumnoIdAndEstadoAndAsistenciaOrderByTurnoFechaDescTurnoHoraInicioDesc(
+            Long alumnoId, EstadoReserva estado, Asistencia asistencia);
+
     /** Reservas del alumno con ese estado en turnos de esa fecha en adelante (HU-256, sin ordenar). */
     @EntityGraph(attributePaths = {"turno"})
     List<Reserva> findByAlumnoIdAndEstadoAndTurnoFechaGreaterThanEqual(Long alumnoId, EstadoReserva estado,

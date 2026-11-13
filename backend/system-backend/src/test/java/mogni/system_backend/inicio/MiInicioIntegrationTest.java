@@ -12,7 +12,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +44,7 @@ import mogni.system_backend.plan.repository.PlanAsignadoRepository;
 import mogni.system_backend.plantilla.entity.NivelPlantilla;
 import mogni.system_backend.plantilla.entity.ObjetivoPlantilla;
 import mogni.system_backend.cuota.entity.Cuota;
+import mogni.system_backend.cuota.entity.ReglasCuota;
 import mogni.system_backend.turno.entity.Asistencia;
 import mogni.system_backend.turno.entity.ClaseExtra;
 import mogni.system_backend.turno.entity.EstadoReserva;
@@ -311,8 +314,24 @@ class MiInicioIntegrationTest {
         JsonNode clases = inicioDe(alumno).cuerpo().path("clasesCuota");
 
         assertEquals(2, clases.path("presentes").asInt());
-        assertEquals(cuota.getFechaInicio().toString(), clases.path("desde").asString());
-        assertEquals(cuota.getFechaVencimiento().toString(), clases.path("hasta").asString());
+        // La última con «Presente», aunque sea de antes del período
+        assertEquals(hoy().minusDays(2).toString(), clases.path("ultima").path("fecha").asString());
+    }
+
+    @Test
+    void el_total_es_de_cuantas_clases_podia_ir_en_el_periodo() throws Exception {
+        Alumno alumno = alumnoAlDia(3);
+        Cuota cuota = alumno.buscarUltimaCuotaPagada().orElseThrow();
+        // Sin franjas cargadas se cuentan todos los días: una por día y hasta 3 por semana
+        Map<LocalDate, Long> diasPorSemana = cuota.getFechaInicio().datesUntil(cuota.getFechaVencimiento())
+                .collect(Collectors.groupingBy(ReglasReserva::lunesDe, Collectors.counting()));
+        long esperado = diasPorSemana.values().stream().mapToLong(dias -> Math.min(dias, 3)).sum();
+
+        JsonNode clases = inicioDe(alumno).cuerpo().path("clasesCuota");
+
+        assertEquals(esperado, clases.path("total").asLong());
+        assertEquals(0, clases.path("presentes").asInt());
+        assertTrue(clases.path("ultima").isNull());
     }
 
     @Test
@@ -324,10 +343,14 @@ class MiInicioIntegrationTest {
         alumnoRepository.save(alumno);
         asistio(alumno, hoy().minusDays(1), Asistencia.PRESENTE);
 
-        JsonNode clases = inicioDe(alumno).cuerpo().path("clasesCuota");
+        assertEquals(1, inicioDe(alumno).cuerpo().path("clasesCuota").path("presentes").asInt());
 
-        assertEquals(actual.getFechaInicio().toString(), clases.path("desde").asString());
-        assertEquals(1, clases.path("presentes").asInt());
+        // En el perfil, la vigencia va del inicio del período de hoy al último vencimiento pago
+        JsonNode cuota = ejecutar(get("/alumnos/me").with(user(alumno.getEmail()).roles("ALUMNO")))
+                .cuerpo().path("cuotaActual");
+        assertEquals(actual.getFechaInicio().toString(), cuota.path("vigenteDesde").asString());
+        assertEquals(ReglasCuota.vencimientoDesde(actual.getFechaVencimiento()).toString(),
+                cuota.path("fechaVencimiento").asString());
     }
 
     @Test

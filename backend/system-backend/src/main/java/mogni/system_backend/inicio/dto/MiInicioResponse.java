@@ -47,7 +47,15 @@ public record MiInicioResponse(
     public record TurnosSemana(int usados, int total) {
     }
 
-    /** Clases con asistencia «Presente» entre el inicio y el vencimiento del período pagado. Sin tope: es informativo. */
-    public record ClasesCuota(LocalDate desde, LocalDate hasta, long presentes) {
+    /**
+     * Clases con asistencia «Presente» en el período de la cuota que cubre hoy y de cuántas podía ir en ese período
+     * (una por día, solo días con franjas y hasta la frecuencia por semana). ultima: la última clase con «Presente»
+     * (de cualquier período); null si nunca fue.
+     */
+    public record ClasesCuota(long presentes, long total, UltimaClase ultima) {
+    }
+
+    /** Hora como "HH:mm". */
+    public record UltimaClase(LocalDate fecha, String horaInicio) {
     }
 }

@@ -1,9 +1,14 @@
 package mogni.system_backend.inicio.service;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Comparator;
+import java.time.format.DateTimeFormatter;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.springframework.stereotype.Service;
@@ -12,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.config.ZonaHoraria;
-import mogni.system_backend.cuota.entity.Cuota;
 import mogni.system_backend.cuota.service.CuotaService;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.inicio.dto.MiInicioResponse;
@@ -20,7 +24,9 @@ import mogni.system_backend.progreso.service.MiProgresoService;
 import mogni.system_backend.turno.dto.MotivoNoReserva;
 import mogni.system_backend.turno.entity.Asistencia;
 import mogni.system_backend.turno.entity.EstadoReserva;
+import mogni.system_backend.turno.entity.FranjaHoraria;
 import mogni.system_backend.turno.repository.ClaseExtraRepository;
+import mogni.system_backend.turno.repository.FranjaHorariaRepository;
 import mogni.system_backend.turno.repository.ReservaRepository;
 import mogni.system_backend.turno.service.ConsultaTurnosService;
 import mogni.system_backend.turno.service.MisTurnosService;
@@ -33,18 +39,22 @@ import mogni.system_backend.turno.service.ReglasReserva;
 @Service
 public class MiInicioService {
 
+    private static final DateTimeFormatter HORA = DateTimeFormatter.ofPattern("HH:mm");
+
     private final AlumnoRepository alumnoRepository;
     private final ReservaRepository reservaRepository;
     private final ClaseExtraRepository claseExtraRepository;
+    private final FranjaHorariaRepository franjaHorariaRepository;
     private final MisTurnosService misTurnosService;
     private final MiProgresoService miProgresoService;
 
     public MiInicioService(AlumnoRepository alumnoRepository, ReservaRepository reservaRepository,
-                           ClaseExtraRepository claseExtraRepository, MisTurnosService misTurnosService,
-                           MiProgresoService miProgresoService) {
+                           ClaseExtraRepository claseExtraRepository, FranjaHorariaRepository franjaHorariaRepository,
+                           MisTurnosService misTurnosService, MiProgresoService miProgresoService) {
         this.alumnoRepository = alumnoRepository;
         this.reservaRepository = reservaRepository;
         this.claseExtraRepository = claseExtraRepository;
+        this.franjaHorariaRepository = franjaHorariaRepository;
         this.misTurnosService = misTurnosService;
         this.miProgresoService = miProgresoService;
     }
@@ -86,37 +96,46 @@ public class MiInicioService {
                 cuota,
                 proximoTurno,
                 new MiInicioResponse.TurnosSemana(usados, total),
-                clasesCuota(alumno, hoy),
+                clasesCuota(alumno, hoy, frecuencia),
                 motivo == null,
                 motivo,
                 miProgresoService.resumenPlanActivo(alumno, hoy).orElse(null));
     }
 
     /**
-     * A cuántas clases fue (asistencia «Presente») en el período de la cuota que cubre hoy. Si ese día empieza otra
-     * cuota (renovó a tiempo), cuenta la nueva. Un cambio de membresía no lo reinicia: el período empieza con la
-     * primera cuota que termina en ese vencimiento. Sin una cuota que cubra hoy (vencida, en mora o sin cuotas) no hay
-     * período, y el inicio no lo muestra.
+     * A cuántas clases fue (asistencia «Presente») en el período de la cuota que cubre hoy, de cuántas podía ir y cuál
+     * fue la última. El período va del inicio al día anterior al vencimiento (ese día empieza el siguiente). Sin una
+     * cuota que cubra hoy (vencida, en mora o sin cuotas) no hay período, y el inicio no lo muestra.
      */
-    private MiInicioResponse.ClasesCuota clasesCuota(Alumno alumno, LocalDate hoy) {
-        List<Cuota> cuotas = alumno.getInscripciones().stream()
-                .flatMap(inscripcion -> inscripcion.getCuotas().stream())
-                .toList();
-        return cuotas.stream()
-                .filter(cuota -> !cuota.getFechaInicio().isAfter(hoy) && !cuota.getFechaVencimiento().isBefore(hoy))
-                .max(Comparator.comparing(Cuota::getFechaInicio))
-                .map(Cuota::getFechaVencimiento)
-                .map(hasta -> {
-                    LocalDate desde = cuotas.stream()
-                            .filter(cuota -> cuota.getFechaVencimiento().equals(hasta))
-                            .map(Cuota::getFechaInicio)
-                            .min(Comparator.naturalOrder())
-                            .orElseThrow();
-                    long presentes = reservaRepository.countByAlumnoIdAndEstadoAndAsistenciaAndTurnoFechaBetween(
-                            alumno.getId(), EstadoReserva.RESERVADA, Asistencia.PRESENTE, desde, hasta);
-                    return new MiInicioResponse.ClasesCuota(desde, hasta, presentes);
-                })
-                .orElse(null);
+    private MiInicioResponse.ClasesCuota clasesCuota(Alumno alumno, LocalDate hoy, int frecuencia) {
+        return CuotaService.periodoQueCubre(alumno, hoy).map(periodo -> {
+            LocalDate ultimoDia = periodo.hasta().minusDays(1);
+            long presentes = reservaRepository.countByAlumnoIdAndEstadoAndAsistenciaAndTurnoFechaBetween(
+                    alumno.getId(), EstadoReserva.RESERVADA, Asistencia.PRESENTE, periodo.desde(), ultimoDia);
+            // Con clases recuperadas puede pasarse del tope: el total nunca queda por debajo
+            long total = Math.max(clasesPosibles(periodo.desde(), ultimoDia, frecuencia), presentes);
+            MiInicioResponse.UltimaClase ultima = reservaRepository
+                    .findFirstByAlumnoIdAndEstadoAndAsistenciaOrderByTurnoFechaDescTurnoHoraInicioDesc(
+                            alumno.getId(), EstadoReserva.RESERVADA, Asistencia.PRESENTE)
+                    .map(reserva -> new MiInicioResponse.UltimaClase(reserva.getTurno().getFecha(),
+                            reserva.getTurno().getHoraInicio().format(HORA)))
+                    .orElse(null);
+            return new MiInicioResponse.ClasesCuota(presentes, total, ultima);
+        }).orElse(null);
+    }
+
+    /**
+     * De cuántas clases podía ir en esos días con las reglas de la reserva: una por día, solo los días que el gimnasio
+     * tiene franjas y hasta la frecuencia de la membresía en cada semana (lunes a domingo).
+     */
+    private long clasesPosibles(LocalDate desde, LocalDate hasta, int frecuencia) {
+        Set<DayOfWeek> abiertos = franjaHorariaRepository.findAll().stream()
+                .map(FranjaHoraria::getDiaSemana)
+                .collect(Collectors.toCollection(() -> EnumSet.noneOf(DayOfWeek.class)));
+        Map<LocalDate, Long> diasPorSemana = desde.datesUntil(hasta.plusDays(1))
+                .filter(dia -> abiertos.isEmpty() || abiertos.contains(dia.getDayOfWeek()))
+                .collect(Collectors.groupingBy(ReglasReserva::lunesDe, Collectors.counting()));
+        return diasPorSemana.values().stream().mapToLong(dias -> Math.min(dias, frecuencia)).sum();
     }
 
     /**

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import { CalendarDays, ChevronRight, CircleAlert, Clock, Dumbbell, Plus, TriangleAlert } from 'lucide-react';
 
 import { cx, FOCUS } from '../../shared/components/clases';
-import { Badge, Button, Cargando, Panel } from '../../shared/components/ui';
+import { Button, Cargando, Panel } from '../../shared/components/ui';
 import BarraSemanas from '../../progreso/components/BarraSemanas';
 import { tituloPlan } from '../../progreso/services/progresoService';
 import AccesoBloqueado from '../../turno/components/AccesoBloqueado';
@@ -197,16 +197,15 @@ export default function MiInicio() {
 
   if (!inicio) return <Cargando texto="Cargando tu inicio" />;
 
-  const { hoy, nombre, membresia, diasPorSemana, activo, cuota, proximoTurno, turnosSemana, clasesCuota, puedeReservar, motivoNoReserva, planActivo } = inicio;
+  const { hoy, nombre, membresia, diasPorSemana, cuota, proximoTurno, turnosSemana, clasesCuota, puedeReservar, motivoNoReserva, planActivo } = inicio;
 
   return (
     <div className="flex flex-col gap-4 animate-fade-in">
       <header>
         <h1 className="text-2xl font-bold text-ink">¡Hola, {nombre}!</h1>
-        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-ink-soft">
-          <span>{membresia ? `${membresia} · ${diasPorSemana} ${diasPorSemana === 1 ? 'día' : 'días'} por semana` : 'Sin membresía activa'}</span>
-          <Badge tone={activo ? 'success' : 'error'}>{activo ? 'Activo' : 'Inactivo'}</Badge>
-        </div>
+        <p className="mt-1 text-sm text-ink-soft">
+          {membresia ? `${membresia} · ${diasPorSemana} ${diasPorSemana === 1 ? 'día' : 'días'} por semana` : 'Sin membresía activa'}
+        </p>
       </header>
 
       <AvisoCuota cuota={cuota} />

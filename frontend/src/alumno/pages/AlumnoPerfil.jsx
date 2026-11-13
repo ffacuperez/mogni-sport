@@ -59,7 +59,6 @@ export default function AlumnoPerfil() {
   };
 
   const inscripcion = alumno.inscripcion;
-  const activa = inscripcion?.estado === 'Activa';
   const cuota = alumno.cuota;
 
   return (
@@ -84,7 +83,6 @@ export default function AlumnoPerfil() {
             // Cambio ya pagado para el mes siguiente
             detalle={alumno.membresiaProgramada
               && `Membresía ${alumno.membresiaProgramada} a partir del ${formatearFecha(alumno.programadaDesde)}`}
-            extra={inscripcion && <Badge tone={activa ? 'success' : 'error'}>{inscripcion.estado}</Badge>}
           />
           {cuota?.vigenteDesde && cuota.vencimiento && (
             <Fila

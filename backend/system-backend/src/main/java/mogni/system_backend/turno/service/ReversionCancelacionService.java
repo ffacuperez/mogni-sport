@@ -1,64 +1,43 @@
 package mogni.system_backend.turno.service;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityManager;
-import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.exception.ConflictoException;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
-import mogni.system_backend.notificacion.entity.AvisoTurnoReactivado;
-import mogni.system_backend.notificacion.repository.AvisoTurnoReactivadoRepository;
 import mogni.system_backend.turno.dto.ReversionCancelacionResponse;
-import mogni.system_backend.turno.entity.EstadoReserva;
 import mogni.system_backend.turno.entity.EstadoTurno;
 import mogni.system_backend.turno.entity.FranjaHoraria;
-import mogni.system_backend.turno.entity.Reserva;
 import mogni.system_backend.turno.entity.Turno;
 import mogni.system_backend.turno.repository.FranjaHorariaRepository;
-import mogni.system_backend.turno.repository.ReservaRepository;
 import mogni.system_backend.turno.repository.TurnoRepository;
 
 /**
- * El propietario se arrepiente de haber cancelado un turno. El turno vuelve a DISPONIBLE (con el cupo vigente) y los
- * alumnos que tenían una reserva cancelada reciben un aviso. Las reservas NO se restauran: conservan su clase extra
- * y tienen que reservar de nuevo. Los turnos cancelados por cambio de franjas no se pueden reactivar a mano: los
- * maneja ReconciliacionTurnosService.
- *
- * Locks en el mismo orden que ReservaService (alumnos por id y después el turno), porque los avisos tienen una FK
- * al alumno y una reserva en curso de ese alumno podría trabarse con esta transacción.
+ * El propietario se arrepiente de haber cancelado un turno. El turno vuelve a DISPONIBLE (con el cupo vigente). Las
+ * reservas NO se restauran ni se avisa a los alumnos: ya recibieron el aviso de la cancelación, conservan su clase a
+ * recuperar y, si quieren, lo reservan de nuevo. Los turnos cancelados por cambio de franjas no se pueden reactivar a
+ * mano: los maneja ReconciliacionTurnosService.
  */
 @Service
 public class ReversionCancelacionService {
 
-    private static final DateTimeFormatter FECHA = DateTimeFormatter.ofPattern("dd/MM");
-
     private final TurnoRepository turnoRepository;
-    private final ReservaRepository reservaRepository;
-    private final AlumnoRepository alumnoRepository;
     private final FranjaHorariaRepository franjaHorariaRepository;
     private final ConfiguracionGimnasioService configuracionGimnasioService;
-    private final AvisoTurnoReactivadoRepository avisoRepository;
     private final EntityManager entityManager;
 
     public ReversionCancelacionService(TurnoRepository turnoRepository,
-                                       ReservaRepository reservaRepository,
-                                       AlumnoRepository alumnoRepository,
                                        FranjaHorariaRepository franjaHorariaRepository,
                                        ConfiguracionGimnasioService configuracionGimnasioService,
-                                       AvisoTurnoReactivadoRepository avisoRepository,
                                        EntityManager entityManager) {
         this.turnoRepository = turnoRepository;
-        this.reservaRepository = reservaRepository;
-        this.alumnoRepository = alumnoRepository;
         this.franjaHorariaRepository = franjaHorariaRepository;
         this.configuracionGimnasioService = configuracionGimnasioService;
-        this.avisoRepository = avisoRepository;
         this.entityManager = entityManager;
     }
 
@@ -73,14 +52,6 @@ public class ReversionCancelacionService {
             throw new RecursoNoEncontradoException("No existe el turno que querés reactivar.");
         }
 
-        List<Reserva> afectadas = reservaRepository.findWithAlumnoByTurnoIdInAndEstado(
-                List.of(turnoId), EstadoReserva.CANCELADA_POR_GIMNASIO);
-        afectadas.stream()
-                .map(reserva -> reserva.getAlumno().getId())
-                .distinct()
-                .sorted()
-                .forEach(alumnoRepository::findByIdConBloqueo);
-
         Turno turno = turnoRepository.findByIdConBloqueo(turnoId)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No existe el turno que querés reactivar."));
         // Se relee el estado: otra reactivación o la reconciliación pudo cambiarlo antes de conseguir el lock
@@ -89,16 +60,7 @@ public class ReversionCancelacionService {
 
         turno.reactivar(configuracionGimnasioService.obtenerCupoMaximo());
         turnoRepository.save(turno);
-
-        String mensaje = "El turno del " + turno.getFecha().format(FECHA) + " a las "
-                + FranjaHorariaService.formatearHora(turno.getHoraInicio())
-                + " volvió a estar disponible. Si querés, podés reservarlo de nuevo.";
-        for (Reserva reserva : afectadas) {
-            avisoRepository.save(new AvisoTurnoReactivado(
-                    reserva.getAlumno(), reserva.getId(), turno.getId(), ahora.toLocalDate(), turno.getFecha(),
-                    "Turno disponible nuevamente", mensaje));
-        }
-        return new ReversionCancelacionResponse(turno.getId(), afectadas.size());
+        return new ReversionCancelacionResponse(turno.getId());
     }
 
     private void validar(Turno turno, LocalDateTime ahora) {

@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -23,17 +22,13 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import jakarta.persistence.EntityManager;
 import mogni.system_backend.alumno.entity.Alumno;
-import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.exception.ConflictoException;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
-import mogni.system_backend.notificacion.entity.AvisoTurnoReactivado;
-import mogni.system_backend.notificacion.repository.AvisoTurnoReactivadoRepository;
 import mogni.system_backend.turno.dto.ReversionCancelacionResponse;
 import mogni.system_backend.turno.entity.EstadoReserva;
 import mogni.system_backend.turno.entity.EstadoTurno;
@@ -42,7 +37,6 @@ import mogni.system_backend.turno.entity.MotivoCancelacionTurno;
 import mogni.system_backend.turno.entity.Reserva;
 import mogni.system_backend.turno.entity.Turno;
 import mogni.system_backend.turno.repository.FranjaHorariaRepository;
-import mogni.system_backend.turno.repository.ReservaRepository;
 import mogni.system_backend.turno.repository.TurnoRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,23 +48,19 @@ class ReversionCancelacionServiceTest {
     private static final int CUPO_VIGENTE = 8;
 
     @Mock private TurnoRepository turnoRepository;
-    @Mock private ReservaRepository reservaRepository;
-    @Mock private AlumnoRepository alumnoRepository;
     @Mock private FranjaHorariaRepository franjaHorariaRepository;
     @Mock private ConfiguracionGimnasioService configuracionGimnasioService;
-    @Mock private AvisoTurnoReactivadoRepository avisoRepository;
     @Mock private EntityManager entityManager;
 
     private final List<Turno> turnos = new ArrayList<>();
     private final List<Reserva> reservas = new ArrayList<>();
-    private final List<AvisoTurnoReactivado> avisos = new ArrayList<>();
     private long siguienteId = 100;
     private ReversionCancelacionService service;
 
     @BeforeEach
     void setUp() {
-        service = new ReversionCancelacionService(turnoRepository, reservaRepository, alumnoRepository,
-                franjaHorariaRepository, configuracionGimnasioService, avisoRepository, entityManager);
+        service = new ReversionCancelacionService(turnoRepository, franjaHorariaRepository,
+                configuracionGimnasioService, entityManager);
         lenient().when(configuracionGimnasioService.obtenerCupoMaximo()).thenReturn(CUPO_VIGENTE);
         lenient().when(franjaHorariaRepository.findByDiaSemanaOrderByHoraInicioAsc(DayOfWeek.TUESDAY))
                 .thenReturn(List.of(new FranjaHoraria(1L, DayOfWeek.TUESDAY, LocalTime.of(8, 0), LocalTime.of(12, 0))));
@@ -78,19 +68,6 @@ class ReversionCancelacionServiceTest {
                 .anyMatch(turno -> turno.getId().equals(inv.<Long>getArgument(0))));
         lenient().when(turnoRepository.findByIdConBloqueo(anyLong())).thenAnswer(inv -> turnos.stream()
                 .filter(turno -> turno.getId().equals(inv.<Long>getArgument(0))).findFirst());
-        lenient().when(reservaRepository.findWithAlumnoByTurnoIdInAndEstado(any(), any())).thenAnswer(inv -> {
-            List<Long> ids = inv.getArgument(0);
-            EstadoReserva estado = inv.getArgument(1);
-            return reservas.stream()
-                    .filter(reserva -> ids.contains(reserva.getTurno().getId()) && reserva.getEstado() == estado)
-                    .toList();
-        });
-        lenient().when(avisoRepository.save(any(AvisoTurnoReactivado.class))).thenAnswer(inv -> {
-            AvisoTurnoReactivado aviso = inv.getArgument(0);
-            aviso.setId(siguienteId++);
-            avisos.add(aviso);
-            return aviso;
-        });
     }
 
     private Turno turno(String hora, EstadoTurno estado, MotivoCancelacionTurno motivo) {
@@ -122,7 +99,6 @@ class ReversionCancelacionServiceTest {
         assertNull(turno.getMotivoCancelacion());
         assertEquals(CUPO_VIGENTE, turno.getCupoMaximo());
         assertEquals(turno.getId(), respuesta.getTurnoId());
-        assertEquals(0, respuesta.getAlumnosAvisados());
         verify(turnoRepository).save(turno);
     }
 
@@ -136,26 +112,17 @@ class ReversionCancelacionServiceTest {
     }
 
     @Test
-    void lasReservasCanceladasNoSeRestauranYCadaAlumnoRecibeUnAviso() {
+    void lasReservasCanceladasNoSeRestauranNiSeAvisaALosAlumnos() {
         Turno turno = cancelado("09:00");
         Reserva primera = reserva(1L, turno, EstadoReserva.CANCELADA_POR_GIMNASIO);
         Reserva segunda = reserva(2L, turno, EstadoReserva.CANCELADA_POR_GIMNASIO);
-        // La que el alumno canceló por su cuenta no cuenta
-        reserva(3L, turno, EstadoReserva.CANCELADA);
 
-        ReversionCancelacionResponse respuesta = service.revertir(turno.getId(), AHORA);
+        service.revertir(turno.getId(), AHORA);
 
+        // Conservan su clase a recuperar y, si quieren, lo reservan de nuevo
         assertEquals(EstadoReserva.CANCELADA_POR_GIMNASIO, primera.getEstado());
         assertEquals(EstadoReserva.CANCELADA_POR_GIMNASIO, segunda.getEstado());
-        assertEquals(2, respuesta.getAlumnosAvisados());
-        assertEquals(2, avisos.size());
-        assertEquals(List.of(primera.getId(), segunda.getId()), avisos.stream().map(a -> a.getReservaId()).toList());
-        AvisoTurnoReactivado aviso = avisos.get(0);
-        assertEquals(turno.getId(), aviso.getTurnoId());
-        assertEquals(MARTES, aviso.getFechaTurno());
-        assertEquals(AHORA.toLocalDate(), aviso.getFecha());
-        assertEquals("Turno disponible nuevamente", aviso.getTitulo());
-        assertTrue(aviso.getMensaje().contains("20/10") && aviso.getMensaje().contains("09:00"));
+        assertEquals(EstadoTurno.DISPONIBLE, turno.getEstado());
     }
 
     @Test
@@ -166,21 +133,6 @@ class ReversionCancelacionServiceTest {
         service.revertir(turno.getId(), AHORA);
 
         assertEquals(EstadoReserva.RESERVADA, nueva.getEstado());
-        assertTrue(avisos.isEmpty());
-    }
-
-    @Test
-    void bloqueaPrimeroLosAlumnosPorIdYDespuesElTurno() {
-        Turno turno = cancelado("09:00");
-        reserva(9L, turno, EstadoReserva.CANCELADA_POR_GIMNASIO);
-        reserva(4L, turno, EstadoReserva.CANCELADA_POR_GIMNASIO);
-
-        service.revertir(turno.getId(), AHORA);
-
-        InOrder orden = inOrder(alumnoRepository, turnoRepository);
-        orden.verify(alumnoRepository).findByIdConBloqueo(4L);
-        orden.verify(alumnoRepository).findByIdConBloqueo(9L);
-        orden.verify(turnoRepository).findByIdConBloqueo(turno.getId());
     }
 
     @Test
@@ -192,7 +144,6 @@ class ReversionCancelacionServiceTest {
 
         assertTrue(ex.getMessage().contains("ya no está en la agenda"));
         assertEquals(EstadoTurno.CANCELADO, turno.getEstado());
-        assertTrue(avisos.isEmpty());
     }
 
     @Test
@@ -233,7 +184,6 @@ class ReversionCancelacionServiceTest {
 
         assertTrue(ex.getMessage().startsWith("No hay una franja horaria que incluya este turno."));
         assertEquals(EstadoTurno.CANCELADO, turno.getEstado());
-        verify(avisoRepository, never()).save(any());
     }
 
     @Test
@@ -242,7 +192,7 @@ class ReversionCancelacionServiceTest {
     }
 
     @Test
-    void siOtroProcesoLoReactivoAntesDeConseguirElLockNoAvisaDeNuevo() {
+    void siOtroProcesoLoReactivoAntesDeConseguirElLockDaConflicto() {
         Turno turno = cancelado("09:00");
         reserva(1L, turno, EstadoReserva.CANCELADA_POR_GIMNASIO);
         // Al releer el turno bloqueado ya no está cancelado
@@ -253,7 +203,6 @@ class ReversionCancelacionServiceTest {
 
         assertThrows(ConflictoException.class, () -> service.revertir(turno.getId(), AHORA));
 
-        assertTrue(avisos.isEmpty());
         verify(turnoRepository, never()).save(any());
     }
 }

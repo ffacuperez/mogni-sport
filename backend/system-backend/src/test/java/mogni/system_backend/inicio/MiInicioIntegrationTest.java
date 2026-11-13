@@ -41,6 +41,8 @@ import mogni.system_backend.plan.entity.PlanAsignado;
 import mogni.system_backend.plan.repository.PlanAsignadoRepository;
 import mogni.system_backend.plantilla.entity.NivelPlantilla;
 import mogni.system_backend.plantilla.entity.ObjetivoPlantilla;
+import mogni.system_backend.cuota.entity.Cuota;
+import mogni.system_backend.turno.entity.Asistencia;
 import mogni.system_backend.turno.entity.ClaseExtra;
 import mogni.system_backend.turno.entity.EstadoReserva;
 import mogni.system_backend.turno.entity.EstadoTurno;
@@ -281,6 +283,56 @@ class MiInicioIntegrationTest {
     @Test
     void sin_plan_activo_el_plan_es_null() throws Exception {
         assertTrue(inicioDe(alumnoAlDia(3)).cuerpo().path("planActivo").isNull());
+    }
+
+    // --- Clases de la cuota ---
+
+    private void asistio(Alumno alumno, LocalDate fecha, Asistencia asistencia) {
+        Reserva reserva = reservar(alumno, fecha);
+        reserva.setAsistencia(asistencia);
+        reservaRepository.save(reserva);
+    }
+
+    @Test
+    void cuenta_las_clases_presentes_del_periodo_de_la_cuota() throws Exception {
+        Alumno alumno = alumnoAlDia(3);
+        Cuota cuota = alumno.buscarUltimaCuotaPagada().orElseThrow();
+        asistio(alumno, cuota.getFechaInicio(), Asistencia.PRESENTE);
+        asistio(alumno, hoy().minusDays(2), Asistencia.PRESENTE);
+        // No suman: una ausencia, una sin marcar, una cancelada y una de antes del período
+        asistio(alumno, hoy().minusDays(3), Asistencia.AUSENTE);
+        reservar(alumno, hoy().plusDays(1));
+        Reserva cancelada = reservar(alumno, hoy().minusDays(4));
+        cancelada.setEstado(EstadoReserva.CANCELADA);
+        cancelada.setAsistencia(Asistencia.PRESENTE);
+        reservaRepository.save(cancelada);
+        asistio(alumno, cuota.getFechaInicio().minusDays(1), Asistencia.PRESENTE);
+
+        JsonNode clases = inicioDe(alumno).cuerpo().path("clasesCuota");
+
+        assertEquals(2, clases.path("presentes").asInt());
+        assertEquals(cuota.getFechaInicio().toString(), clases.path("desde").asString());
+        assertEquals(cuota.getFechaVencimiento().toString(), clases.path("hasta").asString());
+    }
+
+    @Test
+    void con_la_cuota_siguiente_ya_paga_cuenta_desde_que_empieza_la_que_cubre_hoy() throws Exception {
+        Alumno alumno = alumnoAlDia(3);
+        Inscripcion inscripcion = alumno.buscarInscripcionActiva().orElseThrow();
+        Cuota actual = inscripcion.buscarUltimaCuota().orElseThrow();
+        inscripcion.agregarCuota(actual.getFechaVencimiento());
+        alumnoRepository.save(alumno);
+        asistio(alumno, hoy().minusDays(1), Asistencia.PRESENTE);
+
+        JsonNode clases = inicioDe(alumno).cuerpo().path("clasesCuota");
+
+        assertEquals(actual.getFechaInicio().toString(), clases.path("desde").asString());
+        assertEquals(1, clases.path("presentes").asInt());
+    }
+
+    @Test
+    void sin_una_cuota_que_cubra_hoy_no_hay_contador() throws Exception {
+        assertTrue(inicioDe(alumno(3, -3)).cuerpo().path("clasesCuota").isNull());
     }
 
     // --- Mismas reglas que la reserva ---

@@ -37,6 +37,11 @@ public interface ReservaRepository extends JpaRepository<Reserva, Long> {
     List<Reserva> findByAlumnoIdAndEstadoInAndTurnoFechaBetween(Long alumnoId, Collection<EstadoReserva> estados,
                                                                  LocalDate desde, LocalDate hasta);
 
+    /** Clases del alumno con esa asistencia en turnos entre dos fechas (el inicio cuenta a cuántas fue en su cuota). */
+    long countByAlumnoIdAndEstadoAndAsistenciaAndTurnoFechaBetween(Long alumnoId, EstadoReserva estado,
+                                                                  Asistencia asistencia, LocalDate desde,
+                                                                  LocalDate hasta);
+
     /** Reservas del alumno con ese estado en turnos de esa fecha en adelante (HU-256, sin ordenar). */
     @EntityGraph(attributePaths = {"turno"})
     List<Reserva> findByAlumnoIdAndEstadoAndTurnoFechaGreaterThanEqual(Long alumnoId, EstadoReserva estado,

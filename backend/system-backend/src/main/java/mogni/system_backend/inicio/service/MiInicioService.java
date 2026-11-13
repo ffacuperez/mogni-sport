@@ -2,6 +2,7 @@ package mogni.system_backend.inicio.service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -11,11 +12,14 @@ import org.springframework.transaction.annotation.Transactional;
 import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.alumno.repository.AlumnoRepository;
 import mogni.system_backend.config.ZonaHoraria;
+import mogni.system_backend.cuota.entity.Cuota;
 import mogni.system_backend.cuota.service.CuotaService;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.inicio.dto.MiInicioResponse;
 import mogni.system_backend.progreso.service.MiProgresoService;
 import mogni.system_backend.turno.dto.MotivoNoReserva;
+import mogni.system_backend.turno.entity.Asistencia;
+import mogni.system_backend.turno.entity.EstadoReserva;
 import mogni.system_backend.turno.repository.ClaseExtraRepository;
 import mogni.system_backend.turno.repository.ReservaRepository;
 import mogni.system_backend.turno.service.ConsultaTurnosService;
@@ -82,9 +86,37 @@ public class MiInicioService {
                 cuota,
                 proximoTurno,
                 new MiInicioResponse.TurnosSemana(usados, total),
+                clasesCuota(alumno, hoy),
                 motivo == null,
                 motivo,
                 miProgresoService.resumenPlanActivo(alumno, hoy).orElse(null));
+    }
+
+    /**
+     * A cuántas clases fue (asistencia «Presente») en el período de la cuota que cubre hoy. Si ese día empieza otra
+     * cuota (renovó a tiempo), cuenta la nueva. Un cambio de membresía no lo reinicia: el período empieza con la
+     * primera cuota que termina en ese vencimiento. Sin una cuota que cubra hoy (vencida, en mora o sin cuotas) no hay
+     * período, y el inicio no lo muestra.
+     */
+    private MiInicioResponse.ClasesCuota clasesCuota(Alumno alumno, LocalDate hoy) {
+        List<Cuota> cuotas = alumno.getInscripciones().stream()
+                .flatMap(inscripcion -> inscripcion.getCuotas().stream())
+                .toList();
+        return cuotas.stream()
+                .filter(cuota -> !cuota.getFechaInicio().isAfter(hoy) && !cuota.getFechaVencimiento().isBefore(hoy))
+                .max(Comparator.comparing(Cuota::getFechaInicio))
+                .map(Cuota::getFechaVencimiento)
+                .map(hasta -> {
+                    LocalDate desde = cuotas.stream()
+                            .filter(cuota -> cuota.getFechaVencimiento().equals(hasta))
+                            .map(Cuota::getFechaInicio)
+                            .min(Comparator.naturalOrder())
+                            .orElseThrow();
+                    long presentes = reservaRepository.countByAlumnoIdAndEstadoAndAsistenciaAndTurnoFechaBetween(
+                            alumno.getId(), EstadoReserva.RESERVADA, Asistencia.PRESENTE, desde, hasta);
+                    return new MiInicioResponse.ClasesCuota(desde, hasta, presentes);
+                })
+                .orElse(null);
     }
 
     /**

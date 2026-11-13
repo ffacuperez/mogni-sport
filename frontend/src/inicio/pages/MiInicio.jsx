@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { CalendarDays, ChevronRight, CircleAlert, Clock, Dumbbell, Plus, TriangleAlert } from 'lucide-react';
+import { CalendarCheck, CalendarDays, ChevronRight, CircleAlert, Clock, Dumbbell, Plus, TriangleAlert } from 'lucide-react';
 
 import { cx, FOCUS } from '../../shared/components/clases';
 import { Badge, Button, Cargando, Panel } from '../../shared/components/ui';
@@ -96,6 +96,32 @@ function TurnosDeLaSemana({ usados, total }) {
   );
 }
 
+const diaMes = (fechaISO) => {
+  const [, m, d] = fechaISO.split('-').map(Number);
+  return `${d}/${m}`;
+};
+
+/** A cuántas clases fue en el período de su cuota. Sin tope: es para que vea cuánto aprovecha lo que pagó. */
+function ClasesDeLaCuota({ clases }) {
+  if (!clases) return null;
+  const { presentes, desde, hasta } = clases;
+  const texto = presentes === 0
+    ? 'Todavía no fuiste a ninguna'
+    : `Fuiste a ${presentes} ${presentes === 1 ? 'clase' : 'clases'}`;
+  return (
+    <Panel className="flex items-center gap-3 rounded-xl p-4">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-error-bg text-primary">
+        <CalendarCheck className="h-5 w-5" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-sm text-ink-soft">Clases de tu cuota</p>
+        <p className="text-xl font-bold text-ink">{texto}</p>
+        <p className="text-xs text-ink-muted">Del {diaMes(desde)} al {diaMes(hasta)}</p>
+      </div>
+    </Panel>
+  );
+}
+
 /** Lleva a la reserva. Si no puede reservar queda deshabilitado y debajo se explica por qué. */
 function ReservarTurno({ puedeReservar, motivo }) {
   const navigate = useNavigate();
@@ -165,7 +191,7 @@ export default function MiInicio() {
 
   if (!inicio) return <Cargando texto="Cargando tu inicio" />;
 
-  const { hoy, nombre, membresia, diasPorSemana, activo, cuota, proximoTurno, turnosSemana, puedeReservar, motivoNoReserva, planActivo } = inicio;
+  const { hoy, nombre, membresia, diasPorSemana, activo, cuota, proximoTurno, turnosSemana, clasesCuota, puedeReservar, motivoNoReserva, planActivo } = inicio;
 
   return (
     <div className="flex flex-col gap-4 animate-fade-in">
@@ -180,6 +206,7 @@ export default function MiInicio() {
       <AvisoCuota cuota={cuota} />
       <ProximoTurno turno={proximoTurno} hoy={hoy} />
       <TurnosDeLaSemana usados={turnosSemana.usados} total={turnosSemana.total} />
+      <ClasesDeLaCuota clases={clasesCuota} />
       <ReservarTurno puedeReservar={puedeReservar} motivo={motivoNoReserva} />
       <TusRutinas plan={planActivo} />
     </div>

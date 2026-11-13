@@ -26,6 +26,8 @@ public class EjercicioSesionResponse {
     private BigDecimal pesoSugerido;
     /** Repeticiones en reserva; null si no se indica. */
     private Integer rirObjetivo;
+    /** Aclaración del profe; null si no hay. */
+    private String indicaciones;
 
     /** Sirve para los ejercicios de una plantilla y para los de un plan asignado. */
     public static EjercicioSesionResponse desde(EjercicioPrescripto prescripto) {
@@ -41,6 +43,7 @@ public class EjercicioSesionResponse {
                 prescripto.getRepeticionesMax(),
                 prescripto.getDescansoMinutos(),
                 prescripto.getPesoSugerido(),
-                prescripto.getRirObjetivo());
+                prescripto.getRirObjetivo(),
+                prescripto.getIndicaciones());
     }
 }

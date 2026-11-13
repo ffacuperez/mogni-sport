@@ -5,9 +5,9 @@ import ConfirmModal from '../../shared/components/ConfirmModal';
 import { Cargando, FormActions, PageHeader, Panel } from '../../shared/components/ui';
 import { cx, FOCUS } from '../../shared/components/clases';
 import { listarEjercicios } from '../../ejercicio/services/ejerciciosService';
-import { actualizarPlantilla, crearPlantilla, obtenerPlantilla } from '../services/plantillasService';
-import { DatosPlan, EditorSesiones } from '../components/EditorPlan';
-import { aFormulario, formularioVacio, sesionConError, validarFormulario } from '../components/formularioPlan';
+import { actualizarPlantilla, crearPlantilla, idsDeEjercicios, obtenerPlantilla } from '../services/plantillasService';
+import { DatosPlan, EditorSemanas } from '../components/EditorPlan';
+import { aFormulario, formularioVacio, ubicacionDelError, validarFormulario } from '../components/formularioPlan';
 
 /** Alta (sin plantillaId) o modificación de una plantilla. */
 export default function PlantillaForm({ plantillaId, onVolver, onGuardada, onToast }) {
@@ -18,8 +18,8 @@ export default function PlantillaForm({ plantillaId, onVolver, onGuardada, onToa
   const [error, setError] = useState(null);
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  // La sesión con el error de validación, para desplegarla y llevar la pantalla hasta ella
-  const [irASesion, setIrASesion] = useState(null);
+  // La semana y la sesión del error de validación, para mostrarlas y llevar la pantalla hasta ahí
+  const [irA, setIrA] = useState(null);
 
   useEffect(() => {
     Promise.all([listarEjercicios(), esEdicion ? obtenerPlantilla(plantillaId) : null])
@@ -28,7 +28,7 @@ export default function PlantillaForm({ plantillaId, onVolver, onGuardada, onToa
         if (plantilla) {
           setForm(aFormulario(plantilla));
           // Ejercicios dados de baja que ya estaban en la plantilla: se pueden conservar
-          setIdsPermitidosInactivos(new Set(plantilla.sesiones.flatMap(s => s.ejercicios.map(e => String(e.ejercicioId)))));
+          setIdsPermitidosInactivos(idsDeEjercicios(plantilla));
         }
       })
       .catch((err) => setError(err.message));
@@ -59,8 +59,8 @@ export default function PlantillaForm({ plantillaId, onVolver, onGuardada, onToa
     const mensaje = validarFormulario(form);
     if (mensaje) {
       onToast(mensaje, true);
-      const clave = sesionConError(form);
-      if (clave) setIrASesion({ clave, vez: Date.now() });
+      const ubicacion = ubicacionDelError(form);
+      if (ubicacion) setIrA({ ...ubicacion, vez: Date.now() });
       return;
     }
     setConfirmando(true);
@@ -81,12 +81,12 @@ export default function PlantillaForm({ plantillaId, onVolver, onGuardada, onToa
   };
 
   return (
-    <div className="mx-auto max-w-3xl animate-fade-in">
+    <div className="mx-auto max-w-5xl animate-fade-in">
       {botonVolver}
 
       <PageHeader
         title={esEdicion ? 'Modificación de plantilla' : 'Alta de nueva plantilla'}
-        subtitle="Definí el plan y organizá los ejercicios de cada sesión."
+        subtitle="Armá cada semana con sus sesiones. Al asignarla, el alumno recibe una copia con todas las semanas."
       />
 
       <Panel as="form" onSubmit={handleSubmit} className="p-6 md:p-8" noValidate>
@@ -94,8 +94,8 @@ export default function PlantillaForm({ plantillaId, onVolver, onGuardada, onToa
         <DatosPlan form={form} setForm={setForm} ayudaNombre="El nombre debe ser único para identificar esta plantilla." />
 
         <div className="mt-8 border-t border-line pt-6">
-          <EditorSesiones form={form} setForm={setForm} catalogo={catalogo} idsPermitidosInactivos={idsPermitidosInactivos}
-            irASesion={irASesion} />
+          <EditorSemanas form={form} setForm={setForm} catalogo={catalogo} idsPermitidosInactivos={idsPermitidosInactivos}
+            irA={irA} />
         </div>
 
         <FormActions onCancel={onVolver} enviando={enviando} />

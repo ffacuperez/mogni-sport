@@ -4,8 +4,8 @@ import { ChevronRight, CircleAlert, Copy, Info, Lock, Pencil, Plus, RotateCcw, T
 import ConfirmModal from '../../shared/components/ConfirmModal';
 import { Badge, Button, Cargando, PageHeader, Panel } from '../../shared/components/ui';
 import { cx, FOCUS } from '../../shared/components/clases';
-import { duplicarPlantilla, eliminarPlantilla, listarPlantillas, listarPlantillasInactivas, reactivarPlantilla, textoNivel, textoObjetivo, tonoNivel } from '../services/plantillasService';
-import TarjetasSesiones from '../components/TarjetasSesiones';
+import { cantidadSesiones, duplicarPlantilla, eliminarPlantilla, listarPlantillas, listarPlantillasInactivas, reactivarPlantilla, textoNivel, textoObjetivo, tonoNivel } from '../services/plantillasService';
+import { VistaSemanas } from '../components/TarjetasSesiones';
 
 const plural = (n, singular, varios) => `${n} ${n === 1 ? singular : varios}`;
 
@@ -32,7 +32,6 @@ function BotonAccion({ icono: Icono, etiqueta, onClick, peligro = false, disable
   );
 }
 
-/** Al desplegar una plantilla: sus sesiones con los ejercicios. */
 function PestanaPlantillas({ id, activa, onElegir, children }) {
   return (
     <button
@@ -53,10 +52,11 @@ function PestanaPlantillas({ id, activa, onElegir, children }) {
   );
 }
 
+/** Al desplegar una plantilla: sus semanas, con las sesiones y los ejercicios de cada una. */
 function DetalleSesiones({ plantilla, inactiva = false }) {
   return (
     <div className="px-4 pb-4 pl-12 pt-3">
-      <TarjetasSesiones sesiones={plantilla.sesiones} />
+      <VistaSemanas semanas={plantilla.semanas} />
       {!inactiva && plantilla.asignacionesActivas > 0 && (
         <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-soft">
           <Lock className="h-3.5 w-3.5" /> No se puede eliminar una plantilla con asignaciones activas.
@@ -173,7 +173,7 @@ export default function PlantillasList({ onAdd, onEdit, onAsignar, onToast }) {
                     <th scope="col" className="h-11 px-3">Nombre de la plantilla</th>
                     <th scope="col" className="h-11 w-32 px-3">Nivel</th>
                     <th scope="col" className="h-11 w-40 px-3">Objetivo</th>
-                    <th scope="col" className="h-11 w-28 px-3">Sesiones</th>
+                    <th scope="col" className="h-11 w-32 px-3">Duración</th>
                     <th scope="col" className="h-11 w-44 px-3">Acciones</th>
                   </tr>
                 </thead>
@@ -198,7 +198,7 @@ export default function PlantillasList({ onAdd, onEdit, onAsignar, onToast }) {
                               type="button"
                               onClick={() => toggle(plantilla.id)}
                               aria-expanded={abierta}
-                              aria-label={abierta ? `Ocultar sesiones de ${plantilla.nombre}` : `Ver sesiones de ${plantilla.nombre}`}
+                              aria-label={abierta ? `Ocultar semanas de ${plantilla.nombre}` : `Ver semanas de ${plantilla.nombre}`}
                               className={cx('cursor-pointer rounded-md p-1 text-ink-soft transition-colors hover:bg-row-hover hover:text-ink', FOCUS)}
                             >
                               <ChevronRight className={cx('h-4 w-4 transition-transform duration-200', abierta && 'rotate-90')} />
@@ -214,7 +214,10 @@ export default function PlantillasList({ onAdd, onEdit, onAsignar, onToast }) {
                           </td>
                           <td className="px-3 py-3"><Badge tone={tonoNivel(plantilla.nivel)}>{textoNivel(plantilla.nivel)}</Badge></td>
                           <td className="px-3 py-3"><Badge>{textoObjetivo(plantilla.objetivo)}</Badge></td>
-                          <td className="px-3 py-3 tabular-nums text-ink-soft">{plural(plantilla.sesiones.length, 'sesión', 'sesiones')}</td>
+                          <td className="px-3 py-3 tabular-nums text-ink-soft">
+                            <p className="font-semibold text-ink">{plural(plantilla.semanas.length, 'semana', 'semanas')}</p>
+                            <p className="text-xs">{plural(cantidadSesiones(plantilla), 'sesión', 'sesiones')}</p>
+                          </td>
                           <td className="px-3 py-3">
                             {enBajas ? (
                               <Button size="sm" disabled={reactivando === plantilla.id} onClick={() => reactivar(plantilla)}>
@@ -256,7 +259,7 @@ export default function PlantillasList({ onAdd, onEdit, onAsignar, onToast }) {
           </Panel>
 
           <p className="mt-4 flex items-center gap-1.5 text-xs text-ink-soft">
-            <Info className="h-3.5 w-3.5 shrink-0" /> Al duplicar una plantilla se crea una copia independiente, con sus propias sesiones y ejercicios.
+            <Info className="h-3.5 w-3.5 shrink-0" /> Al duplicar una plantilla se crea una copia independiente, con sus propias semanas, sesiones y ejercicios.
           </p>
         </>
       )}

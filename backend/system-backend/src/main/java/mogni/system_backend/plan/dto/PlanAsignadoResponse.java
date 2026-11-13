@@ -6,7 +6,7 @@ import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import mogni.system_backend.plan.entity.EstadoPlanAsignado;
-import mogni.system_backend.plantilla.dto.SesionPlantillaResponse;
+import mogni.system_backend.plantilla.dto.SemanaResponse;
 import mogni.system_backend.plantilla.entity.NivelPlantilla;
 import mogni.system_backend.plantilla.entity.ObjetivoPlantilla;
 
@@ -24,14 +24,20 @@ public class PlanAsignadoResponse {
     private EstadoPlanAsignado estado;
     /** De qué plantilla se copió; null si se armó desde cero. */
     private Long plantillaOrigenId;
-    /** Fecha de inicio del plan. */
+    /** Fecha de inicio del plan: el primer día de la semana 1. */
     private LocalDate fechaAsignacion;
     /** Cuándo terminó: el día que se finalizó o, si venció, su fecha fin. Null mientras está activo. */
     private LocalDate fechaFinalizacion;
-    /** HU-266: último día del plan (inclusiva). Null en los planes asignados antes de esta regla. */
+    /** HU-266: último día del plan (inclusiva): el último día de la última semana. */
     private LocalDate fechaFin;
-    /** HU-270: null si el plan no lo tiene cargado. El formulario lo usa para sugerir la fecha fin. */
-    private Integer cantidadSemanas;
-    /** Mismo formato que las sesiones de una plantilla. */
-    private List<SesionPlantillaResponse> sesiones;
+    private int cantidadSemanas;
+    /**
+     * La semana en curso, o null si el plan ya no está vigente. Al modificar, las anteriores son de solo lectura y
+     * esta no se puede eliminar.
+     */
+    private Integer semanaEnCurso;
+    /** Mismo formato que las semanas de una plantilla. */
+    private List<SemanaResponse> semanas;
+    /** Las sesiones de la semana en curso que el alumno ya empezó o registró: en el editor son de solo lectura. */
+    private List<SesionConRegistroResponse> sesionesConRegistro;
 }

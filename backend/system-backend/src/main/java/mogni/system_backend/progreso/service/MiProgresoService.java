@@ -22,6 +22,7 @@ import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.exception.RegistroInvalidoException;
 import mogni.system_backend.plan.entity.EstadoPlanAsignado;
 import mogni.system_backend.plan.entity.PlanAsignado;
+import mogni.system_backend.plan.entity.SemanaPlan;
 import mogni.system_backend.plan.entity.SesionPlan;
 import mogni.system_backend.plan.repository.PlanAsignadoRepository;
 import mogni.system_backend.plantilla.entity.EjercicioPrescripto;
@@ -46,8 +47,8 @@ import mogni.system_backend.progreso.repository.RegistroSesionRepository;
 
 /**
  * HU-270: el progreso del alumno logueado. El alumno sale siempre de la sesión, así que nunca puede ver los datos
- * de otro. Las semanas se cuentan de a 7 días desde la fecha de asignación y las sesiones del plan se repiten en
- * cada una. HU-269: el alumno registra las sesiones de la semana actual de su plan activo, ejercicio por ejercicio y
+ * de otro. Las semanas se cuentan de a 7 días desde la fecha de asignación y cada una tiene sus propias sesiones.
+ * El alumno ve todas las semanas, también las futuras, pero solo registra las de la semana actual. HU-269: el alumno registra las sesiones de la semana actual de su plan activo, ejercicio por ejercicio y
  * en cualquier orden; la sesión queda en curso hasta que la finaliza con todos los ejercicios hechos.
  */
 @Service
@@ -175,8 +176,6 @@ public class MiProgresoService {
                 nombreDeSesion(registro),
                 registro.getFecha(),
                 plan.getNombre(),
-                plan.getMetodo(),
-                plan.getMesociclo(),
                 registro.getEjercicios().stream().map(EjercicioRealizadoResponse::desde).toList());
     }
 
@@ -187,9 +186,7 @@ public class MiProgresoService {
         LocalDate hoy = ZonaHoraria.hoy();
         int semana = request.getSemana();
         validarSemanaRegistrable(plan, semana, hoy);
-        SesionPlan sesion = plan.getSesiones().stream()
-                .filter(s -> s.getNumero() == request.getNumeroSesion())
-                .findFirst()
+        SesionPlan sesion = plan.buscarSesion(semana, request.getNumeroSesion())
                 .orElseThrow(() -> new RegistroInvalidoException("Esa sesión no existe en tu plan"));
         RegistroSesion registro = registroRepository
                 .findByPlanIdAndSemanaAndNumeroSesion(plan.getId(), semana, sesion.getNumero())
@@ -284,11 +281,8 @@ public class MiProgresoService {
 
     /** MOGNI-281: el plan vigente del alumno resumido para su inicio (nombre y en qué semana va), o vacío. */
     public Optional<PlanInicioResponse> resumenPlanActivo(Alumno alumno, LocalDate hoy) {
-        return buscarPlanVigente(alumno.getId(), hoy).map(plan -> {
-            int cantidadSemanas = plan.cantidadSemanas();
-            return new PlanInicioResponse(plan.getId(), plan.getNombre(), plan.getMetodo(), plan.getMesociclo(),
-                    plan.semanaActual(hoy), cantidadSemanas);
-        });
+        return buscarPlanVigente(alumno.getId(), hoy).map(plan -> new PlanInicioResponse(plan.getId(),
+                plan.getNombre(), plan.semanaActual(hoy), plan.cantidadSemanas()));
     }
 
     /** HU-266: el plan activo es el ACTIVO de la base, solo si no venció (misma regla que en todos lados). */
@@ -337,45 +331,38 @@ public class MiProgresoService {
                 plan.getNombre(),
                 plan.getNivel(),
                 plan.getObjetivo(),
-                plan.getMetodo(),
-                plan.getMesociclo(),
-                plan.getObjetivoMesociclo(),
                 plan.estadoAl(hoy),
                 plan.getFechaAsignacion(),
-                fechaFin(plan, cantidadSemanas, hoy),
+                fechaFin(plan, hoy),
                 cantidadSemanas,
                 plan.semanaActual(hoy),
-                contarRegistradas(plan, cantidadSemanas, registros),
-                plan.getSesiones().size() * cantidadSemanas,
+                contarRegistradas(plan, registros),
+                plan.sesionesTotales(),
                 semanas);
     }
 
     private PlanResumenResponse mapearResumen(PlanAsignado plan, LocalDate hoy) {
-        int cantidadSemanas = plan.cantidadSemanas();
         return new PlanResumenResponse(
                 plan.getId(),
                 plan.getNombre(),
                 plan.getNivel(),
                 plan.getObjetivo(),
-                plan.getMetodo(),
-                plan.getMesociclo(),
                 plan.estadoAl(hoy),
                 plan.getFechaAsignacion(),
-                fechaFin(plan, cantidadSemanas, hoy),
-                cantidadSemanas,
-                contarRegistradas(plan, cantidadSemanas, registroRepository.findByPlanId(plan.getId())),
-                plan.getSesiones().size() * cantidadSemanas);
+                fechaFin(plan, hoy),
+                plan.cantidadSemanas(),
+                contarRegistradas(plan, registroRepository.findByPlanId(plan.getId())),
+                plan.sesionesTotales());
     }
 
     /**
-     * Solo las finalizadas (HU-269). Si el profe le sacó sesiones al plan, las que ya no existen no suman:
-     * "registradas" nunca supera al total.
+     * Solo las finalizadas (HU-269) cuya semana y sesión siguen existiendo en el plan: "registradas" nunca supera al
+     * total.
      */
-    private static int contarRegistradas(PlanAsignado plan, int cantidadSemanas, List<RegistroSesion> registros) {
+    private static int contarRegistradas(PlanAsignado plan, List<RegistroSesion> registros) {
         return (int) registros.stream()
                 .filter(RegistroSesion::isCompletada)
-                .filter(r -> r.getSemana() >= 1 && r.getSemana() <= cantidadSemanas)
-                .filter(r -> r.getNumeroSesion() >= 1 && r.getNumeroSesion() <= plan.getSesiones().size())
+                .filter(r -> plan.buscarSesion(r.getSemana(), r.getNumeroSesion()).isPresent())
                 .count();
     }
 
@@ -383,24 +370,24 @@ public class MiProgresoService {
                                             LocalDate hoy, boolean registrable) {
         LocalDate desde = plan.getFechaAsignacion().plusWeeks(numero - 1L);
         LocalDate hasta = desde.plusDays(6);
-        if (plan.getFechaFin() != null && plan.getFechaFin().isBefore(hasta)) {
+        if (plan.getFechaFin().isBefore(hasta)) {
             hasta = plan.getFechaFin();
         }
+        Optional<SemanaPlan> semana = plan.buscarSemana(numero);
         return new SemanaPlanResponse(
                 numero,
                 desde,
                 hasta,
-                plan.getSesiones().stream()
+                semana.map(SemanaPlan::getNota).orElse(null),
+                semana.map(SemanaPlan::getSesiones).orElse(List.of()).stream()
                         .map(sesion -> mapearSesion(plan, numero, sesion.getNumero(), sesion.getNombre(), sesion.getEjercicios(),
                                 registros.get(new ClaveSesion(numero, sesion.getNumero())), hoy, registrable))
                         .toList());
     }
 
-    /** El nombre que el profe le puso a la sesión en el plan; null si no tiene. */
+    /** El nombre que el profe le puso a esa sesión de esa semana del plan; null si no tiene. */
     private static String nombreDeSesion(RegistroSesion registro) {
-        return registro.getPlan().getSesiones().stream()
-                .filter(sesion -> sesion.getNumero() == registro.getNumeroSesion())
-                .findFirst()
+        return registro.getPlan().buscarSesion(registro.getSemana(), registro.getNumeroSesion())
                 .map(SesionPlan::getNombre)
                 .filter(nombre -> !nombre.isBlank())
                 .orElse(null);
@@ -439,17 +426,9 @@ public class MiProgresoService {
                 ejercicios);
     }
 
-    /**
-     * Activo: la fecha fin real (HU-266) o, en los planes anteriores a esa regla, el fin previsto por semanas.
-     * Terminado: el día en que terminó (finalizado a mano o vencido).
-     */
-    private static LocalDate fechaFin(PlanAsignado plan, int cantidadSemanas, LocalDate hoy) {
-        if (!plan.estaVigente(hoy)) {
-            return plan.fechaFinalizacionAl(hoy);
-        }
-        return plan.getFechaFin() != null
-                ? plan.getFechaFin()
-                : plan.getFechaAsignacion().plusWeeks(cantidadSemanas).minusDays(1);
+    /** Activo: la fecha fin (HU-266). Terminado: el día en que terminó (finalizado a mano o vencido). */
+    private static LocalDate fechaFin(PlanAsignado plan, LocalDate hoy) {
+        return plan.estaVigente(hoy) ? plan.getFechaFin() : plan.fechaFinalizacionAl(hoy);
     }
 
     private record ClaveSesion(int semana, int numeroSesion) {

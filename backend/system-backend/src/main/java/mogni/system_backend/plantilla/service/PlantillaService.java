@@ -19,10 +19,13 @@ import mogni.system_backend.exception.RegistroInvalidoException;
 import mogni.system_backend.plantilla.dto.EjercicioSesionResponse;
 import mogni.system_backend.plantilla.dto.PlantillaRequest;
 import mogni.system_backend.plantilla.dto.PlantillaResponse;
+import mogni.system_backend.plantilla.dto.SemanaRequest;
+import mogni.system_backend.plantilla.dto.SemanaResponse;
 import mogni.system_backend.plantilla.dto.SesionPlantillaResponse;
 import mogni.system_backend.plantilla.dto.SesionRequest;
 import mogni.system_backend.plantilla.entity.EjercicioSesion;
 import mogni.system_backend.plantilla.entity.PlantillaPlan;
+import mogni.system_backend.plantilla.entity.SemanaPlantilla;
 import mogni.system_backend.plantilla.entity.SesionPlantilla;
 import mogni.system_backend.plantilla.repository.PlantillaPlanRepository;
 
@@ -68,7 +71,7 @@ public class PlantillaService {
         return mapearAResponse(guardarConNombreUnico(plantilla));
     }
 
-    /** Reemplaza nombre, nivel, objetivo y todas las sesiones por las recibidas. */
+    /** Reemplaza nombre, nivel, objetivo y todas las semanas (con sus sesiones) por las recibidas. */
     @Transactional
     public PlantillaResponse actualizarPlantilla(Long id, PlantillaRequest request) {
         PlantillaPlan plantilla = buscarPlantillaOLanzarError(id);
@@ -77,7 +80,8 @@ public class PlantillaService {
             throw new RegistroInvalidoException("Ya existe otra plantilla con ese nombre");
         }
         // Un ejercicio que se dio de baja del catálogo puede quedar en la plantilla si ya estaba
-        Set<Long> ejerciciosQueYaTenia = plantilla.getSesiones().stream()
+        Set<Long> ejerciciosQueYaTenia = plantilla.getSemanas().stream()
+                .flatMap(semana -> semana.getSesiones().stream())
                 .flatMap(sesion -> sesion.getEjercicios().stream())
                 .map(ejercicioSesion -> ejercicioSesion.getEjercicio().getId())
                 .collect(Collectors.toSet());
@@ -141,28 +145,41 @@ public class PlantillaService {
 
     private void aplicarDatos(PlantillaPlan plantilla, PlantillaRequest request, String nombre,
                               Set<Long> ejerciciosPermitidosInactivos) {
-        if (request.getSesiones() == null || request.getSesiones().isEmpty()) {
-            throw new RegistroInvalidoException("La plantilla tiene que tener al menos una sesión");
-        }
-        Map<Long, Ejercicio> catalogo = catalogoEjercicios.buscar(request.getSesiones(), ejerciciosPermitidosInactivos);
+        ReglasSemanas.validar(request.getSemanas(), "La plantilla");
+        Map<Long, Ejercicio> catalogo = catalogoEjercicios.buscar(ReglasSemanas.sesiones(request.getSemanas()),
+                ejerciciosPermitidosInactivos);
 
+        if (!plantilla.getSemanas().isEmpty()) {
+            plantilla.getSemanas().clear();
+            // Al hacer flush, Hibernate ejecuta los INSERT antes que los DELETE. Sin este flush, la semana 1 nueva se
+            // insertaría mientras la vieja todavía existe y chocaría con la restricción única (plantilla, número).
+            // Así los DELETE de las semanas viejas salen primero. Va antes de cambiar el nombre para que este flush no
+            // choque con el índice único del nombre fuera de guardarConNombreUnico.
+            plantillaRepository.flush();
+        }
         plantilla.setNombre(nombre);
         plantilla.setNivel(request.getNivel());
         plantilla.setObjetivo(request.getObjetivo());
         plantilla.setFechaActualizacion(ZonaHoraria.ahora());
-        plantilla.reemplazarSesiones(request.getSesiones().stream()
-                .map(sesionRequest -> crearSesion(sesionRequest, catalogo))
+        plantilla.agregarSemanas(request.getSemanas().stream()
+                .map(semanaRequest -> crearSemana(semanaRequest, catalogo))
                 .toList());
     }
 
+    private SemanaPlantilla crearSemana(SemanaRequest request, Map<Long, Ejercicio> catalogo) {
+        SemanaPlantilla semana = new SemanaPlantilla(CatalogoEjercicios.textoOpcional(request.getNota()));
+        semana.agregarSesiones(request.getSesiones().stream()
+                .map(sesionRequest -> crearSesion(sesionRequest, catalogo))
+                .toList());
+        return semana;
+    }
+
     private SesionPlantilla crearSesion(SesionRequest request, Map<Long, Ejercicio> catalogo) {
-        if (request.getEjercicios() == null || request.getEjercicios().isEmpty()) {
-            throw new RegistroInvalidoException("Cada sesión tiene que tener al menos un ejercicio");
-        }
         SesionPlantilla sesion = new SesionPlantilla(CatalogoEjercicios.nombreDeSesion(request));
         sesion.agregarEjercicios(request.getEjercicios().stream()
-                .map(e -> new EjercicioSesion(catalogo.get(e.getEjercicioId()), e.getSeries(), e.getRepeticiones(),
-                        e.getRepeticionesMax(), e.getDescansoMinutos(), e.getPesoSugerido(), e.getRirObjetivo()))
+                .map(e -> CatalogoEjercicios.conIndicaciones(new EjercicioSesion(catalogo.get(e.getEjercicioId()),
+                        e.getSeries(), e.getRepeticiones(), e.getRepeticionesMax(), e.getDescansoMinutos(),
+                        e.getPesoSugerido(), e.getRirObjetivo()), e))
                 .toList());
         return sesion;
     }
@@ -201,7 +218,15 @@ public class PlantillaService {
                 plantilla.getObjetivo(),
                 plantilla.getAsignacionesActivas(),
                 plantilla.getFechaActualizacion(),
-                plantilla.getSesiones().stream().map(this::mapearSesion).toList());
+                plantilla.getSemanas().stream().map(this::mapearSemana).toList());
+    }
+
+    private SemanaResponse mapearSemana(SemanaPlantilla semana) {
+        return new SemanaResponse(
+                semana.getId(),
+                semana.getNumero(),
+                semana.getNota(),
+                semana.getSesiones().stream().map(this::mapearSesion).toList());
     }
 
     private SesionPlantillaResponse mapearSesion(SesionPlantilla sesion) {

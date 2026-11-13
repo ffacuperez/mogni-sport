@@ -17,6 +17,7 @@ import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
 import mogni.system_backend.plantilla.dto.EjercicioSesionRequest;
 import mogni.system_backend.plantilla.dto.PlantillaRequest;
+import mogni.system_backend.plantilla.dto.SemanaRequest;
 import mogni.system_backend.plantilla.dto.SesionRequest;
 import mogni.system_backend.plantilla.entity.NivelPlantilla;
 import mogni.system_backend.plantilla.entity.ObjetivoPlantilla;
@@ -40,6 +41,7 @@ class PlantillaRequestValidationTest {
 
     private EjercicioSesionRequest ejercicio;
     private SesionRequest sesion;
+    private SemanaRequest semana;
 
     private PlantillaRequest requestValido() {
         ejercicio = new EjercicioSesionRequest();
@@ -55,7 +57,9 @@ class PlantillaRequestValidationTest {
         request.setNombre("Fuerza base");
         request.setNivel(NivelPlantilla.PRINCIPIANTE);
         request.setObjetivo(ObjetivoPlantilla.FUERZA);
-        request.setSesiones(new ArrayList<>(List.of(sesion)));
+        semana = new SemanaRequest();
+        semana.setSesiones(new ArrayList<>(List.of(sesion)));
+        request.setSemanas(new ArrayList<>(List.of(semana)));
         return request;
     }
 
@@ -72,7 +76,7 @@ class PlantillaRequestValidationTest {
     @Test
     void sesionNulaEnLaListaFalla() {
         PlantillaRequest request = requestValido();
-        request.getSesiones().add(null);
+        semana.getSesiones().add(null);
         assertTrue(tieneError(request, "Cada sesión tiene que tener al menos un ejercicio"));
     }
 
@@ -100,10 +104,68 @@ class PlantillaRequestValidationTest {
     }
 
     @Test
-    void sinSesionesFalla() {
+    void sinSemanasFalla() {
         PlantillaRequest request = requestValido();
-        request.setSesiones(List.of());
-        assertTrue(tieneError(request, "La plantilla tiene que tener al menos una sesión"));
+        request.setSemanas(List.of());
+        assertTrue(tieneError(request, "La plantilla tiene que tener al menos una semana"));
+    }
+
+    @Test
+    void semanaNulaEnLaListaFalla() {
+        PlantillaRequest request = requestValido();
+        request.getSemanas().add(null);
+        assertTrue(tieneError(request, "Cada semana tiene que tener al menos una sesión"));
+    }
+
+    @Test
+    void semanaSinSesionesFalla() {
+        PlantillaRequest request = requestValido();
+        semana.setSesiones(List.of());
+        assertTrue(tieneError(request, "Cada semana tiene que tener al menos una sesión"));
+    }
+
+    @Test
+    void hasta24SemanasPasaYMasFalla() {
+        PlantillaRequest request = requestValido();
+        List<SemanaRequest> semanas = new ArrayList<>();
+        for (int i = 0; i < 24; i++) {
+            semanas.add(semana);
+        }
+        request.setSemanas(semanas);
+        assertTrue(validator.validate(request).isEmpty());
+        semanas.add(semana);
+        assertTrue(tieneError(request, "La plantilla puede tener como máximo 24 semanas"));
+    }
+
+    @Test
+    void hasta7SesionesPorSemanaPasaYMasFalla() {
+        PlantillaRequest request = requestValido();
+        List<SesionRequest> sesiones = new ArrayList<>();
+        for (int i = 0; i < 7; i++) {
+            sesiones.add(sesion);
+        }
+        semana.setSesiones(sesiones);
+        assertTrue(validator.validate(request).isEmpty());
+        sesiones.add(sesion);
+        assertTrue(tieneError(request, "Cada semana puede tener como máximo 7 sesiones"));
+    }
+
+    @Test
+    void laNotaDeLaSemanaEsOpcionalYTieneHasta60Caracteres() {
+        PlantillaRequest request = requestValido();
+        semana.setNota("N".repeat(60));
+        assertTrue(validator.validate(request).isEmpty());
+        semana.setNota("N".repeat(61));
+        assertTrue(tieneError(request, "La nota de la semana no puede superar los 60 caracteres"));
+    }
+
+    @Test
+    void lasIndicacionesDelEjercicioSonOpcionalesYTienenHasta200Caracteres() {
+        PlantillaRequest request = requestValido();
+        ejercicio.setIndicaciones("I".repeat(200));
+        assertTrue(validator.validate(request).isEmpty());
+        ejercicio.setIndicaciones("I".repeat(201));
+        assertTrue(tieneError(request, "Las indicaciones no pueden superar los 200 caracteres"));
     }
 
     @Test

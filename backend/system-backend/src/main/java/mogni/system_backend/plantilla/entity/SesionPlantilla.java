@@ -15,13 +15,15 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Sesión numerada de una plantilla ("Sesión 1 · Full body A"), con sus ejercicios en orden. */
+/** Sesión numerada de una semana de la plantilla ("Sesión 1 · Full body A"), con sus ejercicios en orden. */
 @Entity
-@Table(name = "sesiones_plantilla")
+@Table(name = "sesiones_plantilla",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"semana_id", "numero"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -31,7 +33,7 @@ public class SesionPlantilla {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** 1, 2, 3... según el orden en la plantilla. */
+    /** 1, 2, 3... según el orden dentro de la semana. */
     @Column(nullable = false)
     private int numero;
 
@@ -40,8 +42,8 @@ public class SesionPlantilla {
     private String nombre;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "plantilla_id", nullable = false)
-    private PlantillaPlan plantilla;
+    @JoinColumn(name = "semana_id", nullable = false)
+    private SemanaPlantilla semana;
 
     @OneToMany(mappedBy = "sesion", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("orden ASC")

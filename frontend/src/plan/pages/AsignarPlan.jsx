@@ -7,14 +7,14 @@ import { cx, FOCUS, inputClass } from '../../shared/components/clases';
 import { listarAlumnos } from '../../alumno/services/alumnosService';
 import { listarEjercicios } from '../../ejercicio/services/ejerciciosService';
 import {
-  cantidadEjercicios, listarPlantillas, textoNivel, textoObjetivo, tonoNivel,
+  cantidadEjercicios, cantidadSesiones, listarPlantillas, textoNivel, textoObjetivo, tonoNivel,
 } from '../../plantilla/services/plantillasService';
-import { DatosPlan, EditorSesiones } from '../../plantilla/components/EditorPlan';
-import { formularioVacio, sesionConError, validarFormulario } from '../../plantilla/components/formularioPlan';
+import { DatosPlan, EditorSemanas } from '../../plantilla/components/EditorPlan';
+import { VistaSemanas } from '../../plantilla/components/TarjetasSesiones';
+import { formularioVacio, ubicacionDelError, validarFormulario } from '../../plantilla/components/formularioPlan';
 import {
-  asignarDesdeCero, asignarDesdePlantilla, fechaFinPorSemanas, hoyIso, obtenerPlanActivo, textoFecha, validarSemanas,
+  asignarDesdeCero, asignarDesdePlantilla, fechaFinPorSemanas, hoyIso, obtenerPlanActivo, sumarDias, textoFecha,
 } from '../services/planesService';
-import VigenciaPlan from '../components/VigenciaPlan';
 
 const plural = (n, singular, varios) => `${n} ${n === 1 ? singular : varios}`;
 const iniciales = (alumno) => `${alumno.nombre?.[0] ?? ''}${alumno.apellido?.[0] ?? ''}`.toUpperCase();
@@ -72,8 +72,8 @@ function SelectorAlumno({ alumnos, onElegir }) {
   );
 }
 
-/** Vista previa de la plantilla elegida: datos y una tarjeta por sesión. */
-function PrevisualizacionPlantilla({ plantilla }) {
+/** Vista previa de la plantilla elegida: datos y sus semanas, con las fechas que tendría el plan. */
+function PrevisualizacionPlantilla({ plantilla, inicio }) {
   return (
     <div className="mt-4 rounded-lg border border-line p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -85,18 +85,12 @@ function PrevisualizacionPlantilla({ plantilla }) {
           </div>
         </div>
         <p className="text-xs tabular-nums text-ink-soft">
-          {plural(plantilla.sesiones.length, 'sesión', 'sesiones')} · {plural(cantidadEjercicios(plantilla), 'ejercicio', 'ejercicios')}
+          {plural(plantilla.semanas.length, 'semana', 'semanas')} · {plural(cantidadSesiones(plantilla), 'sesión', 'sesiones')} · {plural(cantidadEjercicios(plantilla), 'ejercicio', 'ejercicios')}
         </p>
       </div>
-      <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {plantilla.sesiones.map(sesion => (
-          <li key={sesion.id} className="rounded-md bg-row-hover p-3">
-            <p className="text-[11px] text-ink-soft">Sesión {sesion.numero}</p>
-            {sesion.nombre && <p className="mt-0.5 text-sm font-semibold text-ink">{sesion.nombre}</p>}
-            <p className="mt-1 text-xs text-ink-soft">{plural(sesion.ejercicios.length, 'ejercicio', 'ejercicios')}</p>
-          </li>
-        ))}
-      </ul>
+      <div className="mt-4">
+        <VistaSemanas key={plantilla.id} semanas={plantilla.semanas} inicio={inicio} />
+      </div>
     </div>
   );
 }
@@ -122,14 +116,12 @@ export default function AsignarPlan({ plantillaInicialId, alumnoInicialId, onCan
   const [origen, setOrigen] = useState('plantilla');
   const [plantillaId, setPlantillaId] = useState(plantillaInicialId ? String(plantillaInicialId) : '');
   const [form, setForm] = useState(formularioVacio);
-  // HU-266: la fecha de inicio es hoy (la de la asignación); el entrenador elige las semanas y la fecha fin se calcula
+  // HU-266: la fecha de inicio es hoy (la de la asignación); el plan dura las semanas que tiene
   const [hoy] = useState(hoyIso);
-  const [semanas, setSemanas] = useState('');
-  const [errorSemanas, setErrorSemanas] = useState(null);
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  // La sesión con el error de validación, para desplegarla y llevar la pantalla hasta ella
-  const [irASesion, setIrASesion] = useState(null);
+  // La semana y la sesión del error de validación, para mostrarlas y llevar la pantalla hasta ahí
+  const [irA, setIrA] = useState(null);
 
   useEffect(() => {
     Promise.all([listarAlumnos({ activo: true }), listarPlantillas(), listarEjercicios()])
@@ -179,20 +171,12 @@ export default function AsignarPlan({ plantillaInicialId, alumnoInicialId, onCan
     if (origen === 'cero') {
       const mensaje = validarFormulario(form, 'el plan');
       if (mensaje) {
-        const clave = sesionConError(form, 'el plan');
-        if (clave) setIrASesion({ clave, vez: Date.now() });
+        const ubicacion = ubicacionDelError(form, 'el plan');
+        if (ubicacion) setIrA({ ...ubicacion, vez: Date.now() });
         return onToast(mensaje, true);
       }
     }
-    const mensajeSemanas = validarSemanas(semanas);
-    setErrorSemanas(mensajeSemanas);
-    if (mensajeSemanas) return onToast(mensajeSemanas, true);
     setConfirmando(true);
-  };
-
-  const cambiarSemanas = (valor) => {
-    setSemanas(valor);
-    setErrorSemanas(null);
   };
 
   const asignar = async () => {
@@ -200,21 +184,22 @@ export default function AsignarPlan({ plantillaInicialId, alumnoInicialId, onCan
     setEnviando(true);
     try {
       const plan = origen === 'plantilla'
-        ? await asignarDesdePlantilla(alumno.id, plantilla.id, semanas)
-        : await asignarDesdeCero(alumno.id, form, semanas);
+        ? await asignarDesdePlantilla(alumno.id, plantilla.id)
+        : await asignarDesdeCero(alumno.id, form);
       onToast(`Plan asignado a ${nombreCompleto(alumno)}.`);
       onAsignado(plan);
     } catch (err) {
       onToast(err.message, true);
       setEnviando(false);
-      // Si el backend rechaza las semanas (400 con el motivo), se marca el campo
-      if (err.status === 400 && /semana/i.test(err.message)) setErrorSemanas(err.message);
       // Si mientras tanto le asignaron otro plan, se muestra el aviso
       if (err.status === 409) obtenerPlanActivo(alumno.id).then(setPlanActivo).catch(() => {});
     }
   };
 
   const nombrePlan = origen === 'plantilla' ? plantilla?.nombre : form.nombre.trim();
+  // La duración es la cantidad de semanas de la plantilla o del plan armado
+  const semanas = origen === 'plantilla' ? (plantilla?.semanas.length ?? 0) : form.semanas.length;
+  const fin = semanas > 0 ? fechaFinPorSemanas(hoy, semanas) : null;
 
   return (
     <div className="mx-auto max-w-3xl animate-fade-in">
@@ -282,7 +267,7 @@ export default function AsignarPlan({ plantillaInicialId, alumnoInicialId, onCan
               {datos.plantillas.length === 0 && (
                 <p className="mt-2 text-xs text-ink-muted">Todavía no hay plantillas. Podés armar el plan con «Plan personalizado».</p>
               )}
-              {plantilla && <PrevisualizacionPlantilla plantilla={plantilla} />}
+              {plantilla && <PrevisualizacionPlantilla plantilla={plantilla} inicio={hoy} />}
               <p className="mt-4 flex items-start gap-1.5 text-xs text-ink-soft">
                 <Info className="mt-px h-3.5 w-3.5 shrink-0" />
                 Se creará una copia independiente para {alumno ? alumno.nombre : 'el alumno'}. Los cambios que hagas en su plan no modificarán la plantilla original.
@@ -293,8 +278,8 @@ export default function AsignarPlan({ plantillaInicialId, alumnoInicialId, onCan
               <h3 className="mb-4 text-sm font-semibold text-ink">Datos del plan</h3>
               <DatosPlan form={form} setForm={setForm} idPrefijo="plan" placeholderNombre="Ej. Plan de fuerza de Juan" />
               <div className="mt-8 border-t border-line pt-6">
-                <EditorSesiones form={form} setForm={setForm} catalogo={datos.catalogo}
-                  idsPermitidosInactivos={SIN_IDS_INACTIVOS} sujeto="el plan" irASesion={irASesion} />
+                <EditorSemanas form={form} setForm={setForm} catalogo={datos.catalogo}
+                  idsPermitidosInactivos={SIN_IDS_INACTIVOS} sujeto="el plan" plan={{ inicio: hoy }} irA={irA} />
               </div>
               <p className="mt-4 flex items-start gap-1.5 text-xs text-ink-soft">
                 <Info className="mt-px h-3.5 w-3.5 shrink-0" />
@@ -304,11 +289,12 @@ export default function AsignarPlan({ plantillaInicialId, alumnoInicialId, onCan
           )}
         </Panel>
 
-        <Panel className="mt-6 p-6">
-          <h2 className="mb-4 text-base font-semibold text-ink">Vigencia del plan</h2>
-          <VigenciaPlan inicio={hoy} semanas={semanas} onCambiarSemanas={cambiarSemanas}
-            error={errorSemanas} idPrefijo="asignar" />
-        </Panel>
+        {fin && (
+          <p className="mt-4 text-xs text-ink-soft">
+            Empieza hoy ({textoFecha(hoy)}) y dura {plural(semanas, 'semana', 'semanas')}: termina el {textoFecha(fin)} inclusive.
+            Desde el {textoFecha(sumarDias(fin, 1))} pasa a Finalizado solo.
+          </p>
+        )}
       </fieldset>
 
       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -322,7 +308,7 @@ export default function AsignarPlan({ plantillaInicialId, alumnoInicialId, onCan
       <ConfirmModal
         isOpen={confirmando}
         title="Confirmar asignación"
-        message={confirmando && alumno && `¿Desea asignar el plan “${nombrePlan}” a ${nombreCompleto(alumno)}, por ${semanas} ${Number(semanas) === 1 ? 'semana' : 'semanas'}, desde hoy hasta el ${textoFecha(fechaFinPorSemanas(hoy, Number(semanas)))}?`}
+        message={confirmando && alumno && fin && `¿Desea asignar el plan “${nombrePlan}” a ${nombreCompleto(alumno)}? Son ${plural(semanas, 'semana', 'semanas')}, desde hoy hasta el ${textoFecha(fin)}.`}
         onConfirm={asignar}
         onCancel={() => setConfirmando(false)}
       />

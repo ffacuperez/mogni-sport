@@ -1,18 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, CircleAlert } from 'lucide-react';
 
 import ConfirmModal from '../../shared/components/ConfirmModal';
 import { Cargando, FormActions, PageHeader, Panel } from '../../shared/components/ui';
 import { cx, FOCUS } from '../../shared/components/clases';
 import { listarEjercicios } from '../../ejercicio/services/ejerciciosService';
-import { DatosPlan, EditorSesiones } from '../../plantilla/components/EditorPlan';
-import { aFormulario, sesionConError, validarFormulario } from '../../plantilla/components/formularioPlan';
-import {
-  actualizarPlan, hoyIso, obtenerPlan, semanaEn, semanasDelPlan, validarSemanas,
-} from '../services/planesService';
-import VigenciaPlan from '../components/VigenciaPlan';
+import { idsDeEjercicios } from '../../plantilla/services/plantillasService';
+import { DatosPlan, EditorSemanas } from '../../plantilla/components/EditorPlan';
+import { aFormulario, ubicacionDelError, validarFormulario } from '../../plantilla/components/formularioPlan';
+import { actualizarPlan, fechaFinPorSemanas, obtenerPlan, textoFecha } from '../services/planesService';
 
-/** HU-266: modificación del plan de un alumno. Solo cambia su copia, no la plantilla de la que salió. */
+/**
+ * HU-267: modificación del plan de un alumno. Solo cambia su copia, no la plantilla de la que salió. Las semanas que
+ * ya pasaron y las sesiones que el alumno ya empezó o registró quedan en solo lectura (el backend también las cuida).
+ */
 export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast }) {
   const [plan, setPlan] = useState(null);
   const [form, setForm] = useState(null);
@@ -21,12 +22,8 @@ export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast
   const [error, setError] = useState(null);
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  // La sesión con el error de validación, para desplegarla y llevar la pantalla hasta ella
-  const [irASesion, setIrASesion] = useState(null);
-  // HU-266: las semanas se pueden cambiar mientras el plan está activo (no menos que la semana en curso)
-  const [hoy] = useState(hoyIso);
-  const [semanas, setSemanas] = useState('');
-  const [errorSemanas, setErrorSemanas] = useState(null);
+  // La semana y la sesión del error de validación, para mostrarlas y llevar la pantalla hasta ahí
+  const [irA, setIrA] = useState(null);
 
   useEffect(() => {
     Promise.all([listarEjercicios(), obtenerPlan(planId)])
@@ -34,13 +31,21 @@ export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast
         setCatalogo(ejercicios);
         setPlan(cargado);
         setForm(aFormulario(cargado));
-        // Un plan con una fecha fin suelta (sin semanas) propone las semanas que la cubren
-        setSemanas(String(semanasDelPlan(cargado) ?? ''));
         // Ejercicios dados de baja que ya estaban en el plan: se pueden conservar
-        setIdsPermitidosInactivos(new Set(cargado.sesiones.flatMap(s => s.ejercicios.map(e => String(e.ejercicioId)))));
+        setIdsPermitidosInactivos(idsDeEjercicios(cargado));
       })
       .catch((err) => setError(err.message));
   }, [planId]);
+
+  // Lo que el editor necesita saber del plan: fechas, semana en curso y sesiones con registro de esa semana
+  const contexto = useMemo(() => plan && {
+    inicio: plan.fechaAsignacion,
+    semanaEnCurso: plan.semanaEnCurso,
+    registros: new Map(plan.sesionesConRegistro
+      .filter(r => r.semana === plan.semanaEnCurso)
+      .map(r => [r.numeroSesion, r])),
+    alumno: plan.alumnoNombre.split(' ')[0],
+  }, [plan]);
 
   const botonVolver = (
     <button type="button" onClick={onVolver}
@@ -52,7 +57,7 @@ export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast
   const mensajeError = error ?? (plan && plan.estado !== 'ACTIVO' ? 'El plan está finalizado y ya no se puede modificar.' : null);
   if (mensajeError) {
     return (
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-5xl">
         {botonVolver}
         <div role="alert" className="flex items-center gap-3 rounded-lg border border-line bg-error-bg p-4 text-error">
           <CircleAlert className="h-5 w-5 shrink-0" />
@@ -63,22 +68,13 @@ export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast
   }
   if (!form || !catalogo) return <Cargando texto="Cargando plan" />;
 
-  // La semana en curso: el plan termina, como pronto, al final de esta semana
-  const minimoSemanas = semanaEn(plan.fechaAsignacion, hoy);
-
   const handleSubmit = (ev) => {
     ev.preventDefault();
     const mensaje = validarFormulario(form, 'el plan');
     if (mensaje) {
       onToast(mensaje, true);
-      const clave = sesionConError(form, 'el plan');
-      if (clave) setIrASesion({ clave, vez: Date.now() });
-      return;
-    }
-    const mensajeSemanas = validarSemanas(semanas, { minimo: minimoSemanas });
-    setErrorSemanas(mensajeSemanas);
-    if (mensajeSemanas) {
-      onToast(mensajeSemanas, true);
+      const ubicacion = ubicacionDelError(form, 'el plan');
+      if (ubicacion) setIrA({ ...ubicacion, vez: Date.now() });
       return;
     }
     setConfirmando(true);
@@ -88,24 +84,25 @@ export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast
     setConfirmando(false);
     setEnviando(true);
     try {
-      await actualizarPlan(planId, form, semanas);
+      await actualizarPlan(planId, form);
       onToast('Plan modificado correctamente.');
       onGuardado();
     } catch (err) {
       onToast(err.message, true);
       setEnviando(false);
-      if (err.status === 400 && /semana/i.test(err.message)) setErrorSemanas(err.message);
     }
   };
 
+  const fin = fechaFinPorSemanas(plan.fechaAsignacion, form.semanas.length);
+
   return (
-    <div className="mx-auto max-w-3xl animate-fade-in">
+    <div className="mx-auto max-w-5xl animate-fade-in">
       {botonVolver}
 
       <PageHeader
         eyebrow={`Plan de entrenamiento · ${plan.alumnoNombre}`}
-        title="Modificación del plan"
-        subtitle="Los cambios se aplican solo al plan de este alumno."
+        title={`Editar plan de ${plan.alumnoNombre}`}
+        subtitle={`Los cambios son solo para ${contexto.alumno}: la plantilla de origen no se toca.`}
       />
 
       <Panel as="form" onSubmit={handleSubmit} className="p-6 md:p-8" noValidate>
@@ -113,15 +110,8 @@ export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast
         <DatosPlan form={form} setForm={setForm} idPrefijo="plan" />
 
         <div className="mt-8 border-t border-line pt-6">
-          <h2 className="mb-4 text-base font-semibold text-ink">Vigencia del plan</h2>
-          <VigenciaPlan inicio={plan.fechaAsignacion} semanas={semanas}
-            onCambiarSemanas={(valor) => { setSemanas(valor); setErrorSemanas(null); }}
-            minimo={minimoSemanas} error={errorSemanas} idPrefijo="plan" />
-        </div>
-
-        <div className="mt-8 border-t border-line pt-6">
-          <EditorSesiones form={form} setForm={setForm} catalogo={catalogo}
-            idsPermitidosInactivos={idsPermitidosInactivos} sujeto="el plan" irASesion={irASesion} />
+          <EditorSemanas form={form} setForm={setForm} catalogo={catalogo} idsPermitidosInactivos={idsPermitidosInactivos}
+            sujeto="el plan" plan={contexto} irA={irA} />
         </div>
 
         <FormActions onCancel={onVolver} enviando={enviando} />
@@ -130,7 +120,7 @@ export default function PlanAsignadoForm({ planId, onVolver, onGuardado, onToast
       <ConfirmModal
         isOpen={confirmando}
         title="Confirmar cambios"
-        message={`¿Desea confirmar los cambios en el plan de ${plan.alumnoNombre}? La plantilla original no se modifica.`}
+        message={`¿Desea confirmar los cambios en el plan de ${plan.alumnoNombre}? Queda de ${form.semanas.length} ${form.semanas.length === 1 ? 'semana' : 'semanas'} y termina el ${textoFecha(fin)}. La plantilla original no se modifica.`}
         onConfirm={guardar}
         onCancel={() => setConfirmando(false)}
       />

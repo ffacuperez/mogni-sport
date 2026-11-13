@@ -29,7 +29,7 @@
 --                                                dentro de 4 días)
 --   Nicolás Benítez (33555000)  x5   Al día (20 días): pasó de x3 a x5 hace 3 días y
 --                                                pagó la diferencia (historial con dos pagos)
---   Tomás Díaz (40444555)       x4   Al día (20 días), 2 cuotas encadenadas
+--   Tomás Díaz (40444555)       x4   Al día (20 días), 2 cuotas encadenadas. Plan "Torso / Pierna" en la semana 3
 --   Valentina López (42555666)  x5   Al día (alta hoy)
 --   Diego Molina (34666000)     x4   INACTIVO (baja hace 2 días) con 10 días pagos: se reactiva sin pagar
 --   Paula Herrera (43777000)    x5   INACTIVA (baja hace 15 días), sin días pagos: se reactiva con pago
@@ -260,9 +260,13 @@ INSERT INTO ejercicios (nombre, grupo_muscular, activo) VALUES
     ('Bicho muerto',                        'Core', true),
     ('Sit-up con disco',                    'Core', false);
 
--- 11) Plantillas de plan de entrenamiento: dos por nivel, una semana cada una (cada sesión es un día de entrenamiento).
---     La cantidad de sesiones sigue a las membresías: principiante 3 (x3), intermedio 4 (x4) y avanzado 5 (x5). Entre
---     las seis cubren los cuatro objetivos. Casos para mostrar:
+-- 11) Plantillas de plan de entrenamiento: dos por nivel (cada sesión es un día de entrenamiento). La cantidad de
+--     sesiones sigue a las membresías: principiante 3 (x3), intermedio 4 (x4) y avanzado 5 (x5). Entre las seis cubren
+--     los cuatro objetivos. Cada semana tiene su propio contenido: las de 4 semanas bajan el RIR y suben el peso cada
+--     semana, la 3 es la "Semana más pesada" y la 4 es la "Semana de descarga" (una serie menos, RIR más alto y 80 %
+--     del peso). Casos para mostrar:
+--     - "Acondicionamiento y quema" y "Circuito express 2 días" tienen una sola semana; "Resistencia muscular 5 días",
+--       dos (la 2 con el RIR un punto más bajo).
 --     - "Acondicionamiento y quema" tiene "Remo al mentón con barra", que se dio de baja después: la plantilla lo
 --       conserva y lo marca "(dado de baja)", pero no se puede agregar a otras sesiones.
 --     - "Circuito express 2 días" está inactiva: no se lista en Activas ni se puede asignar, y su nombre queda libre.
@@ -281,8 +285,25 @@ FROM (VALUES
     ('Circuito express 2 días',             'PRINCIPIANTE', 'RESISTENCIA',      false, 60)
 ) AS p(nombre, nivel, objetivo, activa, dias);
 
-INSERT INTO sesiones_plantilla (plantilla_id, numero, nombre)
-SELECT p.id, s.numero, s.nombre
+-- Semanas de cada plantilla. Las sesiones de abajo se repiten en todas sus semanas; los ejercicios cambian según la semana.
+INSERT INTO semanas_plantilla (plantilla_id, numero, nota)
+SELECT p.id, w.numero,
+       CASE WHEN d.semanas >= 4 AND w.numero = d.semanas THEN 'Semana de descarga'
+            WHEN d.semanas >= 4 AND w.numero = d.semanas - 1 THEN 'Semana más pesada' END
+FROM plantillas_plan p
+JOIN (VALUES
+    ('Full body inicial',                   4),
+    ('Acondicionamiento y quema',           1),
+    ('Torso / Pierna',                      4),
+    ('Fuerza base 4 días',                  4),
+    ('Push / Pull / Legs + Torso / Pierna', 4),
+    ('Resistencia muscular 5 días',         2),
+    ('Circuito express 2 días',             1)
+) AS d(nombre, semanas) ON d.nombre = p.nombre
+CROSS JOIN LATERAL generate_series(1, d.semanas) AS w(numero);
+
+INSERT INTO sesiones_plantilla (semana_id, numero, nombre)
+SELECT sp.id, s.numero, s.nombre
 FROM (VALUES
     ('Full body inicial', 1, 'Full body A'),
     ('Full body inicial', 2, 'Full body B'),
@@ -311,13 +332,25 @@ FROM (VALUES
     ('Circuito express 2 días', 1, 'Circuito A'),
     ('Circuito express 2 días', 2, 'Circuito B')
 ) AS s(plantilla, numero, nombre)
-JOIN plantillas_plan p ON p.nombre = s.plantilla;
+JOIN plantillas_plan p ON p.nombre = s.plantilla
+JOIN semanas_plantilla sp ON sp.plantilla_id = p.id;
 
 -- Ejercicios de cada sesión: series, repeticiones (mínimo y máximo si es un rango), descanso en minutos, peso sugerido
 -- en kg, RIR e indicaciones. En las planchas, las "repeticiones" son segundos (lo aclara la indicación).
+-- Los valores son los de la semana 1. En las semanas siguientes el RIR baja un punto por semana y el peso sube 2,5 kg;
+-- en la de descarga hay una serie menos (mínimo 2), el RIR sube un punto y el peso baja al 80 %.
 INSERT INTO ejercicios_sesion (sesion_id, orden, ejercicio_id, series, repeticiones, repeticiones_max, descanso_minutos,
                                peso_sugerido, rir_objetivo, indicaciones)
-SELECT s.id, x.orden, e.id, x.series, x.reps, x.reps_max, x.descanso, x.peso, x.rir, x.indicaciones
+SELECT s.id, x.orden, e.id,
+       CASE WHEN sp.nota = 'Semana de descarga' THEN GREATEST(x.series - 1, 2) ELSE x.series END,
+       x.reps, x.reps_max, x.descanso,
+       CASE WHEN x.peso IS NULL THEN NULL
+            WHEN sp.nota = 'Semana de descarga' THEN round(x.peso * 0.8, 1)
+            ELSE x.peso + 2.5 * (sp.numero - 1) END,
+       CASE WHEN x.rir IS NULL THEN NULL
+            WHEN sp.nota = 'Semana de descarga' THEN LEAST(x.rir + 1, 10)
+            ELSE GREATEST(x.rir - (sp.numero - 1), 0) END,
+       x.indicaciones
 FROM (VALUES
     -- Full body inicial (principiante, hipertrofia): 3 x 10-12, RIR 3
     ('Full body inicial', 1, 1, 'Sentadilla libre con barra',           3, 10, 12,   1.5,  40,   3, 'Primera serie de aproximación con la barra sola'),
@@ -470,5 +503,75 @@ FROM (VALUES
     ('Circuito express 2 días', 2, 4, 'Puente de glúteos',            3, 20, NULL, 0.5, NULL, 3, NULL)
 ) AS x(plantilla, sesion, orden, ejercicio, series, reps, reps_max, descanso, peso, rir, indicaciones)
 JOIN plantillas_plan p ON p.nombre = x.plantilla
-JOIN sesiones_plantilla s ON s.plantilla_id = p.id AND s.numero = x.sesion
+JOIN semanas_plantilla sp ON sp.plantilla_id = p.id
+JOIN sesiones_plantilla s ON s.semana_id = sp.id AND s.numero = x.sesion
 JOIN ejercicios e ON e.nombre = x.ejercicio;
+
+-- 12) Un plan asignado para probar el editor por semanas y el progreso: Tomás Díaz tiene "Torso / Pierna" (4 semanas)
+--     desde hace 16 días, así que va por la semana 3, que empezó hace 2 días. Registró todas las sesiones de la
+--     semana 1, tres de la semana 2 (la 4 quedó sin registrar), la sesión 1 de la semana 3 y empezó hoy la sesión 2,
+--     que quedó en curso. Al editar el plan, las semanas 1 y 2 son de solo lectura y en la semana 3 las sesiones 1 y 2
+--     no se pueden modificar ni quitar.
+INSERT INTO planes_asignados (alumno_id, nombre, nivel, objetivo, estado, plantilla_origen_id, fecha_asignacion, fecha_fin)
+SELECT a.id, p.nombre, p.nivel, p.objetivo, 'ACTIVO', p.id, CURRENT_DATE - 16, CURRENT_DATE - 16 + 4 * 7 - 1
+FROM alumnos a, plantillas_plan p
+WHERE a.dni = '40444555' AND p.nombre = 'Torso / Pierna';
+
+UPDATE plantillas_plan SET asignaciones_activas = 1 WHERE nombre = 'Torso / Pierna';
+
+-- Copia de las semanas, sesiones y ejercicios de la plantilla (lo mismo que hace la app al asignar)
+INSERT INTO semanas_plan (plan_id, numero, nota)
+SELECT pl.id, sp.numero, sp.nota
+FROM planes_asignados pl
+JOIN semanas_plantilla sp ON sp.plantilla_id = pl.plantilla_origen_id;
+
+INSERT INTO sesiones_plan (semana_id, numero, nombre)
+SELECT wp.id, s.numero, s.nombre
+FROM planes_asignados pl
+JOIN semanas_plan wp ON wp.plan_id = pl.id
+JOIN semanas_plantilla sp ON sp.plantilla_id = pl.plantilla_origen_id AND sp.numero = wp.numero
+JOIN sesiones_plantilla s ON s.semana_id = sp.id;
+
+INSERT INTO ejercicios_sesion_plan (sesion_plan_id, orden, ejercicio_id, series, repeticiones, repeticiones_max,
+                                    descanso_minutos, peso_sugerido, rir_objetivo, indicaciones)
+SELECT sep.id, e.orden, e.ejercicio_id, e.series, e.repeticiones, e.repeticiones_max, e.descanso_minutos,
+       e.peso_sugerido, e.rir_objetivo, e.indicaciones
+FROM planes_asignados pl
+JOIN semanas_plan wp ON wp.plan_id = pl.id
+JOIN sesiones_plan sep ON sep.semana_id = wp.id
+JOIN semanas_plantilla sp ON sp.plantilla_id = pl.plantilla_origen_id AND sp.numero = wp.numero
+JOIN sesiones_plantilla s ON s.semana_id = sp.id AND s.numero = sep.numero
+JOIN ejercicios_sesion e ON e.sesion_id = s.id;
+
+-- Sesiones que registró (o empezó) Tomás: semana, sesión, días desde la asignación y si la terminó
+INSERT INTO registros_sesion (plan_id, semana, numero_sesion, fecha, completada)
+SELECT pl.id, r.semana, r.sesion, pl.fecha_asignacion + r.dia, r.completada
+FROM planes_asignados pl
+CROSS JOIN (VALUES
+    (1, 1, 0, true), (1, 2, 2, true), (1, 3, 4, true), (1, 4, 5, true),
+    (2, 1, 7, true), (2, 2, 9, true), (2, 3, 11, true),
+    (3, 1, 14, true), (3, 2, 16, false)
+) AS r(semana, sesion, dia, completada);
+
+-- Copia de lo indicado en cada sesión registrada. En las terminadas, cada serie se hizo con el peso sugerido (o 20 kg),
+-- las repeticiones objetivo y el RIR objetivo (o 2). La que está en curso todavía no tiene ejercicios cargados.
+INSERT INTO registros_ejercicio (registro_sesion_id, orden, ejercicio_id, series, repeticiones, repeticiones_max,
+                                 descanso_minutos, peso_sugerido, rir_objetivo, indicaciones, kg_usados, rir_real,
+                                 rm_estimado, completo)
+SELECT r.id, e.orden, e.ejercicio_id, e.series, e.repeticiones, e.repeticiones_max, e.descanso_minutos,
+       e.peso_sugerido, e.rir_objetivo, e.indicaciones,
+       CASE WHEN r.completada THEN COALESCE(e.peso_sugerido, 20) END,
+       CASE WHEN r.completada THEN COALESCE(e.rir_objetivo, 2) END,
+       CASE WHEN r.completada THEN round(COALESCE(e.peso_sugerido, 20)
+            * (1 + (e.repeticiones + COALESCE(e.rir_objetivo, 2)) / 30.0), 2) END,
+       r.completada
+FROM registros_sesion r
+JOIN semanas_plan wp ON wp.plan_id = r.plan_id AND wp.numero = r.semana
+JOIN sesiones_plan sep ON sep.semana_id = wp.id AND sep.numero = r.numero_sesion
+JOIN ejercicios_sesion_plan e ON e.sesion_plan_id = sep.id;
+
+INSERT INTO registros_serie (registro_ejercicio_id, orden, peso, repeticiones, rir, rm_estimado)
+SELECT re.id, n.orden, re.kg_usados, re.repeticiones, re.rir_real, re.rm_estimado
+FROM registros_ejercicio re
+CROSS JOIN LATERAL generate_series(1, re.series) AS n(orden)
+WHERE re.completo;

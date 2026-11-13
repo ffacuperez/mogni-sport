@@ -539,8 +539,7 @@ public class AlumnoService {
     }
 
     private PlanActivoResumen resumir(PlanAsignado plan, LocalDate hoy) {
-        return new PlanActivoResumen(plan.getId(), plan.getNombre(), plan.getMetodo(), plan.getMesociclo(),
-                plan.semanaActual(hoy), plan.cantidadSemanas());
+        return new PlanActivoResumen(plan.getId(), plan.getNombre(), plan.semanaActual(hoy), plan.cantidadSemanas());
     }
 
     private AlumnoResponse mapearAResponse(Alumno alumno, PlanActivoResumen planActivo, CuotaAlumnoResumen cuotaActual) {

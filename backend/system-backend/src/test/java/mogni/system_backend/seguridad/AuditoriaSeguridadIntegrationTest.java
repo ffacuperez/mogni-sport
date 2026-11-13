@@ -323,8 +323,8 @@ class AuditoriaSeguridadIntegrationTest {
         assertEquals(201, ejercicio.status(), ejercicio.texto());
         Respuesta plan = ejecutar(post("/planes-asignados/desde-cero"), entrenador,
                 "{\"alumnoId\":" + duenio.id() + ",\"nombre\":\"Plan\",\"nivel\":\"PRINCIPIANTE\",\"objetivo\":\"HIPERTROFIA\","
-                        + "\"cantidadSemanas\":4,\"sesiones\":[{\"ejercicios\":[{\"ejercicioId\":" + ejercicio.cuerpo().path("id").asLong()
-                        + ",\"series\":3,\"repeticiones\":10}]}]}");
+                        + "\"semanas\":[{\"sesiones\":[{\"ejercicios\":[{\"ejercicioId\":" + ejercicio.cuerpo().path("id").asLong()
+                        + ",\"series\":3,\"repeticiones\":10}]}]}]}");
         assertEquals(201, plan.status(), plan.texto());
         long planId = plan.cuerpo().path("id").asLong();
         Respuesta iniciada = ejecutar(post("/mi-progreso/planes/" + planId + "/sesiones"), duenio.token(),
@@ -552,9 +552,11 @@ class AuditoriaSeguridadIntegrationTest {
         assertEquals(400, ejecutar(post("/membresias"), propietario, "{\"nombre\":\"A\",\"precioActual\":10,\"frecuenciaSemanal\":7}").status());
         // Cupo > 0
         assertEquals(400, ejecutar(put("/configuracion-gimnasio/cupo-maximo"), propietario, "{\"cupoMaximo\":0}").status());
-        // Semanas 1-52
-        assertEquals(400, ejecutar(post("/planes-asignados/desde-plantilla"), propietario,
-                "{\"alumnoId\":1,\"plantillaId\":1,\"cantidadSemanas\":53}").status());
+        // Semanas 1-24
+        String semana = "{\"sesiones\":[{\"ejercicios\":[{\"ejercicioId\":1,\"series\":3,\"repeticiones\":10}]}]}";
+        assertEquals(400, ejecutar(post("/planes-asignados/desde-cero"), propietario,
+                "{\"alumnoId\":1,\"nombre\":\"Plan\",\"nivel\":\"PRINCIPIANTE\",\"objetivo\":\"FUERZA\",\"semanas\":["
+                        + String.join(",", java.util.Collections.nCopies(25, semana)) + "]}").status());
         // Email
         long membresiaId = membresia("20000", 3);
         assertEquals(400, ejecutar(post("/alumnos"), propietario,

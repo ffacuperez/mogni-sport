@@ -13,6 +13,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import mogni.system_backend.plantilla.entity.NivelPlantilla;
 import mogni.system_backend.plantilla.entity.ObjetivoPlantilla;
+import mogni.system_backend.plantilla.entity.PlantillaPlan;
 
 @Getter
 @Setter
@@ -31,6 +32,7 @@ public class PlantillaRequest {
     @NotNull(message = "El objetivo es obligatorio")
     private ObjetivoPlantilla objetivo;
 
-    @NotEmpty(message = "La plantilla tiene que tener al menos una sesión")
-    private List<@Valid @NotNull(message = "Cada sesión tiene que tener al menos un ejercicio") SesionRequest> sesiones;
+    @NotEmpty(message = "La plantilla tiene que tener al menos una semana")
+    @Size(max = PlantillaPlan.MAXIMO_SEMANAS, message = "La plantilla puede tener como máximo 24 semanas")
+    private List<@Valid @NotNull(message = "Cada semana tiene que tener al menos una sesión") SemanaRequest> semanas;
 }

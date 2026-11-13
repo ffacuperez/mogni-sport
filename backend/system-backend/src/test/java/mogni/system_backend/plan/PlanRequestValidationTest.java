@@ -11,16 +11,18 @@ import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import mogni.system_backend.plan.dto.AsignarPlanDesdeCeroRequest;
 import mogni.system_backend.plan.dto.AsignarPlanDesdePlantillaRequest;
-import mogni.system_backend.plan.dto.PlanRequest;
 import mogni.system_backend.plantilla.dto.EjercicioSesionRequest;
+import mogni.system_backend.plantilla.dto.SemanaRequest;
 import mogni.system_backend.plantilla.dto.SesionRequest;
 import mogni.system_backend.plantilla.entity.NivelPlantilla;
 import mogni.system_backend.plantilla.entity.ObjetivoPlantilla;
 
-/** HU-266: el plan desde cero tiene las mismas reglas que una plantilla. */
+/** HU-266: el plan desde cero tiene las mismas reglas que una plantilla, también en sus semanas. */
 class PlanRequestValidationTest {
 
     private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+
+    private SemanaRequest semana;
 
     private AsignarPlanDesdeCeroRequest requestValido() {
         EjercicioSesionRequest ejercicio = new EjercicioSesionRequest();
@@ -29,13 +31,14 @@ class PlanRequestValidationTest {
         ejercicio.setRepeticiones(10);
         SesionRequest sesion = new SesionRequest();
         sesion.setEjercicios(new ArrayList<>(List.of(ejercicio)));
+        semana = new SemanaRequest();
+        semana.setSesiones(new ArrayList<>(List.of(sesion)));
         AsignarPlanDesdeCeroRequest request = new AsignarPlanDesdeCeroRequest();
         request.setAlumnoId(7L);
         request.setNombre("Plan de Juan");
         request.setNivel(NivelPlantilla.PRINCIPIANTE);
         request.setObjetivo(ObjetivoPlantilla.FUERZA);
-        request.setSesiones(new ArrayList<>(List.of(sesion)));
-        request.setCantidadSemanas(8);
+        request.setSemanas(new ArrayList<>(List.of(semana)));
         return request;
     }
 
@@ -49,17 +52,37 @@ class PlanRequestValidationTest {
     }
 
     @Test
-    void planDesdeCeroSinSesionesFalla() {
+    void planDesdeCeroSinSemanasFalla() {
         AsignarPlanDesdeCeroRequest request = requestValido();
-        request.setSesiones(new ArrayList<>());
-        assertTrue(tieneError(request, "El plan tiene que tener al menos una sesión"));
+        request.setSemanas(new ArrayList<>());
+        assertTrue(tieneError(request, "El plan tiene que tener al menos una semana"));
+    }
+
+    @Test
+    void unaSemanaSinSesionesFalla() {
+        AsignarPlanDesdeCeroRequest request = requestValido();
+        semana.setSesiones(new ArrayList<>());
+        assertTrue(tieneError(request, "Cada semana tiene que tener al menos una sesión"));
     }
 
     @Test
     void planDesdeCeroConUnaSesionSinEjerciciosFalla() {
         AsignarPlanDesdeCeroRequest request = requestValido();
-        request.getSesiones().get(0).setEjercicios(new ArrayList<>());
+        semana.getSesiones().get(0).setEjercicios(new ArrayList<>());
         assertTrue(tieneError(request, "Cada sesión tiene que tener al menos un ejercicio"));
+    }
+
+    @Test
+    void hasta24SemanasPasaYMasFalla() {
+        AsignarPlanDesdeCeroRequest request = requestValido();
+        List<SemanaRequest> semanas = new ArrayList<>();
+        for (int i = 0; i < 24; i++) {
+            semanas.add(semana);
+        }
+        request.setSemanas(semanas);
+        assertTrue(validator.validate(request).isEmpty());
+        semanas.add(semana);
+        assertTrue(tieneError(request, "El plan puede tener como máximo 24 semanas"));
     }
 
     @Test
@@ -74,46 +97,13 @@ class PlanRequestValidationTest {
     }
 
     @Test
-    void desdePlantillaSinAlumnoNiPlantillaFalla() {
+    void desdePlantillaSoloPideElAlumnoYLaPlantilla() {
         AsignarPlanDesdePlantillaRequest request = new AsignarPlanDesdePlantillaRequest();
         assertTrue(tieneError(request, "Elegí el alumno al que le vas a asignar el plan"));
         assertTrue(tieneError(request, "Elegí la plantilla que le vas a asignar"));
-    }
-
-    // --- HU-266: semanas de vigencia obligatorias al asignar (desde cero, desde plantilla) y al modificar ---
-
-    @Test
-    void planDesdeCeroSinSemanasFalla() {
-        AsignarPlanDesdeCeroRequest request = requestValido();
-        request.setCantidadSemanas(null);
-        assertTrue(tieneError(request, "La cantidad de semanas es obligatoria"));
-    }
-
-    @Test
-    void desdePlantillaSinSemanasFalla() {
-        AsignarPlanDesdePlantillaRequest request = new AsignarPlanDesdePlantillaRequest();
+        // La duración sale de las semanas de la plantilla
         request.setAlumnoId(7L);
         request.setPlantillaId(5L);
-        assertTrue(tieneError(request, "La cantidad de semanas es obligatoria"));
-        request.setCantidadSemanas(8);
-        assertTrue(validator.validate(request).isEmpty());
-    }
-
-    @Test
-    void modificarUnPlanSinSemanasFalla() {
-        PlanRequest cambios = requestValido();
-        cambios.setCantidadSemanas(null);
-        assertTrue(tieneError(cambios, "La cantidad de semanas es obligatoria"));
-    }
-
-    @Test
-    void semanasFueraDeRangoFallan() {
-        AsignarPlanDesdeCeroRequest request = requestValido();
-        request.setCantidadSemanas(0);
-        assertTrue(tieneError(request, "El plan tiene que durar al menos una semana"));
-        request.setCantidadSemanas(53);
-        assertTrue(tieneError(request, "El plan no puede durar más de 52 semanas"));
-        request.setCantidadSemanas(52);
         assertTrue(validator.validate(request).isEmpty());
     }
 }

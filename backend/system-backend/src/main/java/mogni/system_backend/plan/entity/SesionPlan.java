@@ -15,14 +15,16 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import mogni.system_backend.plantilla.entity.SesionPlantilla;
 
-/** Sesión numerada del plan de un alumno, con sus ejercicios en orden. */
+/** Sesión numerada de una semana del plan de un alumno, con sus ejercicios en orden. */
 @Entity
-@Table(name = "sesiones_plan")
+@Table(name = "sesiones_plan",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"semana_id", "numero"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -32,7 +34,7 @@ public class SesionPlan {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** 1, 2, 3... según el orden en el plan. */
+    /** 1, 2, 3... según el orden dentro de la semana. */
     @Column(nullable = false)
     private int numero;
 
@@ -41,8 +43,8 @@ public class SesionPlan {
     private String nombre;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "plan_id", nullable = false)
-    private PlanAsignado plan;
+    @JoinColumn(name = "semana_id", nullable = false)
+    private SemanaPlan semana;
 
     @OneToMany(mappedBy = "sesion", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("orden ASC")
@@ -65,6 +67,13 @@ public class SesionPlan {
     static SesionPlan copiaDe(SesionPlantilla origen) {
         SesionPlan copia = new SesionPlan(origen.getNombre());
         copia.agregarEjercicios(origen.getEjercicios().stream().map(EjercicioSesionPlan::new).toList());
+        return copia;
+    }
+
+    /** Copia de otra sesión del plan, con los mismos datos (para conservar una sesión ya registrada al editar). */
+    public SesionPlan copiar() {
+        SesionPlan copia = new SesionPlan(nombre);
+        copia.agregarEjercicios(ejercicios.stream().map(EjercicioSesionPlan::new).toList());
         return copia;
     }
 }

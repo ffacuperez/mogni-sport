@@ -29,14 +29,11 @@ public class AltaRegistroSesionService {
         this.registroRepository = registroRepository;
     }
 
-    /** La sesión empieza con una copia de cada ejercicio del plan, todavía sin series. */
+    /** La sesión empieza con una copia de cada ejercicio indicado para esa semana, todavía sin series. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void crear(Long planId, int semana, int numeroSesion, LocalDate fecha) {
         PlanAsignado plan = planRepository.findById(planId).orElseThrow();
-        SesionPlan sesionPlan = plan.getSesiones().stream()
-                .filter(sesion -> sesion.getNumero() == numeroSesion)
-                .findFirst()
-                .orElseThrow();
+        SesionPlan sesionPlan = plan.buscarSesion(semana, numeroSesion).orElseThrow();
         RegistroSesion registro = new RegistroSesion(plan, semana, numeroSesion, fecha);
         registro.agregarEjercicios(sesionPlan.getEjercicios().stream().map(RegistroEjercicio::new).toList());
         // Flush acá adentro: si ya existe, la excepción sale de este método y no al confirmar más tarde

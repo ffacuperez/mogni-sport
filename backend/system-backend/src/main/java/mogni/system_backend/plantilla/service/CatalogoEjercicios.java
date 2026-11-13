@@ -11,6 +11,7 @@ import mogni.system_backend.ejercicio.repository.EjercicioRepository;
 import mogni.system_backend.exception.RegistroInvalidoException;
 import mogni.system_backend.plantilla.dto.EjercicioSesionRequest;
 import mogni.system_backend.plantilla.dto.SesionRequest;
+import mogni.system_backend.plantilla.entity.EjercicioPrescripto;
 
 /** Busca los ejercicios que piden las sesiones de una plantilla o de un plan asignado (HU-265 y HU-266). */
 public class CatalogoEjercicios {
@@ -48,6 +49,17 @@ public class CatalogoEjercicios {
 
     /** Nombre opcional de una sesión: sin espacios de más, o null si vino vacío. */
     public static String nombreDeSesion(SesionRequest request) {
-        return request.getNombre() == null || request.getNombre().isBlank() ? null : request.getNombre().trim();
+        return textoOpcional(request.getNombre());
+    }
+
+    /** Le pone al ejercicio las indicaciones del request (opcionales). */
+    public static <T extends EjercicioPrescripto> T conIndicaciones(T ejercicio, EjercicioSesionRequest request) {
+        ejercicio.setIndicaciones(textoOpcional(request.getIndicaciones()));
+        return ejercicio;
+    }
+
+    /** Un texto opcional sin espacios de más, o null si vino vacío. */
+    public static String textoOpcional(String texto) {
+        return texto == null || texto.isBlank() ? null : texto.trim();
     }
 }

@@ -17,5 +17,5 @@ public class PlantillaResponse {
     private ObjetivoPlantilla objetivo;
     private int asignacionesActivas;
     private LocalDateTime fechaActualizacion;
-    private List<SesionPlantillaResponse> sesiones;
+    private List<SemanaResponse> semanas;
 }

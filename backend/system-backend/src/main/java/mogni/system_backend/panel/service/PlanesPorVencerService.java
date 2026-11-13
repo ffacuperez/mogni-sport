@@ -58,8 +58,6 @@ public class PlanesPorVencerService {
                         plan.getAlumno().getNombre(),
                         plan.getAlumno().getApellido(),
                         plan.getNombre(),
-                        plan.getMetodo(),
-                        plan.getMesociclo(),
                         plan.getFechaFin(),
                         ChronoUnit.DAYS.between(hoy, plan.getFechaFin())))
                 .toList();

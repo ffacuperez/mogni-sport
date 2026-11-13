@@ -15,6 +15,9 @@ public interface RegistroSesionRepository extends JpaRepository<RegistroSesion, 
     /** HU-269: el registro de una sesión en una semana; hay como mucho uno (restricción única). */
     Optional<RegistroSesion> findByPlanIdAndSemanaAndNumeroSesion(Long planId, int semana, int numeroSesion);
 
+    /** Las sesiones de una semana del plan que el alumno empezó o registró. */
+    List<RegistroSesion> findByPlanIdAndSemana(Long planId, int semana);
+
     /** Una sesión registrada o en curso, solo si es de un plan de ese alumno. */
     Optional<RegistroSesion> findByIdAndPlanAlumnoId(Long id, Long alumnoId);
 

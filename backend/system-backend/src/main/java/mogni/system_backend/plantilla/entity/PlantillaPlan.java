@@ -22,7 +22,8 @@ import lombok.Setter;
 
 /**
  * HU-265: plantilla de plan de entrenamiento que el entrenador arma una vez y reutiliza al asignarla a
- * distintos alumnos. Tiene una o más sesiones numeradas, cada una con ejercicios del catálogo.
+ * distintos alumnos. Tiene de 1 a 24 semanas, cada una con sus propias sesiones (de 1 a 7) y cada sesión con
+ * ejercicios del catálogo. La cantidad de semanas es la duración del plan al asignarla.
  * Eliminar es una baja lógica (activa = false): la plantilla deja de listarse pero no se borra.
  */
 @Entity
@@ -67,9 +68,15 @@ public class PlantillaPlan {
     @Column(nullable = false)
     private LocalDateTime fechaActualizacion;
 
+    /** Máximo de semanas de una plantilla (y de un plan asignado). */
+    public static final int MAXIMO_SEMANAS = 24;
+
+    /** Máximo de sesiones por semana: una por día. */
+    public static final int MAXIMO_SESIONES_POR_SEMANA = 7;
+
     @OneToMany(mappedBy = "plantilla", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("numero ASC")
-    private List<SesionPlantilla> sesiones = new ArrayList<>();
+    private List<SemanaPlantilla> semanas = new ArrayList<>();
 
     public void setNombre(String nombre) {
         this.nombre = nombre;
@@ -89,25 +96,26 @@ public class PlantillaPlan {
         return asignacionesActivas > 0;
     }
 
-    /** Reemplaza todas las sesiones y las numera 1, 2, 3... en el orden recibido. */
-    public void reemplazarSesiones(List<SesionPlantilla> nuevas) {
-        sesiones.clear();
-        for (int i = 0; i < nuevas.size(); i++) {
-            SesionPlantilla sesion = nuevas.get(i);
-            sesion.setNumero(i + 1);
-            sesion.setPlantilla(this);
-            sesiones.add(sesion);
+    /**
+     * Agrega las semanas en el orden recibido y las numera 1, 2, 3... Para reemplazarlas, primero hay que vaciar
+     * {@code semanas} y hacer flush (ver PlantillaService.actualizarPlantilla).
+     */
+    public void agregarSemanas(List<SemanaPlantilla> nuevas) {
+        for (SemanaPlantilla semana : nuevas) {
+            semana.setNumero(semanas.size() + 1);
+            semana.setPlantilla(this);
+            semanas.add(semana);
         }
     }
 
-    /** Copia independiente: sesiones y ejercicios nuevos, sin asignaciones. Modificarla no toca la original. */
+    /** Copia independiente: semanas, sesiones y ejercicios nuevos, sin asignaciones. Modificarla no toca la original. */
     public PlantillaPlan duplicar(String nombreCopia, LocalDateTime ahora) {
         PlantillaPlan copia = new PlantillaPlan();
         copia.setNombre(nombreCopia);
         copia.setNivel(nivel);
         copia.setObjetivo(objetivo);
         copia.setFechaActualizacion(ahora);
-        copia.reemplazarSesiones(sesiones.stream().map(SesionPlantilla::copiar).toList());
+        copia.agregarSemanas(semanas.stream().map(SemanaPlantilla::copiar).toList());
         return copia;
     }
 }

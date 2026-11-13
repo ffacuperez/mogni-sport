@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -39,11 +40,14 @@ import mogni.system_backend.exception.RegistroInvalidoException;
 import mogni.system_backend.plantilla.dto.EjercicioSesionRequest;
 import mogni.system_backend.plantilla.dto.PlantillaRequest;
 import mogni.system_backend.plantilla.dto.PlantillaResponse;
+import mogni.system_backend.plantilla.dto.SemanaRequest;
+import mogni.system_backend.plantilla.dto.SesionPlantillaResponse;
 import mogni.system_backend.plantilla.dto.SesionRequest;
 import mogni.system_backend.plantilla.entity.EjercicioSesion;
 import mogni.system_backend.plantilla.entity.NivelPlantilla;
 import mogni.system_backend.plantilla.entity.ObjetivoPlantilla;
 import mogni.system_backend.plantilla.entity.PlantillaPlan;
+import mogni.system_backend.plantilla.entity.SemanaPlantilla;
 import mogni.system_backend.plantilla.entity.SesionPlantilla;
 import mogni.system_backend.plantilla.repository.PlantillaPlanRepository;
 import mogni.system_backend.plantilla.service.PlantillaService;
@@ -94,16 +98,37 @@ class PlantillaServiceTest {
         return s;
     }
 
+    private static SemanaRequest semana(String nota, SesionRequest... sesiones) {
+        SemanaRequest s = new SemanaRequest();
+        s.setNota(nota);
+        s.setSesiones(new ArrayList<>(List.of(sesiones)));
+        return s;
+    }
+
+    /** Plantilla de una sola semana con esas sesiones. */
     private static PlantillaRequest request(String nombre, SesionRequest... sesiones) {
+        return requestConSemanas(nombre, semana(null, sesiones));
+    }
+
+    private static PlantillaRequest requestConSemanas(String nombre, SemanaRequest... semanas) {
         PlantillaRequest r = new PlantillaRequest();
         r.setNombre(nombre);
         r.setNivel(NivelPlantilla.INTERMEDIO);
         r.setObjetivo(ObjetivoPlantilla.HIPERTROFIA);
-        r.setSesiones(new ArrayList<>(List.of(sesiones)));
+        r.setSemanas(new ArrayList<>(List.of(semanas)));
         return r;
     }
 
-    /** Plantilla guardada con una sesión de press de banca 4x10 40 kg. */
+    /** Las sesiones de la semana 1, de una respuesta o de una plantilla. */
+    private static List<SesionPlantillaResponse> semana1(PlantillaResponse plantilla) {
+        return plantilla.getSemanas().get(0).getSesiones();
+    }
+
+    private static List<SesionPlantilla> semana1(PlantillaPlan plantilla) {
+        return plantilla.getSemanas().get(0).getSesiones();
+    }
+
+    /** Plantilla guardada con una semana y una sesión de press de banca 4x10 40 kg. */
     private PlantillaPlan plantillaExistente(Long id, String nombre, int asignaciones) {
         PlantillaPlan p = new PlantillaPlan();
         p.setId(id);
@@ -114,7 +139,9 @@ class PlantillaServiceTest {
         p.setFechaActualizacion(LocalDateTime.of(2026, 10, 1, 10, 0));
         SesionPlantilla s = new SesionPlantilla("Full body A");
         s.agregarEjercicios(List.of(new EjercicioSesion(catalogo.get(1L), 4, 8, 10, new BigDecimal("1.5"), new BigDecimal("40"), 2)));
-        p.reemplazarSesiones(new ArrayList<>(List.of(s)));
+        SemanaPlantilla semana = new SemanaPlantilla("Semana base");
+        semana.agregarSesiones(List.of(s));
+        p.agregarSemanas(List.of(semana));
         return p;
     }
 
@@ -132,20 +159,20 @@ class PlantillaServiceTest {
         assertEquals(NivelPlantilla.INTERMEDIO, creada.getNivel());
         assertEquals(ObjetivoPlantilla.HIPERTROFIA, creada.getObjetivo());
         assertEquals(0, creada.getAsignacionesActivas());
-        assertEquals(2, creada.getSesiones().size());
+        assertEquals(2, semana1(creada).size());
         // Las sesiones quedan numeradas en orden y el nombre es opcional
-        assertEquals(1, creada.getSesiones().get(0).getNumero());
-        assertEquals("Empuje", creada.getSesiones().get(0).getNombre());
-        assertEquals(2, creada.getSesiones().get(1).getNumero());
-        assertNull(creada.getSesiones().get(1).getNombre());
-        var primerEjercicio = creada.getSesiones().get(0).getEjercicios().get(0);
+        assertEquals(1, semana1(creada).get(0).getNumero());
+        assertEquals("Empuje", semana1(creada).get(0).getNombre());
+        assertEquals(2, semana1(creada).get(1).getNumero());
+        assertNull(semana1(creada).get(1).getNombre());
+        var primerEjercicio = semana1(creada).get(0).getEjercicios().get(0);
         assertEquals("Press de banca con barra", primerEjercicio.getNombre());
         assertEquals(4, primerEjercicio.getSeries());
         assertEquals(10, primerEjercicio.getRepeticiones());
         assertEquals(new BigDecimal("40"), primerEjercicio.getPesoSugerido());
         assertEquals(2, primerEjercicio.getRirObjetivo());
-        assertNull(creada.getSesiones().get(0).getEjercicios().get(1).getPesoSugerido());
-        assertNull(creada.getSesiones().get(0).getEjercicios().get(1).getRirObjetivo());
+        assertNull(semana1(creada).get(0).getEjercicios().get(1).getPesoSugerido());
+        assertNull(semana1(creada).get(0).getEjercicios().get(1).getRirObjetivo());
     }
 
     @Test
@@ -154,8 +181,8 @@ class PlantillaServiceTest {
         conRango.setRepeticionesMax(10);
         conRango.setDescansoMinutos(new BigDecimal("1.5"));
 
-        var creado = plantillaService.crearPlantilla(request("Rango", sesion(null, conRango)))
-                .getSesiones().get(0).getEjercicios().get(0);
+        var creado = semana1(plantillaService.crearPlantilla(request("Rango", sesion(null, conRango))))
+                .get(0).getEjercicios().get(0);
 
         assertEquals(8, creado.getRepeticiones());
         assertEquals(10, creado.getRepeticionesMax());
@@ -164,8 +191,8 @@ class PlantillaServiceTest {
 
     @Test
     void alta_con_un_solo_valor_de_repeticiones_pasa_como_objetivo_fijo() {
-        var creado = plantillaService.crearPlantilla(request("Fijo", sesion(null, ejercicio(1L, 4, 8, null))))
-                .getSesiones().get(0).getEjercicios().get(0);
+        var creado = semana1(plantillaService.crearPlantilla(request("Fijo", sesion(null, ejercicio(1L, 4, 8, null)))))
+                .get(0).getEjercicios().get(0);
 
         assertEquals(8, creado.getRepeticiones());
         assertNull(creado.getRepeticionesMax());
@@ -177,17 +204,77 @@ class PlantillaServiceTest {
         EjercicioSesionRequest mismoValor = ejercicio(1L, 4, 8, null);
         mismoValor.setRepeticionesMax(8);
 
-        var creado = plantillaService.crearPlantilla(request("Igual", sesion(null, mismoValor)))
-                .getSesiones().get(0).getEjercicios().get(0);
+        var creado = semana1(plantillaService.crearPlantilla(request("Igual", sesion(null, mismoValor))))
+                .get(0).getEjercicios().get(0);
 
         assertEquals(8, creado.getRepeticiones());
         assertNull(creado.getRepeticionesMax());
     }
 
     @Test
-    void alta_sin_ninguna_sesion_falla() {
-        assertThrows(RegistroInvalidoException.class, () -> plantillaService.crearPlantilla(request("Vacía")));
+    void alta_sin_ninguna_semana_falla() {
+        assertThrows(RegistroInvalidoException.class, () -> plantillaService.crearPlantilla(requestConSemanas("Vacía")));
         verify(plantillaRepository, never()).save(any());
+    }
+
+    @Test
+    void alta_con_una_semana_sin_sesiones_falla() {
+        RegistroInvalidoException error = assertThrows(RegistroInvalidoException.class,
+                () -> plantillaService.crearPlantilla(request("Semana vacía")));
+        assertEquals("Cada semana tiene que tener al menos una sesión", error.getMessage());
+        verify(plantillaRepository, never()).save(any());
+    }
+
+    @Test
+    void alta_con_semanas_distintas_guarda_cada_una_con_sus_sesiones_y_su_nota() {
+        EjercicioSesionRequest pesado = ejercicio(3L, 5, 5, "80");
+        pesado.setIndicaciones("  Tempo 2-1-3  ");
+        EjercicioSesionRequest descarga = ejercicio(3L, 3, 5, "60");
+        descarga.setRirObjetivo(4);
+
+        PlantillaResponse creada = plantillaService.crearPlantilla(requestConSemanas("Fuerza por semanas",
+                semana("  ", sesion("Pierna", pesado), sesion("Torso", ejercicio(1L, 4, 8, null))),
+                semana("  Semana de descarga ", sesion("Pierna liviana", descarga))));
+
+        assertEquals(2, creada.getSemanas().size());
+        var primera = creada.getSemanas().get(0);
+        var segunda = creada.getSemanas().get(1);
+        assertEquals(1, primera.getNumero());
+        assertNull(primera.getNota());
+        assertEquals(2, primera.getSesiones().size());
+        assertEquals("Tempo 2-1-3", primera.getSesiones().get(0).getEjercicios().get(0).getIndicaciones());
+        assertNull(primera.getSesiones().get(1).getEjercicios().get(0).getIndicaciones());
+        // La semana 2 tiene su propio contenido y numera sus sesiones desde 1
+        assertEquals(2, segunda.getNumero());
+        assertEquals("Semana de descarga", segunda.getNota());
+        assertEquals(1, segunda.getSesiones().size());
+        assertEquals(1, segunda.getSesiones().get(0).getNumero());
+        assertEquals(3, segunda.getSesiones().get(0).getEjercicios().get(0).getSeries());
+        assertEquals(4, segunda.getSesiones().get(0).getEjercicios().get(0).getRirObjetivo());
+    }
+
+    @Test
+    void alta_con_mas_de_24_semanas_falla() {
+        SemanaRequest[] semanas = new SemanaRequest[PlantillaPlan.MAXIMO_SEMANAS + 1];
+        for (int i = 0; i < semanas.length; i++) {
+            semanas[i] = semana(null, sesion(null, ejercicio(1L, 3, 10, null)));
+        }
+
+        RegistroInvalidoException error = assertThrows(RegistroInvalidoException.class,
+                () -> plantillaService.crearPlantilla(requestConSemanas("Muy larga", semanas)));
+        assertEquals("La plantilla puede tener como máximo 24 semanas", error.getMessage());
+    }
+
+    @Test
+    void alta_con_mas_de_7_sesiones_en_una_semana_falla() {
+        SesionRequest[] sesiones = new SesionRequest[PlantillaPlan.MAXIMO_SESIONES_POR_SEMANA + 1];
+        for (int i = 0; i < sesiones.length; i++) {
+            sesiones[i] = sesion(null, ejercicio(1L, 3, 10, null));
+        }
+
+        RegistroInvalidoException error = assertThrows(RegistroInvalidoException.class,
+                () -> plantillaService.crearPlantilla(request("Muchas sesiones", sesiones)));
+        assertEquals("Cada semana puede tener como máximo 7 sesiones", error.getMessage());
     }
 
     @Test
@@ -230,21 +317,43 @@ class PlantillaServiceTest {
 
         assertEquals("Fuerza base · v2", modificada.getNombre());
         assertEquals(NivelPlantilla.INTERMEDIO, modificada.getNivel());
-        assertEquals(2, modificada.getSesiones().size());
-        assertEquals(5, modificada.getSesiones().get(0).getEjercicios().get(0).getSeries());
+        assertEquals(2, semana1(modificada).size());
+        assertEquals(5, semana1(modificada).get(0).getEjercicios().get(0).getSeries());
         assertTrue(existente.getFechaActualizacion().isAfter(LocalDateTime.of(2026, 10, 1, 10, 0)));
+    }
+
+    @Test
+    void modificacion_borra_las_semanas_viejas_con_un_flush_antes_de_agregar_las_nuevas() {
+        PlantillaPlan existente = plantillaExistente(5L, "Fuerza base", 0);
+        SemanaPlantilla vieja = existente.getSemanas().get(0);
+        when(plantillaRepository.findByIdAndActivaTrue(5L)).thenReturn(Optional.of(existente));
+        // Al momento del primer flush la plantilla ya no tiene semanas: así los DELETE salen antes que los INSERT
+        List<Integer> semanasAlHacerFlush = new ArrayList<>();
+        doAnswer(inv -> {
+            semanasAlHacerFlush.add(existente.getSemanas().size());
+            return null;
+        }).when(plantillaRepository).flush();
+
+        plantillaService.actualizarPlantilla(5L, requestConSemanas("Fuerza base",
+                semana(null, sesion("A", ejercicio(1L, 5, 5, "60"))),
+                semana("Descarga", sesion("A", ejercicio(1L, 3, 5, "50")))));
+
+        assertEquals(List.of(0, 2), semanasAlHacerFlush);
+        assertEquals(2, existente.getSemanas().size());
+        assertFalse(existente.getSemanas().contains(vieja));
+        assertEquals("Descarga", existente.getSemanas().get(1).getNota());
     }
 
     @Test
     void modificacion_puede_conservar_un_ejercicio_que_se_dio_de_baja_despues_de_agregarlo() {
         PlantillaPlan existente = plantillaExistente(5L, "Fuerza base", 0);
-        existente.getSesiones().get(0).agregarEjercicios(List.of(new EjercicioSesion(catalogo.get(9L), 3, 8, null, null, null, null)));
+        semana1(existente).get(0).agregarEjercicios(List.of(new EjercicioSesion(catalogo.get(9L), 3, 8, null, null, null, null)));
         when(plantillaRepository.findByIdAndActivaTrue(5L)).thenReturn(Optional.of(existente));
 
         PlantillaResponse modificada = plantillaService.actualizarPlantilla(5L, request("Fuerza base",
                 sesion("A", ejercicio(1L, 4, 10, "40"), ejercicio(9L, 4, 8, null))));
 
-        assertFalse(modificada.getSesiones().get(0).getEjercicios().get(1).isEjercicioActivo());
+        assertFalse(semana1(modificada).get(0).getEjercicios().get(1).isEjercicioActivo());
     }
 
     @Test
@@ -306,17 +415,37 @@ class PlantillaServiceTest {
         assertEquals(0, copia.getAsignacionesActivas());
         assertEquals(original.getNivel(), nueva.getNivel());
         assertEquals(original.getObjetivo(), nueva.getObjetivo());
-        assertEquals(2, nueva.getSesiones().get(0).getEjercicios().get(0).getRirObjetivo());
+        assertEquals(2, semana1(nueva).get(0).getEjercicios().get(0).getRirObjetivo());
         // Sesiones y ejercicios son objetos nuevos: cambiar la copia no toca la original
-        assertNotSame(original.getSesiones().get(0), nueva.getSesiones().get(0));
-        nueva.getSesiones().get(0).getEjercicios().get(0).setSeries(8);
-        nueva.getSesiones().get(0).setNombre("Cambiada");
-        assertEquals(4, original.getSesiones().get(0).getEjercicios().get(0).getSeries());
-        var ejercicioCopiado = nueva.getSesiones().get(0).getEjercicios().get(0);
+        assertNotSame(semana1(original).get(0), semana1(nueva).get(0));
+        semana1(nueva).get(0).getEjercicios().get(0).setSeries(8);
+        semana1(nueva).get(0).setNombre("Cambiada");
+        assertEquals(4, semana1(original).get(0).getEjercicios().get(0).getSeries());
+        var ejercicioCopiado = semana1(nueva).get(0).getEjercicios().get(0);
         assertEquals(10, ejercicioCopiado.getRepeticionesMax());
         assertEquals(new BigDecimal("1.5"), ejercicioCopiado.getDescansoMinutos());
-        assertEquals("Full body A", original.getSesiones().get(0).getNombre());
+        assertEquals("Full body A", semana1(original).get(0).getNombre());
         assertEquals(2, original.getAsignacionesActivas());
+    }
+
+    @Test
+    void duplicar_copia_todas_las_semanas_con_su_nota() {
+        PlantillaPlan original = plantillaExistente(5L, "Fuerza base", 0);
+        SesionPlantilla descarga = new SesionPlantilla("Descarga");
+        descarga.agregarEjercicios(List.of(new EjercicioSesion(catalogo.get(3L), 2, 5, null, null, null, 4)));
+        SemanaPlantilla semana2 = new SemanaPlantilla("Semana de descarga");
+        semana2.agregarSesiones(List.of(descarga));
+        original.agregarSemanas(List.of(semana2));
+        when(plantillaRepository.findByIdAndActivaTrue(5L)).thenReturn(Optional.of(original));
+
+        PlantillaResponse copia = plantillaService.duplicarPlantilla(5L);
+
+        assertEquals(2, copia.getSemanas().size());
+        assertEquals("Semana base", copia.getSemanas().get(0).getNota());
+        assertEquals(2, copia.getSemanas().get(1).getNumero());
+        assertEquals("Semana de descarga", copia.getSemanas().get(1).getNota());
+        assertEquals("Descarga", copia.getSemanas().get(1).getSesiones().get(0).getNombre());
+        assertEquals(4, copia.getSemanas().get(1).getSesiones().get(0).getEjercicios().get(0).getRirObjetivo());
     }
 
     @Test
@@ -376,7 +505,7 @@ class PlantillaServiceTest {
         List<PlantillaResponse> lista = plantillaService.listarPlantillas();
 
         assertEquals(List.of("B", "A"), lista.stream().map(PlantillaResponse::getNombre).toList());
-        assertEquals(1, lista.get(0).getSesiones().get(0).getEjercicios().size());
+        assertEquals(1, semana1(lista.get(0)).get(0).getEjercicios().size());
     }
 
     // --- Plantillas inactivas ---

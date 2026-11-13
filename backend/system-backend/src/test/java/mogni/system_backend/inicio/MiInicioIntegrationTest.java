@@ -38,7 +38,6 @@ import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
 import mogni.system_backend.inscripcion.entity.Inscripcion;
 import mogni.system_backend.membresia.entity.Membresia;
 import mogni.system_backend.membresia.repository.MembresiaRepository;
-import mogni.system_backend.plan.entity.MetodoPlan;
 import mogni.system_backend.plan.entity.PlanAsignado;
 import mogni.system_backend.plan.repository.PlanAsignadoRepository;
 import mogni.system_backend.plantilla.entity.NivelPlantilla;
@@ -190,9 +189,8 @@ class MiInicioIntegrationTest {
         plan.setNombre("Hipertrofia - Progresivo");
         plan.setNivel(NivelPlantilla.INTERMEDIO);
         plan.setObjetivo(ObjetivoPlantilla.HIPERTROFIA);
-        plan.setMetodo(MetodoPlan.ULTRA_MASS);
-        plan.setMesociclo("Hipertrofia");
-        plan.setCantidadSemanas(5);
+        // Cinco semanas: la cantidad sale de la fecha fin
+        plan.setFechaFin(plan.getFechaAsignacion().plusWeeks(5).minusDays(1));
         return planRepository.save(plan);
     }
 

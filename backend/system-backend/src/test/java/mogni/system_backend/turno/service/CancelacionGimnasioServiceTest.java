@@ -144,6 +144,20 @@ class CancelacionGimnasioServiceTest {
     }
 
     @Test
+    void conElPeriodoSiguienteYaPagoLaClaseValeHastaElFinDeLaCuotaDelTurno() {
+        Turno turno = turno(HOY, "11:30");
+        // La cuota va del 01/10 al 01/11 y ya pagó la siguiente (01/11 al 01/12)
+        Alumno alumno = alumnoConCuotaDesde(1L, LocalDate.of(2026, 10, 1));
+        alumno.buscarInscripcionActiva().orElseThrow().agregarCuota(LocalDate.of(2026, 11, 1));
+        reservar(alumno, turno);
+        when(generacionTurnosService.obtenerOGenerarTurnos(HOY)).thenReturn(List.of(turno));
+
+        service.cancelarTurno(HOY, "11:30", AHORA);
+
+        assertEquals(LocalDate.of(2026, 11, 1), clasesExtra.get(0).getVigenteHasta());
+    }
+
+    @Test
     void conLaCuotaVencidaLaClaseExtraNoTerminaAntesDelDiaDelTurno() {
         Turno turno = turno(HOY, "11:30");
         // La cuota venció ayer (12/10): hoy está vencida y todavía podía reservar

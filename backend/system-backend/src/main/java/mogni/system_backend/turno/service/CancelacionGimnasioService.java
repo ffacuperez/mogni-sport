@@ -14,7 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.config.ZonaHoraria;
-import mogni.system_backend.cuota.entity.Cuota;
+import mogni.system_backend.cuota.dto.PeriodoCuota;
+import mogni.system_backend.cuota.service.CuotaService;
 import mogni.system_backend.exception.ConflictoException;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.notificacion.entity.AvisoTurno;
@@ -183,15 +184,16 @@ public class CancelacionGimnasioService {
     }
 
     /**
-     * La clase extra vale desde el lunes de la semana del turno hasta el vencimiento de la cuota que el alumno tiene
-     * paga (la última, contando un cambio de membresía ya pagado): es la clase de ese período que no pudo hacer. Nunca
-     * termina antes del día del turno cancelado. Sin cuotas (datos viejos), la semana del turno y la siguiente.
+     * La clase a recuperar vale desde el lunes de la semana del turno hasta el fin de la cuota en la que estaba el turno
+     * cancelado: es la clase de ese período que no pudo hacer. Aunque ya haya pagado el período siguiente, no pasa a
+     * ese período. Si ninguna cuota cubre el día del turno (la cuota ya había vencido), vale solo ese día. Sin cuotas
+     * (datos viejos), la semana del turno y la siguiente.
      */
     static LocalDate vigenciaClaseExtra(Alumno alumno, LocalDate fechaTurno) {
-        LocalDate hasta = alumno.buscarUltimaCuotaPagada()
-                .map(Cuota::getFechaVencimiento)
-                .orElseGet(() -> fechaTurno.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusDays(13));
-        return hasta.isBefore(fechaTurno) ? fechaTurno : hasta;
+        if (alumno.buscarUltimaCuotaPagada().isEmpty()) {
+            return fechaTurno.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusDays(13);
+        }
+        return CuotaService.periodoQueCubre(alumno, fechaTurno).map(PeriodoCuota::hasta).orElse(fechaTurno);
     }
 
     /**

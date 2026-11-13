@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { cx, FOCUS } from '../../shared/components/clases';
 import { Badge, Button, Panel } from '../../shared/components/ui';
-import { completarSesion, textoDetalleSesion } from '../services/progresoService';
+import { completarSesion, textoDetalleSesion, tituloSesion } from '../services/progresoService';
 import EjercicioIndicado from './EjercicioIndicado';
 import EjercicioRegistrable from './EjercicioRegistrable';
 import RegistrarEjercicioModal from './RegistrarEjercicioModal';
@@ -49,7 +49,7 @@ export default function AcordeonSesion({ sesion, planId, semana, onActualizada }
         className={cx('flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-lg py-3 pl-4 pr-3 text-left', FOCUS)}
       >
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="text-sm font-bold text-ink">Sesión {sesion.numero}</span>
+          <span className="text-sm font-bold text-ink">{tituloSesion(sesion.nombre, sesion.numero)}</span>
           <span className="text-xs text-ink-soft">{textoDetalleSesion(sesion)}</span>
         </span>
         <Badge tone={tono} className="shrink-0 gap-1">

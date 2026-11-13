@@ -630,6 +630,27 @@ class MiProgresoIntegrationTest {
     }
 
     @Test
+    void las_sesiones_registradas_traen_el_nombre_de_la_sesion() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate inicio = ZonaHoraria.hoy().minusDays(8);
+        PlanAsignado plan = planBasico(alumno, inicio);
+        SesionPlan conNombre = new SesionPlan("Tren inferior A");
+        conNombre.agregarEjercicios(List.of(ejercicio("Sentadilla", 4, 15, 18, null, 3, null)));
+        plan.reemplazarSesiones(List.of(conNombre, sesion(ejercicio("Remo", 3, 10, 12, null, 2, null))));
+        plan.setCantidadSemanas(2);
+        planRepository.save(plan);
+        RegistroSesion conNombreRegistrada = registrarConEjercicios(plan, 1, 1, inicio, "40", 2, null);
+        registrarConEjercicios(plan, 1, 2, inicio.plusDays(1), "40", 2, null);
+
+        JsonNode sesiones = sesionesDe(alumno, plan.getId()).cuerpo();
+
+        // De la más reciente a la más antigua: primero la sesión 2, que no tiene nombre
+        assertTrue(sesiones.get(0).path("nombreSesion").isNull());
+        assertEquals("Tren inferior A", sesiones.get(1).path("nombreSesion").asString());
+        assertEquals("Tren inferior A", sesionDe(alumno, conNombreRegistrada.getId()).cuerpo().path("nombreSesion").asString());
+    }
+
+    @Test
     void las_sesiones_de_un_plan_finalizado_se_pueden_consultar() throws Exception {
         Alumno alumno = alumno();
         LocalDate hoy = ZonaHoraria.hoy();

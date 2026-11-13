@@ -5,7 +5,7 @@ import { Badge, Panel } from '../../shared/components/ui';
 import { textoRepeticiones } from '../../plantilla/services/plantillasService';
 import { partesFecha } from '../../turno/services/turnosService';
 import { ESTADOS } from '../services/estadosSesion';
-import { textoDescansoSegundos, textoDiaMes } from '../services/progresoService';
+import { textoDescansoSegundos, textoDiaMes, tituloSesion } from '../services/progresoService';
 
 function Chip({ children }) {
   return <span className="rounded bg-row-hover px-2 py-0.5 text-xs font-medium tabular-nums text-ink-soft">{children}</span>;
@@ -14,7 +14,7 @@ function Chip({ children }) {
 /** "Lun 26/10 · Tren inferior A": la fecha si ya se empezó, y el nombre de la sesión si tiene. */
 function textoSubtitulo(sesion) {
   const fecha = sesion.fechaRegistro && `${partesFecha(sesion.fechaRegistro).dia} ${textoDiaMes(sesion.fechaRegistro)}`;
-  return [fecha, sesion.nombre].filter(Boolean).join(' · ');
+  return fecha;
 }
 
 /**
@@ -31,7 +31,7 @@ export default function TarjetaSesionPanel({ sesion, onVerRegistro }) {
     <Panel as="article" className="flex flex-col p-4">
       <header className="flex items-start justify-between gap-2 border-b border-line pb-3">
         <div className="min-w-0">
-          <h3 className="text-base font-semibold text-ink">Sesión {sesion.numero}</h3>
+          <h3 className="text-base font-semibold text-ink">{tituloSesion(sesion.nombre, sesion.numero)}</h3>
           {subtitulo && <p className="text-sm text-ink-soft">{subtitulo}</p>}
         </div>
         <Badge tone={tono} className="shrink-0 gap-1">

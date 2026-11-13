@@ -6,7 +6,7 @@ import { Badge, Cargando, Drawer } from '../../shared/components/ui';
 import { textoRepeticiones } from '../../plantilla/services/plantillasService';
 import ErrorConsulta from '../components/ErrorConsulta';
 import { useProgreso } from '../services/ProgresoContext';
-import { serieDeReferencia, textoFechaCompleta, tituloPlan } from '../services/progresoService';
+import { serieDeReferencia, textoFechaCompleta, tituloPlan, tituloSesion } from '../services/progresoService';
 import { useSesionAbierta } from './useSesionAbierta';
 
 const numero = (valor, decimales = 2) => (valor == null ? '—' : Number(valor).toLocaleString('es-AR', { maximumFractionDigits: decimales }));
@@ -166,7 +166,7 @@ function DrawerSesion({ sesionId, alumno, onClose }) {
   const header = sesion ? (
     <>
       <h2 className="text-xl font-semibold text-ink">
-        Sesión {sesion.numeroSesion} · Semana {sesion.semana} · {textoFechaCompleta(sesion.fecha)}
+        {tituloSesion(sesion.nombreSesion, sesion.numeroSesion)} · Semana {sesion.semana} · {textoFechaCompleta(sesion.fecha)}
       </h2>
       <p className="mt-0.5 text-sm text-ink-soft">{alumno.nombre} {alumno.apellido} · {tituloPlan(sesion.plan)}</p>
       <div className="mt-3 flex flex-wrap gap-2">

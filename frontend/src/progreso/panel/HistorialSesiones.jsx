@@ -6,7 +6,7 @@ import { cx, FOCUS } from '../../shared/components/clases';
 import { Badge, Cargando, EmptyRow, Panel, Row, Table } from '../../shared/components/ui';
 import ErrorConsulta from '../components/ErrorConsulta';
 import { useProgreso } from '../services/ProgresoContext';
-import { nombreCortoPlan, textoFechaCompleta, textoRangoPlan } from '../services/progresoService';
+import { nombreCortoPlan, textoFechaCompleta, textoRangoPlan, tituloSesion } from '../services/progresoService';
 import EstadoVacioPanel, { ContenidoVacio } from './EstadoVacioPanel';
 import { useSesionAbierta } from './useSesionAbierta';
 
@@ -150,7 +150,7 @@ export default function HistorialSesiones() {
               <Row key={sesion.id} onActivate={() => abrir(sesion.id)} title="Ver lo registrado en la sesión">
                 <td className="py-3 pl-4 pr-3 font-semibold tabular-nums">{textoFechaCompleta(sesion.fecha)}</td>
                 <td className="px-3">{nombreCortoPlan(plan)} · Semana {sesion.semana}</td>
-                <td className="px-3">Sesión {sesion.numeroSesion}</td>
+                <td className="px-3">{tituloSesion(sesion.nombreSesion, sesion.numeroSesion)}</td>
                 <td className="px-3"><EjerciciosRegistrados sesion={sesion} /></td>
                 <td className="pl-3 pr-4 text-right">
                   <span className="inline-flex items-center gap-0.5 font-semibold text-primary">

@@ -90,6 +90,7 @@ const resumenFromApi = (p) => ({
 const sesionDetalleFromApi = (s) => ({
   semana: s.semana,
   numeroSesion: s.numeroSesion,
+  nombreSesion: s.nombreSesion ?? null,
   fecha: s.fecha,
   plan: { nombre: s.nombrePlan, metodo: s.metodo ?? null, mesociclo: s.mesociclo ?? null },
   ejercicios: s.ejercicios.map((e) => ({
@@ -127,6 +128,7 @@ export function crearConsultasProgreso(base) {
       id: s.id,
       semana: s.semana,
       numeroSesion: s.numeroSesion,
+      nombreSesion: s.nombreSesion ?? null,
       fecha: s.fecha,
       ejerciciosRegistrados: s.ejerciciosRegistrados,
       // Los que tenía indicados al empezarla; si el backend no lo manda, se asume completa
@@ -216,6 +218,9 @@ export const textoRangoPlan = (plan) => `${textoDiaMes(plan.fechaInicio)} – ${
 export const textoSemanas = (cantidad) => (cantidad === 1 ? '1 semana' : `${cantidad} semanas`);
 
 /** "Lun 26/10 · 5 ejercicios" si está registrada; si no, "5 ejercicios". */
+/** El nombre que el profe le puso a la sesión ("Pecho + tríceps"); si no tiene, "Sesión 2". */
+export const tituloSesion = (nombre, numero) => nombre?.trim() || `Sesión ${numero}`;
+
 export function textoDetalleSesion(sesion) {
   const cantidad = sesion.ejercicios.length === 1 ? '1 ejercicio' : `${sesion.ejercicios.length} ejercicios`;
   if (!sesion.fechaRegistro) return cantidad;

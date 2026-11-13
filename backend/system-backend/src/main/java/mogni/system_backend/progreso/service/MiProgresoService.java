@@ -154,6 +154,7 @@ public class MiProgresoService {
                         registro.getId(),
                         registro.getSemana(),
                         registro.getNumeroSesion(),
+                        nombreDeSesion(registro),
                         registro.getFecha(),
                         // La copia de lo indicado se guarda entera al empezar la sesión (HU-269): el total sale de ahí y no
                         // del plan de hoy, que el profe pudo cambiar. Limitación: los registros anteriores a HU-269 solo
@@ -171,6 +172,7 @@ public class MiProgresoService {
                 registro.getId(),
                 registro.getSemana(),
                 registro.getNumeroSesion(),
+                nombreDeSesion(registro),
                 registro.getFecha(),
                 plan.getNombre(),
                 plan.getMetodo(),
@@ -394,15 +396,20 @@ public class MiProgresoService {
                         .toList());
     }
 
-    /** Una sesión ya empezada; sus ejercicios salen de la copia que se guardó al empezarla. Solo la usa el alumno. */
-    private SesionSemanaResponse mapearRegistro(RegistroSesion registro, LocalDate hoy) {
-        String nombre = registro.getPlan().getSesiones().stream()
+    /** El nombre que el profe le puso a la sesión en el plan; null si no tiene. */
+    private static String nombreDeSesion(RegistroSesion registro) {
+        return registro.getPlan().getSesiones().stream()
                 .filter(sesion -> sesion.getNumero() == registro.getNumeroSesion())
                 .findFirst()
                 .map(SesionPlan::getNombre)
+                .filter(nombre -> !nombre.isBlank())
                 .orElse(null);
-        return mapearSesion(registro.getPlan(), registro.getSemana(), registro.getNumeroSesion(), nombre, List.of(),
-                registro, hoy, true);
+    }
+
+    /** Una sesión ya empezada; sus ejercicios salen de la copia que se guardó al empezarla. Solo la usa el alumno. */
+    private SesionSemanaResponse mapearRegistro(RegistroSesion registro, LocalDate hoy) {
+        return mapearSesion(registro.getPlan(), registro.getSemana(), registro.getNumeroSesion(),
+                nombreDeSesion(registro), List.of(), registro, hoy, true);
     }
 
     /**

@@ -1,10 +1,13 @@
 package mogni.system_backend.plan.service;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -22,22 +25,30 @@ import mogni.system_backend.plan.dto.AsignarPlanDesdeCeroRequest;
 import mogni.system_backend.plan.dto.AsignarPlanDesdePlantillaRequest;
 import mogni.system_backend.plan.dto.PlanAsignadoResponse;
 import mogni.system_backend.plan.dto.PlanRequest;
+import mogni.system_backend.plan.dto.SesionConRegistroResponse;
 import mogni.system_backend.plan.entity.EjercicioSesionPlan;
 import mogni.system_backend.plan.entity.EstadoPlanAsignado;
 import mogni.system_backend.plan.entity.PlanAsignado;
+import mogni.system_backend.plan.entity.SemanaPlan;
 import mogni.system_backend.plan.entity.SesionPlan;
 import mogni.system_backend.plan.repository.PlanAsignadoRepository;
 import mogni.system_backend.plantilla.dto.EjercicioSesionResponse;
+import mogni.system_backend.plantilla.dto.SemanaRequest;
+import mogni.system_backend.plantilla.dto.SemanaResponse;
 import mogni.system_backend.plantilla.dto.SesionPlantillaResponse;
 import mogni.system_backend.plantilla.dto.SesionRequest;
 import mogni.system_backend.plantilla.entity.PlantillaPlan;
 import mogni.system_backend.plantilla.repository.PlantillaPlanRepository;
 import mogni.system_backend.plantilla.service.CatalogoEjercicios;
+import mogni.system_backend.plantilla.service.ReglasSemanas;
+import mogni.system_backend.progreso.entity.RegistroSesion;
+import mogni.system_backend.progreso.repository.RegistroSesionRepository;
 
 /**
- * HU-266: asignar un plan de entrenamiento a un alumno, copiando una plantilla o armándolo desde cero, por una
- * cantidad de semanas (de ahí sale la fecha fin). Un alumno tiene como mucho un plan activo (ACTIVO y sin vencer, ver {@link PlanAsignado#estaVigente}): para
- * asignarle otro hay que finalizar el actual o esperar a que venza.
+ * HU-266: asignar un plan de entrenamiento a un alumno, copiando una plantilla o armándolo desde cero. El plan dura
+ * las semanas que tiene (de ahí sale la fecha fin) y cada semana tiene sus propias sesiones. Un alumno tiene como
+ * mucho un plan activo (ACTIVO y sin vencer, ver {@link PlanAsignado#estaVigente}): para asignarle otro hay que
+ * finalizar el actual o esperar a que venza.
  * Los métodos públicos usan el día de hoy en Argentina; los que reciben "hoy" son para probarlos con cualquier fecha.
  */
 @Service
@@ -46,13 +57,16 @@ public class PlanAsignadoService {
     private final PlanAsignadoRepository planRepository;
     private final AlumnoRepository alumnoRepository;
     private final PlantillaPlanRepository plantillaRepository;
+    private final RegistroSesionRepository registroRepository;
     private final CatalogoEjercicios catalogoEjercicios;
 
     public PlanAsignadoService(PlanAsignadoRepository planRepository, AlumnoRepository alumnoRepository,
-                               PlantillaPlanRepository plantillaRepository, EjercicioRepository ejercicioRepository) {
+                               PlantillaPlanRepository plantillaRepository, EjercicioRepository ejercicioRepository,
+                               RegistroSesionRepository registroRepository) {
         this.planRepository = planRepository;
         this.alumnoRepository = alumnoRepository;
         this.plantillaRepository = plantillaRepository;
+        this.registroRepository = registroRepository;
         this.catalogoEjercicios = new CatalogoEjercicios(ejercicioRepository);
     }
 
@@ -74,22 +88,19 @@ public class PlanAsignadoService {
         return mapearAResponse(buscarPlanOLanzarError(id), ZonaHoraria.hoy());
     }
 
-    /** Copia profunda de la plantilla: el plan del alumno y la plantilla quedan independientes. */
+    /** Copia profunda de la plantilla, con todas sus semanas: el plan del alumno y la plantilla quedan independientes. */
     @Transactional
     public PlanAsignadoResponse asignarDesdePlantilla(AsignarPlanDesdePlantillaRequest request) {
         return asignarDesdePlantilla(request, ZonaHoraria.hoy());
     }
 
     public PlanAsignadoResponse asignarDesdePlantilla(AsignarPlanDesdePlantillaRequest request, LocalDate hoy) {
-        validarSemanas(request.getCantidadSemanas(), 1);
         Alumno alumno = alumnoSinPlanActivo(request.getAlumnoId(), hoy);
         PlantillaPlan plantilla = plantillaRepository.findByIdAndActivaTrue(request.getPlantillaId())
                 .orElseThrow(() -> new RecursoNoEncontradoException(
                         "No existe una plantilla con id " + request.getPlantillaId()));
 
-        PlanAsignado copia = PlanAsignado.copiaDe(plantilla, alumno, hoy);
-        copia.definirDuracion(request.getCantidadSemanas());
-        PlanAsignado plan = planRepository.save(copia);
+        PlanAsignado plan = planRepository.save(PlanAsignado.copiaDe(plantilla, alumno, hoy));
         plantillaRepository.sumarAsignacion(plantilla.getId());
         return mapearAResponse(plan, hoy);
     }
@@ -101,17 +112,28 @@ public class PlanAsignadoService {
     }
 
     public PlanAsignadoResponse asignarDesdeCero(AsignarPlanDesdeCeroRequest request, LocalDate hoy) {
-        validarSemanas(request.getCantidadSemanas(), 1);
+        ReglasSemanas.validar(request.getSemanas(), "El plan");
         Alumno alumno = alumnoSinPlanActivo(request.getAlumnoId(), hoy);
         PlanAsignado plan = new PlanAsignado(alumno, hoy);
-        aplicarDatos(plan, request, Set.of());
-        plan.definirDuracion(request.getCantidadSemanas());
+        aplicarDatos(plan, request);
+        Map<Long, Ejercicio> catalogo = catalogoEjercicios.buscar(ReglasSemanas.sesiones(request.getSemanas()), Set.of());
+        plan.agregarSemanas(request.getSemanas().stream()
+                .map(semana -> crearSemana(semana, catalogo))
+                .toList());
         return mapearAResponse(planRepository.save(plan), hoy);
     }
 
     /**
-     * Reemplaza nombre, nivel, objetivo, sesiones y semanas (y con ellas la fecha fin) del plan. No toca la plantilla de la que salió.
-     * Solo el plan activo: uno finalizado o vencido ya no se modifica.
+     * Modifica el plan activo; uno finalizado o vencido ya no se modifica. No toca la plantilla de la que salió.
+     * Llega el plan completo, pero no todo se aplica:
+     * <ul>
+     * <li>Las semanas que ya pasaron quedan como están: lo que venga para ellas se ignora.</li>
+     * <li>En la semana en curso, las sesiones que el alumno ya empezó o registró también quedan como están. Por eso
+     * esa semana no puede tener menos sesiones que el mayor número de sesión con registro.</li>
+     * <li>El resto de la semana en curso y las semanas futuras se reemplazan por lo recibido.</li>
+     * </ul>
+     * El plan no puede terminar antes de la semana en curso, y la fecha fin se recalcula con la cantidad de semanas.
+     * Los registros del alumno no se tocan: están en otras tablas y apuntan por número de semana y de sesión.
      */
     @Transactional
     public PlanAsignadoResponse actualizarPlan(Long id, PlanRequest request) {
@@ -123,15 +145,51 @@ public class PlanAsignadoService {
         if (!plan.estaVigente(hoy)) {
             throw new ConflictoException("El plan está finalizado y ya no se puede modificar");
         }
-        // La semana en curso no se puede recortar: el plan termina, como pronto, al final de esta semana
-        validarSemanas(request.getCantidadSemanas(), plan.semanaEn(hoy));
-        // Un ejercicio que se dio de baja del catálogo puede quedar en el plan si ya estaba
-        Set<Long> ejerciciosQueYaTenia = plan.getSesiones().stream()
-                .flatMap(sesion -> sesion.getEjercicios().stream())
-                .map(ejercicioSesion -> ejercicioSesion.getEjercicio().getId())
-                .collect(Collectors.toSet());
-        aplicarDatos(plan, request, ejerciciosQueYaTenia);
-        plan.definirDuracion(request.getCantidadSemanas());
+        ReglasSemanas.validar(request.getSemanas(), "El plan");
+        int enCurso = plan.semanaActual(hoy);
+        if (request.getSemanas().size() < enCurso) {
+            throw new RegistroInvalidoException("El plan ya va por la semana " + enCurso
+                    + ": no se pueden eliminar la semana en curso ni las anteriores");
+        }
+
+        // Sesiones de la semana en curso que el alumno ya empezó o registró: se conservan como están
+        Map<Integer, SesionPlan> conRegistro = sesionesConRegistro(plan, enCurso);
+        SemanaRequest semanaEnCurso = request.getSemanas().get(enCurso - 1);
+        int ultimaConRegistro = conRegistro.keySet().stream().max(Integer::compare).orElse(0);
+        if (semanaEnCurso.getSesiones().size() < ultimaConRegistro) {
+            throw new RegistroInvalidoException("En la semana " + enCurso + " no se pueden quitar las sesiones que "
+                    + plan.getAlumno().getNombre() + " ya empezó o registró");
+        }
+        // Copias hechas antes de borrar la semana: van en la semana nueva con el mismo número
+        Map<Integer, SesionPlan> conservadas = conRegistro.values().stream()
+                .collect(Collectors.toMap(SesionPlan::getNumero, SesionPlan::copiar));
+
+        // Solo se validan los ejercicios de lo que se va a aplicar. Uno que se dio de baja del catálogo puede quedar
+        // en el plan si ya estaba.
+        List<SemanaRequest> editables = request.getSemanas().subList(enCurso - 1, request.getSemanas().size());
+        List<SesionRequest> sesionesNuevas = new ArrayList<>();
+        for (int i = 0; i < editables.size(); i++) {
+            List<SesionRequest> sesiones = editables.get(i).getSesiones();
+            for (int numero = 1; numero <= sesiones.size(); numero++) {
+                if (i > 0 || !conRegistro.containsKey(numero)) {
+                    sesionesNuevas.add(sesiones.get(numero - 1));
+                }
+            }
+        }
+        Map<Long, Ejercicio> catalogo = catalogoEjercicios.buscar(sesionesNuevas, ejerciciosDe(plan));
+
+        plan.getSemanas().removeIf(semana -> semana.getNumero() >= enCurso);
+        // Al hacer flush, Hibernate ejecuta los INSERT antes que los DELETE. Sin este flush, la semana nueva se
+        // insertaría mientras la vieja con el mismo número todavía existe y chocaría con la restricción única
+        // (plan, número). Así los DELETE de las semanas que se reemplazan salen primero.
+        planRepository.flush();
+
+        aplicarDatos(plan, request);
+        List<SemanaPlan> nuevas = new ArrayList<>();
+        for (int i = 0; i < editables.size(); i++) {
+            nuevas.add(crearSemana(editables.get(i), catalogo, i == 0 ? conservadas : Map.of()));
+        }
+        plan.agregarSemanas(nuevas);
         return mapearAResponse(planRepository.save(plan), hoy);
     }
 
@@ -195,23 +253,6 @@ public class PlanAsignadoService {
         return planRepository.save(plan);
     }
 
-    /** Entre el mínimo (1 al asignar, la semana en curso al modificar) y un año. */
-    private static void validarSemanas(Integer semanas, int minimo) {
-        if (semanas == null) {
-            throw new RegistroInvalidoException("La cantidad de semanas es obligatoria");
-        }
-        if (semanas < 1) {
-            throw new RegistroInvalidoException("El plan tiene que durar al menos una semana");
-        }
-        if (semanas < minimo) {
-            throw new RegistroInvalidoException("El plan ya va por la semana " + minimo
-                    + ": no puede durar menos de " + minimo + " semanas");
-        }
-        if (semanas > PlanAsignado.MAXIMO_SEMANAS) {
-            throw new RegistroInvalidoException("El plan no puede durar más de 52 semanas");
-        }
-    }
-
     /**
      * El alumno, bloqueado hasta el fin de la transacción: dos asignaciones al mismo alumno a la vez se hacen una
      * detrás de otra, así la segunda ya ve el plan activo de la primera y no quedan dos. Si su plan venció, se cierra
@@ -234,28 +275,52 @@ public class PlanAsignadoService {
         return alumno;
     }
 
-    private void aplicarDatos(PlanAsignado plan, PlanRequest request, Set<Long> ejerciciosPermitidosInactivos) {
-        if (request.getSesiones() == null || request.getSesiones().isEmpty()) {
-            throw new RegistroInvalidoException("El plan tiene que tener al menos una sesión");
-        }
-        Map<Long, Ejercicio> catalogo = catalogoEjercicios.buscar(request.getSesiones(), ejerciciosPermitidosInactivos);
-
+    private static void aplicarDatos(PlanAsignado plan, PlanRequest request) {
         plan.setNombre(request.getNombre().trim());
         plan.setNivel(request.getNivel());
         plan.setObjetivo(request.getObjetivo());
-        plan.reemplazarSesiones(request.getSesiones().stream()
-                .map(sesionRequest -> crearSesion(sesionRequest, catalogo))
-                .toList());
     }
 
-    private SesionPlan crearSesion(SesionRequest request, Map<Long, Ejercicio> catalogo) {
-        if (request.getEjercicios() == null || request.getEjercicios().isEmpty()) {
-            throw new RegistroInvalidoException("Cada sesión tiene que tener al menos un ejercicio");
+    /** Los ejercicios que ya tiene el plan, en cualquier semana. */
+    private static Set<Long> ejerciciosDe(PlanAsignado plan) {
+        return plan.getSemanas().stream()
+                .flatMap(semana -> semana.getSesiones().stream())
+                .flatMap(sesion -> sesion.getEjercicios().stream())
+                .map(ejercicio -> ejercicio.getEjercicio().getId())
+                .collect(Collectors.toSet());
+    }
+
+    /** Las sesiones de esa semana que el alumno ya empezó o registró, por número. */
+    private Map<Integer, SesionPlan> sesionesConRegistro(PlanAsignado plan, int semana) {
+        Optional<SemanaPlan> actual = plan.buscarSemana(semana);
+        return registroRepository.findByPlanIdAndSemana(plan.getId(), semana).stream()
+                .map(registro -> actual.flatMap(s -> s.buscarSesion(registro.getNumeroSesion())))
+                .flatMap(Optional::stream)
+                .collect(Collectors.toMap(SesionPlan::getNumero, Function.identity()));
+    }
+
+    private SemanaPlan crearSemana(SemanaRequest request, Map<Long, Ejercicio> catalogo) {
+        return crearSemana(request, catalogo, Map.of());
+    }
+
+    /** Una semana con las sesiones del request, salvo las de {@code fijas}, que se ponen en su mismo número. */
+    private SemanaPlan crearSemana(SemanaRequest request, Map<Long, Ejercicio> catalogo, Map<Integer, SesionPlan> fijas) {
+        SemanaPlan semana = new SemanaPlan(CatalogoEjercicios.textoOpcional(request.getNota()));
+        List<SesionPlan> sesiones = new ArrayList<>();
+        for (int numero = 1; numero <= request.getSesiones().size(); numero++) {
+            SesionPlan fija = fijas.get(numero);
+            sesiones.add(fija != null ? fija : crearSesion(request.getSesiones().get(numero - 1), catalogo));
         }
+        semana.agregarSesiones(sesiones);
+        return semana;
+    }
+
+    private static SesionPlan crearSesion(SesionRequest request, Map<Long, Ejercicio> catalogo) {
         SesionPlan sesion = new SesionPlan(CatalogoEjercicios.nombreDeSesion(request));
         sesion.agregarEjercicios(request.getEjercicios().stream()
-                .map(e -> new EjercicioSesionPlan(catalogo.get(e.getEjercicioId()), e.getSeries(), e.getRepeticiones(),
-                        e.getRepeticionesMax(), e.getDescansoMinutos(), e.getPesoSugerido(), e.getRirObjetivo()))
+                .map(e -> CatalogoEjercicios.conIndicaciones(new EjercicioSesionPlan(catalogo.get(e.getEjercicioId()),
+                        e.getSeries(), e.getRepeticiones(), e.getRepeticionesMax(), e.getDescansoMinutos(),
+                        e.getPesoSugerido(), e.getRirObjetivo()), e))
                 .toList());
         return sesion;
     }
@@ -268,6 +333,14 @@ public class PlanAsignadoService {
     /** Estado y fecha de finalización como los ve la gente: un plan vencido figura FINALIZADO el día de su fecha fin. */
     private PlanAsignadoResponse mapearAResponse(PlanAsignado plan, LocalDate hoy) {
         Alumno alumno = plan.getAlumno();
+        boolean vigente = plan.estaVigente(hoy);
+        Integer enCurso = vigente ? plan.semanaActual(hoy) : null;
+        List<SesionConRegistroResponse> conRegistro = enCurso == null ? List.of()
+                : registroRepository.findByPlanIdAndSemana(plan.getId(), enCurso).stream()
+                        .sorted(Comparator.comparingInt(RegistroSesion::getNumeroSesion))
+                        .map(registro -> new SesionConRegistroResponse(registro.getSemana(), registro.getNumeroSesion(),
+                                registro.isCompletada(), registro.getFecha()))
+                        .toList();
         return new PlanAsignadoResponse(
                 plan.getId(),
                 alumno.getId(),
@@ -280,11 +353,21 @@ public class PlanAsignadoService {
                 plan.getFechaAsignacion(),
                 plan.fechaFinalizacionAl(hoy),
                 plan.getFechaFin(),
-                plan.getCantidadSemanas(),
-                plan.getSesiones().stream().map(this::mapearSesion).toList());
+                plan.cantidadSemanas(),
+                enCurso,
+                plan.getSemanas().stream().map(PlanAsignadoService::mapearSemana).toList(),
+                conRegistro);
     }
 
-    private SesionPlantillaResponse mapearSesion(SesionPlan sesion) {
+    private static SemanaResponse mapearSemana(SemanaPlan semana) {
+        return new SemanaResponse(
+                semana.getId(),
+                semana.getNumero(),
+                semana.getNota(),
+                semana.getSesiones().stream().map(PlanAsignadoService::mapearSesion).toList());
+    }
+
+    private static SesionPlantillaResponse mapearSesion(SesionPlan sesion) {
         return new SesionPlantillaResponse(
                 sesion.getId(),
                 sesion.getNumero(),

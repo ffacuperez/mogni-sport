@@ -5,7 +5,7 @@ import { cx, FOCUS } from '../../shared/components/clases';
 import { Panel } from '../../shared/components/ui';
 import { partesFecha } from '../../turno/services/turnosService';
 import { useProgreso } from '../services/ProgresoContext';
-import { textoDiaMes } from '../services/progresoService';
+import { textoDiaMes, tituloSesion } from '../services/progresoService';
 
 /** Una sesión registrada del listado: fecha, nombre y cantidad de ejercicios. Abre su detalle. */
 export default function ItemSesion({ sesion }) {
@@ -22,7 +22,7 @@ export default function ItemSesion({ sesion }) {
         <span className="mt-0.5 text-base font-bold leading-none tabular-nums">{textoDiaMes(sesion.fecha)}</span>
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-bold text-ink">Sesión {sesion.numeroSesion}</p>
+        <p className="text-sm font-bold text-ink">{tituloSesion(sesion.nombreSesion, sesion.numeroSesion)}</p>
         <p className="text-xs text-ink-soft">{cantidad}</p>
       </div>
       <ChevronRight className="h-5 w-5 shrink-0 text-ink-muted" />

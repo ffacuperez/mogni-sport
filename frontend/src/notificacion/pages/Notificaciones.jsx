@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useOutletContext } from 'react-router';
-import { Bell, BellOff, CalendarCheck, CalendarDays, CalendarX, ChevronLeft, CircleAlert, CreditCard, Info, TriangleAlert } from 'lucide-react';
+import { Bell, BellOff, CalendarDays, CalendarX, ChevronLeft, CircleAlert, CreditCard, Info, TriangleAlert } from 'lucide-react';
 
 import { Cargando } from '../../shared/components/ui';
 import { cx, FOCUS } from '../../shared/components/clases';
@@ -19,7 +19,6 @@ const ESTILOS = {
   CUOTA_POR_VENCER: { icono: TriangleAlert, tarjeta: 'border-warning bg-warning-bg', burbuja: 'bg-card text-warning-text' },
   CUOTA_VENCIDA: { icono: CircleAlert, tarjeta: 'border-error bg-error-bg', burbuja: 'bg-card text-error' },
   TURNO_CANCELADO: { icono: CalendarX, tarjeta: 'border-info bg-info-bg', burbuja: 'bg-card text-info' },
-  TURNO_REACTIVADO: { icono: CalendarCheck, tarjeta: 'border-info bg-info-bg', burbuja: 'bg-card text-info' },
 };
 
 // Fecha local en formato "2026-10-14", como las manda el backend

@@ -79,12 +79,16 @@ public class ConsultaTurnosService {
         List<Turno> turnosManiana = generacionTurnosService.obtenerOGenerarTurnos(maniana);
         List<Turno> turnosDelDia = seleccionada.equals(hoy) ? turnosHoy : turnosManiana;
 
-        // Reservas activas del alumno en la semana (lunes a domingo) del día seleccionado
+        // Reservas del alumno que cuentan en la semana (lunes a domingo) del día seleccionado
         List<Reserva> reservasDeLaSemana = ReglasReserva.reservasDeLaSemana(reservaRepository, alumno.getId(), seleccionada);
         int frecuenciaSemanal = ReglasReserva.frecuenciaSemanal(alumno);
-        int turnosRestantes = Math.max(0, frecuenciaSemanal - reservasDeLaSemana.size());
+        LocalDate lunes = ReglasReserva.lunesDe(seleccionada);
+        int turnosRestantes = ReglasReserva.turnosQueQuedan(frecuenciaSemanal, reservasDeLaSemana.size(),
+                claseExtraRepository.contarDeLaSemana(alumno.getId(), seleccionada, lunes));
+        int clasesParaRecuperar = (int) claseExtraRepository.contarDeSemanasAnteriores(alumno.getId(), seleccionada, lunes);
 
         Set<Long> turnosReservadosEnElDia = reservasDeLaSemana.stream()
+                .filter(ReglasReserva::estaActiva)
                 .filter(reserva -> reserva.getTurno().getFecha().equals(seleccionada))
                 .map(reserva -> reserva.getTurno().getId())
                 .collect(Collectors.toSet());
@@ -99,9 +103,11 @@ public class ConsultaTurnosService {
 
         Map<Long, Long> ocupados = contarReservasActivas(turnosAMostrar);
         boolean bloqueadoPorMora = ReglasReserva.estaEnMora(alumno, hoy);
+        // Día de gracia: los turnos de mañana se ven pero no se pueden elegir hasta que pague
+        boolean bloqueadoPorCuotaVencida = ReglasReserva.requierePagoPara(alumno, hoy, seleccionada);
         // MOGNI-281: con la semana completa todavía puede usar una clase extra, igual que al reservar
         boolean tieneClaseExtra = claseExtraRepository.existeDisponible(alumno.getId(), seleccionada);
-        boolean puedeElegir = !bloqueadoPorMora && ReglasReserva
+        boolean puedeElegir = !bloqueadoPorMora && !bloqueadoPorCuotaVencida && ReglasReserva
                 .motivoParaElDia(alumno, seleccionada, reservasDeLaSemana, () -> tieneClaseExtra).isEmpty();
         List<TurnoDisponibleResponse> turnos = turnosAMostrar.stream()
                 .map(turno -> mapearTurno(turno, ocupados.getOrDefault(turno.getId(), 0L),
@@ -119,7 +125,8 @@ public class ConsultaTurnosService {
                 .toList();
 
         return new TurnosDisponiblesResponse(hoy, seleccionada, dias, turnosRestantes, frecuenciaSemanal,
-                tieneReservaEnElDia, turnos, bloqueadoPorMora, tieneClaseExtra);
+                tieneReservaEnElDia, turnos, bloqueadoPorMora, tieneClaseExtra, bloqueadoPorCuotaVencida,
+                clasesParaRecuperar);
     }
 
     /** Solo los alumnos con la cuenta activa acceden a los turnos (y a su inicio, MOGNI-281). */

@@ -284,7 +284,9 @@ function ReservarTurnos() {
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-error-bg text-primary">
           <CalendarDays className="h-5 w-5" />
         </span>
-        <p className="text-sm font-semibold text-ink">{textoTurnosRestantes(turnosRestantesSemana, turnosPorSemana)}</p>
+        <p className="text-sm font-semibold text-ink">
+          {textoTurnosRestantes(turnosRestantesSemana, turnosPorSemana)}
+        </p>
       </Panel>
 
       <SelectorDias dias={datos.dias} hoy={datos.hoy} seleccionada={datos.fechaSeleccionada} conReserva={tieneReservaEnElDia} onElegir={elegirDia} />
@@ -308,19 +310,32 @@ function ReservarTurnos() {
         </div>
       )}
 
-      {/* MOGNI-281: con la semana completa, una clase extra todavía le deja reservar (como en el backend) */}
-      {sinTurnosEnLaSemana && !datos.bloqueadoPorMora && (datos.tieneClaseExtra ? (
-        <p className="mt-4 flex items-center gap-2 rounded-lg bg-info-bg px-3 py-2.5 text-xs font-semibold text-info">
-          <Info className="h-4 w-4 shrink-0" /> Tenés una clase extra para usar
-        </p>
-      ) : (
+      {/* Día de gracia: la cuota venció ayer; hoy puede reservar, pero para mañana tiene que pagar */}
+      {datos.bloqueadoPorCuotaVencida && (
+        <div role="alert" className="mt-4 flex items-start gap-3 rounded-lg border border-warning bg-warning-bg p-4 text-warning-text">
+          <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold">Pagá tu cuota para reservar este día</p>
+            <p className="mt-1 text-xs leading-relaxed">
+              Tu cuota venció y hoy es el último día para pagarla. Podés reservar los turnos de hoy; para reservar los
+              de mañana, regularizá el pago. Cuando se registre, vas a poder reservar en el momento.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Sin turnos de la semana ni clases para recuperar de otras semanas (esas no se muestran: se las avisó la
+          notificación, pero mientras tenga alguna todavía puede reservar) */}
+      {sinTurnosEnLaSemana && !datos.clasesParaRecuperar && !datos.bloqueadoPorMora && !datos.bloqueadoPorCuotaVencida && (
         <p className="mt-4 flex items-center gap-2 rounded-lg bg-thead/60 px-3 py-2.5 text-xs text-ink-soft">
           <Info className="h-4 w-4 shrink-0" /> Podés volver a reservar desde el lunes
         </p>
-      ))}
+      )}
 
-      <section aria-label="Turnos del día" aria-busy={cargando} aria-disabled={datos.bloqueadoPorMora || undefined}
-        className={cx('mt-5 transition-opacity', (cargando || datos.bloqueadoPorMora) && 'opacity-50')}>
+      <section aria-label="Turnos del día" aria-busy={cargando}
+        aria-disabled={datos.bloqueadoPorMora || datos.bloqueadoPorCuotaVencida || undefined}
+        className={cx('mt-5 transition-opacity',
+          (cargando || datos.bloqueadoPorMora || datos.bloqueadoPorCuotaVencida) && 'opacity-50')}>
         {turnos.length === 0 ? (
           <div className="mt-10 flex flex-col items-center gap-3 text-center">
             <span className="flex h-14 w-14 items-center justify-center rounded-full bg-card text-ink-muted shadow-card">

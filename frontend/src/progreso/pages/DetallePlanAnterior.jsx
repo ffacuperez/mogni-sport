@@ -6,7 +6,6 @@ import DetallePlan from '../components/DetallePlan';
 import EncabezadoDetalle from '../components/EncabezadoDetalle';
 import ErrorConsulta from '../components/ErrorConsulta';
 import { useProgreso } from '../services/ProgresoContext';
-import { tituloPlan } from '../services/progresoService';
 
 /** Detalle de un plan finalizado, de solo lectura. La flecha vuelve siempre al tab "Planes". */
 export default function DetallePlanAnterior() {
@@ -34,7 +33,7 @@ export default function DetallePlanAnterior() {
   return (
     <div className="animate-fade-in">
       <EncabezadoDetalle
-        titulo={tituloPlan(plan)}
+        titulo={plan.nombre}
         subtitulo="Plan anterior · solo lectura"
         onVolver={() => navigate(`${rutaBase}/planes`)}
       />

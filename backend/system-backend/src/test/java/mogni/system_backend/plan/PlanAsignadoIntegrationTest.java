@@ -162,29 +162,46 @@ class PlanAsignadoIntegrationTest {
         return sesion;
     }
 
+    /** Datos de un plan o de una plantilla de una sola semana con esas sesiones. */
     @SafeVarargs
     private static Map<String, Object> datosPlan(String nombre, Map<String, Object>... sesiones) {
         Map<String, Object> plan = new HashMap<>();
         plan.put("nombre", nombre);
         plan.put("nivel", "INTERMEDIO");
         plan.put("objetivo", "HIPERTROFIA");
-        plan.put("sesiones", Arrays.asList(sesiones));
+        Map<String, Object> semana = new HashMap<>();
+        semana.put("sesiones", Arrays.asList(sesiones));
+        plan.put("semanas", new ArrayList<>(List.of(semana)));
         return plan;
     }
 
-    /** HU-266: semanas de vigencia para asignar o modificar (las plantillas no las tienen). */
+    @SafeVarargs
+    private static Map<String, Object> datosPlantilla(String nombre, Map<String, Object>... sesiones) {
+        return datosPlan(nombre, sesiones);
+    }
+
+    @SafeVarargs
+    private static Map<String, Object> datosPlanAsignado(String nombre, Map<String, Object>... sesiones) {
+        return datosPlan(nombre, sesiones);
+    }
+
+    /** Repite la semana 1 hasta tener esa cantidad de semanas (la duración del plan). */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> conSemanas(Map<String, Object> plan, int cantidad) {
+        List<Object> semanas = (List<Object>) plan.get("semanas");
+        Object primera = semanas.get(0);
+        semanas.clear();
+        for (int i = 0; i < cantidad; i++) {
+            semanas.add(primera);
+        }
+        return plan;
+    }
+
+    /** HU-266: la duración del plan es su cantidad de semanas. */
     private static final int SEMANAS_PLAN = 8;
 
     /** La fecha fin que corresponde a SEMANAS_PLAN en un plan asignado hoy. */
     private static final String FIN_PLAN = ZonaHoraria.hoy().plusWeeks(SEMANAS_PLAN).minusDays(1).toString();
-
-    /** Datos de un plan asignado (para asignarlo desde cero o modificarlo): los de una plantilla más las semanas. */
-    @SafeVarargs
-    private static Map<String, Object> datosPlanAsignado(String nombre, Map<String, Object>... sesiones) {
-        Map<String, Object> plan = datosPlan(nombre, sesiones);
-        plan.put("cantidadSemanas", SEMANAS_PLAN);
-        return plan;
-    }
 
     @SafeVarargs
     private static Map<String, Object> desdeCero(Long alumnoId, String nombre, Map<String, Object>... sesiones) {
@@ -197,7 +214,6 @@ class PlanAsignadoIntegrationTest {
         Map<String, Object> pedido = new HashMap<>();
         pedido.put("alumnoId", alumnoId);
         pedido.put("plantillaId", plantillaId);
-        pedido.put("cantidadSemanas", SEMANAS_PLAN);
         return pedido;
     }
 
@@ -206,7 +222,7 @@ class PlanAsignadoIntegrationTest {
         Long press = ejercicio();
         Long remo = ejercicio();
         Long sentadilla = ejercicio();
-        Map<String, Object> pedido = datosPlan("Plantilla " + SECUENCIA.incrementAndGet(),
+        Map<String, Object> pedido = datosPlantilla("Plantilla " + SECUENCIA.incrementAndGet(),
                 sesion("Empuje", ejercicioDeSesion(sentadilla, 4, 8, 10, "1.5", "60.25", 2), ejercicioSimple(press)),
                 sesion(null, ejercicioDeSesion(remo, 5, 5, null, "3", null, 0)),
                 sesion("Piernas", ejercicioSimple(sentadilla), ejercicioSimple(remo), ejercicioSimple(press)));
@@ -275,7 +291,9 @@ class PlanAsignadoIntegrationTest {
         StringBuilder texto = new StringBuilder();
         texto.append(plan.path("nombre").asString()).append('|').append(plan.path("nivel").asString()).append('|')
                 .append(plan.path("objetivo").asString());
-        for (JsonNode sesion : plan.path("sesiones")) {
+        for (JsonNode semana : plan.path("semanas")) {
+          texto.append("\nsemana ").append(semana.path("numero").asInt()).append(':').append(semana.path("nota").toString());
+          for (JsonNode sesion : semana.path("sesiones")) {
             texto.append("\n").append(sesion.path("numero").asInt()).append(':').append(sesion.path("nombre").toString());
             for (JsonNode e : sesion.path("ejercicios")) {
                 texto.append("\n  ").append(e.path("ejercicioId").asLong()).append(' ').append(e.path("nombre").asString())
@@ -283,10 +301,23 @@ class PlanAsignadoIntegrationTest {
                         .append('-').append(e.path("repeticionesMax").toString())
                         .append(" descanso=").append(e.path("descansoMinutos").toString())
                         .append(" peso=").append(e.path("pesoSugerido").toString())
-                        .append(" rir=").append(e.path("rirObjetivo").toString());
+                        .append(" rir=").append(e.path("rirObjetivo").toString())
+                        .append(" indicaciones=").append(e.path("indicaciones").toString());
             }
+          }
         }
         return texto.toString();
+    }
+
+    private int sesionesEnLaBase(Long planId) {
+        return jdbc.queryForObject("select count(*) from sesiones_plan s join semanas_plan w on s.semana_id = w.id "
+                + "where w.plan_id = ?", Integer.class, planId);
+    }
+
+    private int ejerciciosEnLaBase(Long planId) {
+        return jdbc.queryForObject("select count(*) from ejercicios_sesion_plan e join sesiones_plan s "
+                + "on e.sesion_plan_id = s.id join semanas_plan w on s.semana_id = w.id where w.plan_id = ?",
+                Integer.class, planId);
     }
 
     private static Long id(JsonNode entidad) {
@@ -344,9 +375,9 @@ class PlanAsignadoIntegrationTest {
         assertEquals(contenido(plantilla(id(original))), contenido(plan(id(creado.cuerpo()))));
         // La copia tiene sus propias filas
         Long planId = id(creado.cuerpo());
-        assertEquals(3, jdbc.queryForObject("select count(*) from sesiones_plan where plan_id = ?", Integer.class, planId));
-        assertEquals(6, jdbc.queryForObject("select count(*) from ejercicios_sesion_plan e join sesiones_plan s "
-                + "on e.sesion_plan_id = s.id where s.plan_id = ?", Integer.class, planId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from semanas_plan where plan_id = ?", Integer.class, planId));
+        assertEquals(3, sesionesEnLaBase(planId));
+        assertEquals(6, ejerciciosEnLaBase(planId));
         assertEquals(1, asignacionesActivas(id(original)));
     }
 
@@ -365,7 +396,7 @@ class PlanAsignadoIntegrationTest {
         assertEquals("INTERMEDIO", guardado.path("nivel").asString());
         assertEquals("HIPERTROFIA", guardado.path("objetivo").asString());
         assertTrue(guardado.path("plantillaOrigenId").isNull());
-        JsonNode cargado = guardado.path("sesiones").get(0).path("ejercicios").get(0);
+        JsonNode cargado = guardado.path("semanas").get(0).path("sesiones").get(0).path("ejercicios").get(0);
         assertEquals(ejercicio, cargado.path("ejercicioId").asLong());
         assertEquals(8, cargado.path("repeticiones").asInt());
         assertEquals(12, cargado.path("repeticionesMax").asInt());
@@ -382,12 +413,14 @@ class PlanAsignadoIntegrationTest {
         Respuesta vacio = pedir(post("/planes-asignados/desde-cero"), desdeCero(alumno, "Sin sesiones"));
 
         assertEquals(400, vacio.status());
-        assertEquals("El plan tiene que tener al menos una sesión", vacio.error());
+        assertEquals("Cada semana tiene que tener al menos una sesión", vacio.error());
         assertEquals(0, planesDe(alumno));
 
-        Map<String, Object> sinCampo = desdeCero(alumno, "Sin sesiones");
-        sinCampo.remove("sesiones");
-        assertEquals(400, pedir(post("/planes-asignados/desde-cero"), sinCampo).status());
+        Map<String, Object> sinCampo = desdeCero(alumno, "Sin semanas");
+        sinCampo.remove("semanas");
+        Respuesta sinSemanas = pedir(post("/planes-asignados/desde-cero"), sinCampo);
+        assertEquals(400, sinSemanas.status());
+        assertEquals("El plan tiene que tener al menos una semana", sinSemanas.error());
         assertEquals(0, planesDe(alumno));
     }
 
@@ -431,7 +464,7 @@ class PlanAsignadoIntegrationTest {
         Respuesta modificada = pedir(put("/plantillas/" + plantillaId), cambios);
 
         assertEquals(200, modificada.status(), modificada.cuerpo().toString());
-        assertEquals(1, plantilla(plantillaId).path("sesiones").size());
+        assertEquals(1, plantilla(plantillaId).path("semanas").get(0).path("sesiones").size());
         assertEquals(antes, contenido(plan(planId)));
     }
 
@@ -452,7 +485,7 @@ class PlanAsignadoIntegrationTest {
         JsonNode guardado = plan(planId);
         assertEquals("Plan retocado", guardado.path("nombre").asString());
         assertEquals("AVANZADO", guardado.path("nivel").asString());
-        assertEquals(1, guardado.path("sesiones").size());
+        assertEquals(1, guardado.path("semanas").get(0).path("sesiones").size());
         assertEquals(antes, contenido(plantilla(plantillaId)));
     }
 
@@ -496,8 +529,6 @@ class PlanAsignadoIntegrationTest {
         for (Map.Entry<String, Map<String, Object>> caso : invalidos.entrySet()) {
             Map<String, Object> plan = new HashMap<>(caso.getValue());
             plan.put("alumnoId", alumno);
-            // Con semanas válidas: así el plan se rechaza por lo mismo que la plantilla y no por faltar la vigencia
-            plan.put("cantidadSemanas", SEMANAS_PLAN);
             assertEquals(400, pedir(post("/planes-asignados/desde-cero"), plan).status(), "plan: " + caso.getKey());
             assertEquals(400, pedir(post("/plantillas"), caso.getValue()).status(), "plantilla: " + caso.getKey());
         }
@@ -644,22 +675,52 @@ class PlanAsignadoIntegrationTest {
             assertEquals(200, modificado.status(), modificado.cuerpo().toString());
             // Las sesiones e ids que devuelve la respuesta son los que quedaron guardados
             assertEquals(contenido(modificado.cuerpo()), contenido(plan(planId)));
-            assertEquals(2, jdbc.queryForObject("select count(*) from sesiones_plan where plan_id = ?", Integer.class, planId));
-            assertEquals(3, jdbc.queryForObject("select count(*) from ejercicios_sesion_plan e join sesiones_plan s "
-                    + "on e.sesion_plan_id = s.id where s.plan_id = ?", Integer.class, planId));
+            // La semana 1 se reemplaza entera cada vez: sin el flush que borra la vieja primero, chocaría con la nueva
+            assertEquals(1, jdbc.queryForObject("select count(*) from semanas_plan where plan_id = ?", Integer.class, planId));
+            assertEquals(2, sesionesEnLaBase(planId));
+            assertEquals(3, ejerciciosEnLaBase(planId));
+        }
+    }
+
+    @Test
+    void modificar_las_semanas_de_una_plantilla_las_reemplaza_sin_chocar_con_las_viejas() throws Exception {
+        Long plantillaId = id(plantillaCompleta());
+        Long ejercicio = ejercicio();
+        Map<String, Object> semanaNormal = Map.of("sesiones", List.of(
+                sesion("A", ejercicioSimple(ejercicio)), sesion("B", ejercicioSimple(ejercicio))));
+        Map<String, Object> descarga = Map.of("nota", "Semana de descarga",
+                "sesiones", List.of(sesion("A liviana", ejercicioDeSesion(ejercicio, 2, 10, null, null, null, 4))));
+
+        for (int vuelta = 1; vuelta <= 3; vuelta++) {
+            // Mismos números de semana y de sesión que ya están guardados: sin borrar primero, chocarían
+            Map<String, Object> cambios = datosPlantilla("Por semanas " + SECUENCIA.incrementAndGet());
+            cambios.put("semanas", List.of(semanaNormal, semanaNormal, descarga));
+            Respuesta modificada = pedir(put("/plantillas/" + plantillaId), cambios);
+
+            assertEquals(200, modificada.status(), modificada.cuerpo().toString());
+            JsonNode semanas = plantilla(plantillaId).path("semanas");
+            assertEquals(3, semanas.size());
+            assertEquals(3, semanas.get(2).path("numero").asInt());
+            assertEquals("Semana de descarga", semanas.get(2).path("nota").asString());
+            assertEquals(4, semanas.get(2).path("sesiones").get(0).path("ejercicios").get(0).path("rirObjetivo").asInt());
+            assertEquals(3, jdbc.queryForObject("select count(*) from semanas_plantilla where plantilla_id = ?",
+                    Integer.class, plantillaId));
+            assertEquals(5, jdbc.queryForObject("select count(*) from sesiones_plantilla s join semanas_plantilla w "
+                    + "on s.semana_id = w.id where w.plantilla_id = ?", Integer.class, plantillaId));
         }
     }
 
     @Test
     void un_ejercicio_dado_de_baja_despues_sigue_en_la_copia_y_se_puede_conservar_al_modificar() throws Exception {
         Long propio = ejercicio();
-        Respuesta creada = pedir(post("/plantillas"), datosPlan("Plantilla " + SECUENCIA.incrementAndGet(), sesion(null, ejercicioSimple(propio))));
+        Respuesta creada = pedir(post("/plantillas"), datosPlantilla("Plantilla " + SECUENCIA.incrementAndGet(), sesion(null, ejercicioSimple(propio))));
         assertEquals(201, creada.status());
         Long planId = id(asignar(alumno(), id(creada.cuerpo())));
 
         assertEquals(200, pedir(patch("/ejercicios/" + propio + "/estado")).status());
 
-        assertFalse(plan(planId).path("sesiones").get(0).path("ejercicios").get(0).path("ejercicioActivo").asBoolean());
+        assertFalse(plan(planId).path("semanas").get(0).path("sesiones").get(0).path("ejercicios").get(0)
+                .path("ejercicioActivo").asBoolean());
         assertEquals(200, pedir(put("/planes-asignados/" + planId), datosPlanAsignado("Conserva", sesion(null, ejercicioSimple(propio)))).status());
         // Pero uno de baja que no tenía no se puede agregar
         assertEquals(400, pedir(put("/planes-asignados/" + planId), datosPlanAsignado("Agrega", sesion(null, ejercicioSimple(ejercicio(false))))).status());
@@ -815,7 +876,7 @@ class PlanAsignadoIntegrationTest {
             String nombre = original.path("nombre").asString();
 
             List<Integer> codigos = enParalelo(List.of(
-                    () -> pedir(put("/plantillas/" + plantillaId), datosPlan(nombre, sesion(null, ejercicioSimple(ejercicio)))).status(),
+                    () -> pedir(put("/plantillas/" + plantillaId), datosPlantilla(nombre, sesion(null, ejercicioSimple(ejercicio)))).status(),
                     () -> pedir(post("/planes-asignados/desde-plantilla"), desdePlantilla(alumno, plantillaId)).status()));
 
             assertEquals(List.of(200, 201), codigos);
@@ -858,7 +919,7 @@ class PlanAsignadoIntegrationTest {
         Long alumno = alumno();
 
         Respuesta creado = pedir(post("/planes-asignados/desde-cero"),
-                desdeCero(alumno, "Con fin", sesion(null, ejercicioSimple(ejercicio()))));
+                conSemanas(desdeCero(alumno, "Con fin", sesion(null, ejercicioSimple(ejercicio()))), SEMANAS_PLAN));
 
         assertEquals(201, creado.status(), creado.cuerpo().toString());
         assertEquals(HOY.toString(), creado.cuerpo().path("fechaAsignacion").asString());
@@ -869,29 +930,31 @@ class PlanAsignadoIntegrationTest {
     }
 
     @Test
-    void pa8_asignar_un_plan_sin_semanas_falla_desde_plantilla_y_desde_cero() throws Exception {
+    void pa8_desde_una_plantilla_el_plan_dura_las_semanas_de_la_plantilla() throws Exception {
         Long alumno = alumno();
-        Map<String, Object> plantilla = desdePlantilla(alumno, id(plantillaCompleta()));
-        plantilla.remove("cantidadSemanas");
-        Map<String, Object> cero = desdeCero(alumno, "Sin fin", sesion(null, ejercicioSimple(ejercicio())));
-        cero.remove("cantidadSemanas");
+        Map<String, Object> deTres = conSemanas(datosPlantilla("Plantilla " + SECUENCIA.incrementAndGet(),
+                sesion(null, ejercicioSimple(ejercicio()))), 3);
+        Respuesta plantilla = pedir(post("/plantillas"), deTres);
+        assertEquals(201, plantilla.status(), plantilla.cuerpo().toString());
 
-        Respuesta desdePlantilla = pedir(post("/planes-asignados/desde-plantilla"), plantilla);
-        Respuesta desdeCero = pedir(post("/planes-asignados/desde-cero"), cero);
+        Respuesta creado = pedir(post("/planes-asignados/desde-plantilla"), desdePlantilla(alumno, id(plantilla.cuerpo())));
 
-        assertEquals(400, desdePlantilla.status());
-        assertEquals(400, desdeCero.status());
-        assertTrue(desdePlantilla.cuerpo().toString().contains("La cantidad de semanas es obligatoria"), desdePlantilla.cuerpo().toString());
-        assertTrue(desdeCero.cuerpo().toString().contains("La cantidad de semanas es obligatoria"), desdeCero.cuerpo().toString());
-        assertEquals(0, planesDe(alumno));
+        assertEquals(201, creado.status(), creado.cuerpo().toString());
+        assertEquals(3, creado.cuerpo().path("cantidadSemanas").asInt());
+        assertEquals(3, creado.cuerpo().path("semanas").size());
+        assertEquals(HOY.plusWeeks(3).minusDays(1).toString(), creado.cuerpo().path("fechaFin").asString());
     }
 
     @Test
-    void pa9_asignar_un_plan_de_cero_semanas_o_de_mas_de_un_anio_falla() throws Exception {
+    void pa9_asignar_un_plan_sin_semanas_o_de_mas_de_24_semanas_falla() throws Exception {
         Long alumno = alumno();
-        for (int semanas : List.of(0, 53)) {
-            Map<String, Object> cero = desdeCero(alumno, "Mal fin", sesion(null, ejercicioSimple(ejercicio())));
-            cero.put("cantidadSemanas", semanas);
+        for (int semanas : List.of(0, 25)) {
+            Map<String, Object> cero = conSemanas(desdeCero(alumno, "Mal fin", sesion(null, ejercicioSimple(ejercicio()))), 1);
+            if (semanas == 0) {
+                cero.put("semanas", List.of());
+            } else {
+                conSemanas(cero, semanas);
+            }
             Respuesta respuesta = pedir(post("/planes-asignados/desde-cero"), cero);
 
             assertEquals(400, respuesta.status(), "semanas " + semanas);
@@ -953,18 +1016,44 @@ class PlanAsignadoIntegrationTest {
         jdbc.update("update planes_asignados set fecha_asignacion = ? where id = ?", inicio, id(plan));
         Map<String, Object> cambios = datosPlanAsignado("Con otro fin", sesion(null, ejercicioSimple(ejercicio())));
 
-        cambios.put("cantidadSemanas", 12);
-        Respuesta mas = pedir(put("/planes-asignados/" + id(plan)), cambios);
-        cambios.put("cantidadSemanas", 1);
-        Respuesta menos = pedir(put("/planes-asignados/" + id(plan)), cambios);
+        Respuesta mas = pedir(put("/planes-asignados/" + id(plan)), conSemanas(cambios, 12));
+        Respuesta menos = pedir(put("/planes-asignados/" + id(plan)), conSemanas(cambios, 1));
 
         String finDeDoce = inicio.plusWeeks(12).minusDays(1).toString();
         assertEquals(200, mas.status(), mas.cuerpo().toString());
         assertEquals(finDeDoce, mas.cuerpo().path("fechaFin").asString());
         assertEquals(12, mas.cuerpo().path("cantidadSemanas").asInt());
+        assertEquals(2, mas.cuerpo().path("semanaEnCurso").asInt());
         assertEquals(400, menos.status());
-        assertEquals("El plan ya va por la semana 2: no puede durar menos de 2 semanas", menos.cuerpo().path("error").asString());
+        assertEquals("El plan ya va por la semana 2: no se pueden eliminar la semana en curso ni las anteriores",
+                menos.cuerpo().path("error").asString());
         assertEquals(finDeDoce, plan(id(plan)).path("fechaFin").asString());
+    }
+
+    @Test
+    void al_modificar_la_semana_en_curso_las_sesiones_que_el_alumno_ya_registro_quedan_como_estaban() throws Exception {
+        JsonNode plan = asignar(alumno(), id(plantillaCompleta()));
+        Long planId = id(plan);
+        // La sesión 1 ("Empuje") ya la registró hoy
+        jdbc.update("insert into registros_sesion (plan_id, semana, numero_sesion, fecha, completada) values (?, 1, 1, ?, true)",
+                planId, HOY);
+        Long otro = ejercicio();
+
+        Respuesta modificado = pedir(put("/planes-asignados/" + planId), datosPlanAsignado("Retocado",
+                sesion("Nueva 1", ejercicioSimple(otro)), sesion("Nueva 2", ejercicioSimple(otro)),
+                sesion("Nueva 3", ejercicioSimple(otro))));
+
+        assertEquals(200, modificado.status(), modificado.cuerpo().toString());
+        JsonNode sesiones = plan(planId).path("semanas").get(0).path("sesiones");
+        assertEquals("Empuje", sesiones.get(0).path("nombre").asString());
+        assertEquals(2, sesiones.get(0).path("ejercicios").size());
+        assertEquals("Nueva 2", sesiones.get(1).path("nombre").asString());
+        assertEquals(1, modificado.cuerpo().path("sesionesConRegistro").size());
+
+        // Aunque llegue una sola sesión, la 1 sigue siendo la que registró
+        Respuesta sinElla = pedir(put("/planes-asignados/" + planId), datosPlanAsignado("Retocado", sesion("Sola", ejercicioSimple(otro))));
+        assertEquals(200, sinElla.status(), sinElla.cuerpo().toString());
+        assertEquals("Empuje", plan(planId).path("semanas").get(0).path("sesiones").get(0).path("nombre").asString());
     }
 
     @Test
@@ -976,18 +1065,6 @@ class PlanAsignadoIntegrationTest {
         assertEquals(409, pedir(put("/planes-asignados/" + id(plan)),
                 datosPlanAsignado("Cambio", sesion(null, ejercicioSimple(ejercicio())))).status());
         assertEquals(409, pedir(put("/planes-asignados/" + id(plan) + "/finalizar")).status());
-    }
-
-    @Test
-    void un_plan_viejo_sin_fecha_fin_sigue_activo_hasta_que_se_finalice_a_mano() throws Exception {
-        Long alumno = alumno();
-        JsonNode plan = asignar(alumno, id(plantillaCompleta()));
-        cambiarFechaFin(id(plan), null);
-
-        assertEquals(200, pedir(get("/planes-asignados/activo").param("alumnoId", String.valueOf(alumno))).status());
-        assertTrue(plan(id(plan)).path("fechaFin").isNull());
-        assertEquals(200, pedir(put("/planes-asignados/" + id(plan) + "/finalizar")).status());
-        assertEquals("FINALIZADO", estadoEnLaBase(id(plan)));
     }
 
     @Test

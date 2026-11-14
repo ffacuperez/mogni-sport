@@ -31,11 +31,34 @@ public final class ReglasReserva {
         return fecha.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
     }
 
-    /** Las reservas activas del alumno en la semana de esa fecha. Las canceladas no cuentan; las ausentes sí. */
+    /**
+     * Las reservas que cuentan para el límite semanal: las activas (también las ausentes) y las canceladas por el
+     * gimnasio. Estas últimas se compensan con la clase extra, que es la única compensación: si no contaran, el
+     * alumno recuperaría el día en la semana y además tendría la clase extra. Las que cancela el alumno o el
+     * sistema no cuentan.
+     */
+    public static final List<EstadoReserva> CUENTAN_PARA_LA_SEMANA =
+            List.of(EstadoReserva.RESERVADA, EstadoReserva.CANCELADA_POR_GIMNASIO);
+
+    /** Las reservas del alumno que cuentan para el límite semanal (ver CUENTAN_PARA_LA_SEMANA) en la semana de esa fecha. */
     public static List<Reserva> reservasDeLaSemana(ReservaRepository reservaRepository, Long alumnoId, LocalDate fecha) {
         LocalDate lunes = lunesDe(fecha);
-        return reservaRepository.findByAlumnoIdAndEstadoAndTurnoFechaBetween(
-                alumnoId, EstadoReserva.RESERVADA, lunes, lunes.plusDays(6));
+        return reservaRepository.findByAlumnoIdAndEstadoInAndTurnoFechaBetween(
+                alumnoId, CUENTAN_PARA_LA_SEMANA, lunes, lunes.plusDays(6));
+    }
+
+    /**
+     * Los turnos que le quedan en la semana, como se le muestran al alumno: los de la membresía que no usó más las
+     * clases por recuperar de turnos que el gimnasio le canceló esa misma semana (el contador se los devuelve). Las que
+     * quedaron de semanas anteriores no suman acá (las avisó la notificación), pero le dejan reservar igual.
+     */
+    public static int turnosQueQuedan(int frecuenciaSemanal, int cuentanEnLaSemana, long clasesDeLaSemana) {
+        return Math.max(0, frecuenciaSemanal - cuentanEnLaSemana) + (int) clasesDeLaSemana;
+    }
+
+    /** Si la reserva sigue activa (las canceladas por el gimnasio cuentan para la semana, pero ya no son un turno). */
+    public static boolean estaActiva(Reserva reserva) {
+        return reserva.getEstado() == EstadoReserva.RESERVADA;
     }
 
     /** Turnos por semana que da la membresía de la inscripción activa; 0 si no tiene. */
@@ -51,13 +74,23 @@ public final class ReglasReserva {
     }
 
     /**
+     * Hoy todavía no está en mora (es su día de gracia, con la cuota vencida), pero el día del turno sí lo va a estar:
+     * no puede reservarlo hasta regularizar el pago. Si no, reservaría un turno que la puesta al día le cancela a la
+     * noche. Los turnos de hoy los puede reservar igual.
+     */
+    public static boolean requierePagoPara(Alumno alumno, LocalDate hoy, LocalDate dia) {
+        return !estaEnMora(alumno, hoy) && estaEnMora(alumno, dia);
+    }
+
+    /**
      * Si el alumno puede reservar algún turno de ese día, en el orden en que lo valida la reserva: un solo turno por día,
      * membresía activa y tope semanal. Con la semana completa todavía puede usar una clase extra: hayClaseExtra solo se
      * consulta en ese caso (la reserva la bloquea; las consultas, no). La mora se valida aparte, antes.
      */
     public static Optional<MotivoNoReserva> motivoParaElDia(Alumno alumno, LocalDate dia, List<Reserva> deLaSemana,
                                                             BooleanSupplier hayClaseExtra) {
-        if (deLaSemana.stream().anyMatch(reserva -> reserva.getTurno().getFecha().equals(dia))) {
+        // Un turno por día: el que le canceló el gimnasio no le impide reservar otro horario ese mismo día
+        if (deLaSemana.stream().anyMatch(reserva -> estaActiva(reserva) && reserva.getTurno().getFecha().equals(dia))) {
             return Optional.of(MotivoNoReserva.SIN_DIAS_DISPONIBLES);
         }
         int frecuencia = frecuenciaSemanal(alumno);

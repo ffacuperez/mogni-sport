@@ -40,7 +40,6 @@ import mogni.system_backend.notificacion.dto.TipoNotificacion;
 import mogni.system_backend.notificacion.entity.AvisoPushEnviado;
 import mogni.system_backend.notificacion.entity.SuscripcionPush;
 import mogni.system_backend.notificacion.repository.AvisoPushEnviadoRepository;
-import mogni.system_backend.notificacion.repository.AvisoTurnoReactivadoRepository;
 import mogni.system_backend.notificacion.repository.AvisoTurnoRepository;
 import mogni.system_backend.notificacion.repository.SuscripcionPushRepository;
 import mogni.system_backend.notificacion.service.NotificacionService;
@@ -60,7 +59,6 @@ class PushServiceTest {
     @Mock private CuotaRepository cuotaRepository;
     @Mock private AlumnoRepository alumnoRepository;
     @Mock private AvisoTurnoRepository avisoTurnoRepository;
-    @Mock private AvisoTurnoReactivadoRepository avisoTurnoReactivadoRepository;
 
     private PushService pushService;
     private final LocalDate hoy = ZonaHoraria.hoy();
@@ -71,7 +69,7 @@ class PushServiceTest {
     void setUp() {
         // NotificacionService real: la push usa exactamente las mismas reglas que la app
         NotificacionService notificacionService = new NotificacionService(
-                alumnoRepository, cuotaRepository, avisoTurnoRepository, avisoTurnoReactivadoRepository);
+                alumnoRepository, cuotaRepository, avisoTurnoRepository);
         pushService = new PushService(sender, suscripcionRepository, avisoRepository, cuentaRepository,
                 cuotaRepository, notificacionService);
         lenient().when(sender.estaConfigurado()).thenReturn(true);

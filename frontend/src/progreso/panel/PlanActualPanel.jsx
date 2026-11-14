@@ -9,7 +9,7 @@ import { useProgreso } from '../services/ProgresoContext';
 import EstadoVacioPanel from './EstadoVacioPanel';
 import ResumenPlanPanel from './ResumenPlanPanel';
 import SesionesDeLaSemana from './SesionesDeLaSemana';
-import { tituloPlan } from '../services/progresoService';
+
 import { useSesionAbierta } from './useSesionAbierta';
 
 /**
@@ -73,7 +73,7 @@ export default function PlanActualPanel({ alumno, onAsignarPlan, onModificarPlan
       <SesionesDeLaSemana key={plan.id} plan={plan} semanaInicial={plan.semanaActual} onVerRegistro={abrir} />
       {confirmando && (
         <FinalizarPlanModal
-          nombrePlan={tituloPlan(plan)}
+          nombrePlan={plan.nombre}
           nombreAlumno={nombreAlumno}
           enviando={enviando}
           onConfirm={finalizar}

@@ -17,6 +17,7 @@ import mogni.system_backend.turno.dto.MotivoNoReserva;
  * @param cuota          siempre presente; sin cuotas (datos viejos) viene con todo en null, como en el resto del sistema
  * @param proximoTurno   el primero de Mis turnos; null si no tiene ninguno por delante
  * @param turnosSemana   reservas activas de esta semana (lunes a domingo) y el total de la membresía
+ * @param clasesCuota    a cuántas clases fue en el período de la cuota que cubre hoy; null si ninguna lo cubre
  * @param puedeReservar  si puede reservar algún turno de hoy o de mañana, con las mismas reglas que la reserva
  * @param motivoNoReserva null si puede reservar
  * @param planActivo     el plan vigente; null si no tiene
@@ -30,6 +31,7 @@ public record MiInicioResponse(
         Cuota cuota,
         ProximoTurno proximoTurno,
         TurnosSemana turnosSemana,
+        ClasesCuota clasesCuota,
         boolean puedeReservar,
         MotivoNoReserva motivoNoReserva,
         PlanInicioResponse planActivo) {
@@ -43,5 +45,17 @@ public record MiInicioResponse(
     }
 
     public record TurnosSemana(int usados, int total) {
+    }
+
+    /**
+     * Clases con asistencia «Presente» en el período de la cuota que cubre hoy y de cuántas podía ir en ese período
+     * (una por día, solo días con franjas y hasta la frecuencia por semana). ultima: la última clase con «Presente»
+     * (de cualquier período); null si nunca fue.
+     */
+    public record ClasesCuota(long presentes, long total, UltimaClase ultima) {
+    }
+
+    /** Hora como "HH:mm". */
+    public record UltimaClase(LocalDate fecha, String horaInicio) {
     }
 }

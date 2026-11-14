@@ -8,6 +8,4 @@ import lombok.Getter;
 @AllArgsConstructor
 public class ReversionCancelacionResponse {
     private Long turnoId;
-    /** Alumnos que tenían una reserva cancelada en el turno y recibieron el aviso. */
-    private int alumnosAvisados;
 }

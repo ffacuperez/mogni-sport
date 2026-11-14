@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+import { textoDiaMes } from '../services/progresoService';
+
 import AcordeonSesion from './AcordeonSesion';
 import SelectorSemana from './SelectorSemana';
 import TarjetaResumenPlan from './TarjetaResumenPlan';
@@ -32,6 +34,11 @@ export default function DetallePlan({ plan: planInicial }) {
     <div className="flex flex-col gap-3">
       <TarjetaResumenPlan plan={plan} />
       <SelectorSemana semana={semana} cantidadSemanas={plan.cantidadSemanas} onCambiar={setNumeroSemana} />
+      {plan.estado === 'ACTIVO' && semana.numero > plan.semanaActual && (
+        <p className="text-center text-xs text-ink-soft">
+          Podés ver lo que vas a entrenar. Las sesiones de esta semana se registran desde el {textoDiaMes(semana.desde)}.
+        </p>
+      )}
       {/* La key incluye la semana: al cambiar de semana las sesiones vuelven a aparecer contraídas */}
       {semana.sesiones.map((sesion) => (
         <AcordeonSesion

@@ -26,7 +26,10 @@ export const tonoNivel = (valor) => TONO_NIVEL[valor] ?? 'neutral';
 export const textoObjetivo = (valor) => OBJETIVOS.find(o => o.valor === valor)?.texto ?? valor;
 
 /** Límites del formulario (los mismos que valida el backend). */
-export const LIMITES = { seriesMax: 20, repeticionesMax: 100, pesoMax: 999.99, nombreMax: 100, nombreSesionMax: 100, rirMax: 10, descansoMax: 10 };
+export const LIMITES = {
+  seriesMax: 20, repeticionesMax: 100, pesoMax: 999.99, nombreMax: 100, nombreSesionMax: 100, rirMax: 10, descansoMax: 10,
+  semanasMax: 24, sesionesPorSemanaMax: 7, notaMax: 60, indicacionesMax: 200,
+};
 
 /** "8" → { min: 8, max: null }; "8-10" → { min: 8, max: 10 }; otro formato → null. No valida límites. */
 export function parsearRepeticiones(texto) {
@@ -48,11 +51,18 @@ const fromApi = (p) => ({
   objetivo: p.objetivo,
   asignacionesActivas: p.asignacionesActivas ?? 0,
   fechaActualizacion: p.fechaActualizacion,
-  sesiones: sesionesFromApi(p.sesiones),
+  semanas: semanasFromApi(p.semanas),
 });
 
-/** Sesiones con sus ejercicios; mismo formato en plantillas y en planes asignados (HU-266). */
-export const sesionesFromApi = (sesiones) => (sesiones ?? []).map(s => ({
+/** Semanas con sus sesiones y ejercicios; mismo formato en plantillas y en planes asignados (HU-266). */
+export const semanasFromApi = (semanas) => (semanas ?? []).map(w => ({
+  id: w.id,
+  numero: w.numero,
+  nota: w.nota ?? '',
+  sesiones: sesionesFromApi(w.sesiones),
+}));
+
+const sesionesFromApi = (sesiones) => (sesiones ?? []).map(s => ({
     id: s.id,
     numero: s.numero,
     nombre: s.nombre ?? '',
@@ -68,6 +78,7 @@ export const sesionesFromApi = (sesiones) => (sesiones ?? []).map(s => ({
       descansoMinutos: e.descansoMinutos ?? null,
       pesoSugerido: e.pesoSugerido,
       rirObjetivo: e.rirObjetivo,
+      indicaciones: e.indicaciones ?? '',
     })),
 }));
 
@@ -76,16 +87,20 @@ export const formularioAApi = (form) => ({
   nombre: form.nombre.trim(),
   nivel: form.nivel,
   objetivo: form.objetivo,
-  sesiones: form.sesiones.map(s => ({
-    nombre: s.nombre.trim() || null,
-    ejercicios: s.ejercicios.map(e => ({
-      ejercicioId: Number(e.ejercicioId),
-      series: Number(e.series),
-      repeticiones: parsearRepeticiones(e.repeticiones).min,
-      repeticionesMax: parsearRepeticiones(e.repeticiones).max,
-      descansoMinutos: String(e.descanso ?? '').trim() ? Number(String(e.descanso).replace(',', '.')) : null,
-      pesoSugerido: String(e.peso ?? '').trim() ? Number(String(e.peso).replace(',', '.')) : null,
-      rirObjetivo: String(e.rir ?? '').trim() ? Number(e.rir) : null,
+  semanas: form.semanas.map(semana => ({
+    nota: semana.nota.trim() || null,
+    sesiones: semana.sesiones.map(s => ({
+      nombre: s.nombre.trim() || null,
+      ejercicios: s.ejercicios.map(e => ({
+        ejercicioId: Number(e.ejercicioId),
+        series: Number(e.series),
+        repeticiones: parsearRepeticiones(e.repeticiones).min,
+        repeticionesMax: parsearRepeticiones(e.repeticiones).max,
+        descansoMinutos: String(e.descanso ?? '').trim() ? Number(String(e.descanso).replace(',', '.')) : null,
+        pesoSugerido: String(e.peso ?? '').trim() ? Number(String(e.peso).replace(',', '.')) : null,
+        rirObjetivo: String(e.rir ?? '').trim() ? Number(e.rir) : null,
+        indicaciones: String(e.indicaciones ?? '').trim() || null,
+      })),
     })),
   })),
 });
@@ -127,4 +142,13 @@ export async function duplicarPlantilla(id) {
   return fromApi(await request(`${BASE_PATH}/${id}/duplicar`, { method: 'POST' }));
 }
 
-export const cantidadEjercicios = (plantilla) => plantilla.sesiones.reduce((total, s) => total + s.ejercicios.length, 0);
+/** Sesiones de todas las semanas. */
+export const cantidadSesiones = (plantilla) => plantilla.semanas.reduce((total, w) => total + w.sesiones.length, 0);
+
+/** Ejercicios de todas las sesiones de todas las semanas. */
+export const cantidadEjercicios = (plantilla) => plantilla.semanas
+  .reduce((total, w) => total + w.sesiones.reduce((suma, s) => suma + s.ejercicios.length, 0), 0);
+
+/** Los ids de todos los ejercicios del catálogo que usa (para conservar los que se dieron de baja). */
+export const idsDeEjercicios = (plantilla) => new Set(plantilla.semanas
+  .flatMap(w => w.sesiones.flatMap(s => s.ejercicios.map(e => String(e.ejercicioId)))));

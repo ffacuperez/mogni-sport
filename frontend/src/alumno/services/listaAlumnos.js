@@ -1,4 +1,3 @@
-import { tituloPlan } from '../../progreso/services/progresoService';
 import { normalizar } from '../../shared/services/texto';
 
 // Funciones puras de la lista de alumnos: las comparten la tabla y las tarjetas
@@ -26,7 +25,7 @@ const GRAVEDAD = { EN_MORA: 0, VENCIDA: 1, PROXIMA_A_VENCER: 2, AL_DIA: 3 };
 // Por qué valor ordena cada columna; null = dato vacío
 const VALORES = {
   alumno: (a) => `${a.apellido} ${a.nombre}`,
-  plan: (a) => (a.planActivo ? tituloPlan(a.planActivo) : null),
+  plan: (a) => (a.planActivo ? a.planActivo.nombre : null),
   semana: (a) => (a.planActivo ? a.planActivo.cantidadSemanas - a.planActivo.semanaActual : null),
   membresia: (a) => (a.membresiaId ? a.membresia : null),
   vencimiento: (a) => a.cuota?.vencimiento ?? null,

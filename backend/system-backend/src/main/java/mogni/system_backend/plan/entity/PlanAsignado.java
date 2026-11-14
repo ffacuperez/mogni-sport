@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -29,7 +30,8 @@ import mogni.system_backend.plantilla.entity.PlantillaPlan;
 
 /**
  * HU-266: plan de entrenamiento de un alumno. Se arma desde cero o copiando una plantilla; en ese caso es una
- * copia profunda (sesiones y ejercicios propios), así que modificar el plan no toca la plantilla y viceversa.
+ * copia profunda (semanas, sesiones y ejercicios propios), así que modificar el plan no toca la plantilla y viceversa.
+ * Cada semana tiene sus propias sesiones, y la cantidad de semanas es la duración del plan.
  */
 @Entity
 @Table(name = "planes_asignados")
@@ -37,9 +39,6 @@ import mogni.system_backend.plantilla.entity.PlantillaPlan;
 @Setter
 @NoArgsConstructor
 public class PlanAsignado {
-
-    /** Un año: tope para que un error de tipeo no deje un plan vigente por décadas. */
-    public static final int MAXIMO_SEMANAS = 52;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -79,46 +78,29 @@ public class PlanAsignado {
     private LocalDate fechaFinalizacion;
 
     /**
-     * HU-266: último día del plan (inclusiva). Al asignar es obligatoria, pero la columna admite null por los planes
-     * anteriores a esta regla: un plan sin fecha fin sigue vigente hasta que se lo finalice a mano.
+     * HU-266: último día del plan (inclusiva): el último día de la última semana. Se recalcula cada vez que cambian
+     * las semanas (ver {@link #agregarSemanas}). Se guarda para no tener que cargar las semanas en los listados.
      */
+    @Column(nullable = false)
     private LocalDate fechaFin;
-
-    /** HU-270: null en los planes que no lo tienen cargado, igual que los tres campos siguientes. */
-    @Enumerated(EnumType.STRING)
-    @Column(length = 20)
-    private MetodoPlan metodo;
-
-    /** Hipertrofia, Fuerza, Reset/Técnica... La lista es abierta. */
-    @Column(length = 60)
-    private String mesociclo;
-
-    @Column(length = 150)
-    private String objetivoMesociclo;
-
-    /**
-     * Las sesiones del plan se repiten igual cada semana. Desde que la vigencia se elige en semanas, se guarda junto
-     * con la fecha fin (ver {@link #definirDuracion}); los planes asignados antes pueden tener solo la fecha fin.
-     */
-    private Integer cantidadSemanas;
 
     @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("numero ASC")
-    private List<SesionPlan> sesiones = new ArrayList<>();
+    private List<SemanaPlan> semanas = new ArrayList<>();
 
     public PlanAsignado(Alumno alumno, LocalDate fechaAsignacion) {
         this.alumno = alumno;
         this.fechaAsignacion = fechaAsignacion;
     }
 
-    /** Copia profunda de la plantilla para el alumno: mismo nombre, nivel, objetivo y sesiones. */
+    /** Copia profunda de la plantilla para el alumno: mismo nombre, nivel, objetivo y semanas. */
     public static PlanAsignado copiaDe(PlantillaPlan plantilla, Alumno alumno, LocalDate fechaAsignacion) {
         PlanAsignado plan = new PlanAsignado(alumno, fechaAsignacion);
         plan.setNombre(plantilla.getNombre());
         plan.setNivel(plantilla.getNivel());
         plan.setObjetivo(plantilla.getObjetivo());
         plan.setPlantillaOrigen(plantilla);
-        plan.reemplazarSesiones(plantilla.getSesiones().stream().map(SesionPlan::copiaDe).toList());
+        plan.agregarSemanas(plantilla.getSemanas().stream().map(SemanaPlan::copiaDe).toList());
         return plan;
     }
 
@@ -132,7 +114,7 @@ public class PlanAsignado {
      * ese día todavía es vigente y desde el siguiente ya no, sin que nadie lo finalice a mano.
      */
     public boolean estaVigente(LocalDate hoy) {
-        return estaActivo() && (fechaFin == null || !fechaFin.isBefore(hoy));
+        return estaActivo() && !fechaFin.isBefore(hoy);
     }
 
     /** ACTIVO y con la fecha fin ya pasada: se muestra como finalizado aunque la puesta al día todavía no lo cerró. */
@@ -155,11 +137,6 @@ public class PlanAsignado {
         fechaFinalizacion = fecha;
     }
 
-    /** El plan dura semanas completas: la fecha fin es el último día de la última semana. */
-    public void definirDuracion(int semanas) {
-        cantidadSemanas = semanas;
-        fechaFin = fechaAsignacion.plusWeeks(semanas).minusDays(1);
-    }
 
     /** En qué semana del plan cae ese día: la 1 va del día de la asignación a seis días después. */
     public int semanaEn(LocalDate dia) {
@@ -167,19 +144,12 @@ public class PlanAsignado {
     }
 
     /**
-     * La cantidad cargada. Los planes que se asignaron eligiendo una fecha fin suelta no la tienen: para esos, las
-     * semanas de 7 días que cubren del inicio al fin inclusive (si sobran días, la última queda incompleta).
-     * Sin ninguna de las dos, una sola semana.
+     * Sale de la fecha fin, que siempre es el último día de la última semana: así los listados no tienen que cargar
+     * las semanas.
      */
     public int cantidadSemanas() {
-        if (cantidadSemanas != null && cantidadSemanas >= 1) {
-            return cantidadSemanas;
-        }
-        if (fechaFin != null) {
-            long dias = ChronoUnit.DAYS.between(fechaAsignacion, fechaFin) + 1;
-            return (int) Math.max(1, Math.ceilDiv(dias, 7));
-        }
-        return 1;
+        long dias = ChronoUnit.DAYS.between(fechaAsignacion, fechaFin) + 1;
+        return (int) Math.max(1, Math.ceilDiv(dias, 7));
     }
 
     /** La semana en curso, entre 1 y la última. Un plan que ya no está vigente queda en su última semana. */
@@ -191,14 +161,31 @@ public class PlanAsignado {
         return Math.clamp(semanaEn(hoy), 1, cantidad);
     }
 
-    /** Reemplaza todas las sesiones y las numera 1, 2, 3... en el orden recibido. */
-    public void reemplazarSesiones(List<SesionPlan> nuevas) {
-        sesiones.clear();
-        for (int i = 0; i < nuevas.size(); i++) {
-            SesionPlan sesion = nuevas.get(i);
-            sesion.setNumero(i + 1);
-            sesion.setPlan(this);
-            sesiones.add(sesion);
+    /**
+     * Agrega las semanas al final, en el orden recibido, siguiendo la numeración, y corre la fecha fin al último día
+     * de la última semana. Para reemplazar semanas, primero hay que sacarlas y hacer flush (ver
+     * PlanAsignadoService.actualizarPlan).
+     */
+    public void agregarSemanas(List<SemanaPlan> nuevas) {
+        for (SemanaPlan semana : nuevas) {
+            semana.setNumero(semanas.size() + 1);
+            semana.setPlan(this);
+            semanas.add(semana);
         }
+        fechaFin = fechaAsignacion.plusWeeks(semanas.size()).minusDays(1);
+    }
+
+    public Optional<SemanaPlan> buscarSemana(int numero) {
+        return semanas.stream().filter(semana -> semana.getNumero() == numero).findFirst();
+    }
+
+    /** Lo que el profe indicó para esa sesión de esa semana, si existe. */
+    public Optional<SesionPlan> buscarSesion(int semana, int numeroSesion) {
+        return buscarSemana(semana).flatMap(encontrada -> encontrada.buscarSesion(numeroSesion));
+    }
+
+    /** Todas las sesiones del plan: la suma de las de cada semana. */
+    public int sesionesTotales() {
+        return semanas.stream().mapToInt(semana -> semana.getSesiones().size()).sum();
     }
 }

@@ -4,8 +4,8 @@ import { ArrowLeft, CircleAlert, Flag, Pencil, UserPlus } from 'lucide-react';
 import FinalizarPlanModal from '../components/FinalizarPlanModal';
 import { Badge, Button, Cargando, PageHeader, Panel } from '../../shared/components/ui';
 import { cx, FOCUS } from '../../shared/components/clases';
-import { cantidadEjercicios, textoNivel, textoObjetivo, tonoNivel } from '../../plantilla/services/plantillasService';
-import TarjetasSesiones from '../../plantilla/components/TarjetasSesiones';
+import { cantidadEjercicios, cantidadSesiones, textoNivel, textoObjetivo, tonoNivel } from '../../plantilla/services/plantillasService';
+import { VistaSemanas } from '../../plantilla/components/TarjetasSesiones';
 import { finalizarPlan, obtenerPlan, textoFecha } from '../services/planesService';
 
 const plural = (n, singular, varios) => `${n} ${n === 1 ? singular : varios}`;
@@ -89,15 +89,15 @@ export default function PlanAsignadoDetalle({ planId, onVolver, onModificar, onA
         <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2 text-xs text-ink-soft">
           <p>
             Inicio: {textoFecha(plan.fechaAsignacion)}
-            {plan.fechaFin && ` · Fin: ${textoFecha(plan.fechaFin)}`}
+            {` · Fin: ${textoFecha(plan.fechaFin)}`}
             {plan.fechaFinalizacion && ` · Finalizado el ${textoFecha(plan.fechaFinalizacion)}`}
             {' · '}{plan.plantillaOrigenId ? 'Copiado de una plantilla' : 'Plan personalizado'}
           </p>
           <p className="tabular-nums">
-            {plural(plan.sesiones.length, 'sesión', 'sesiones')} · {plural(cantidadEjercicios(plan), 'ejercicio', 'ejercicios')}
+            {plural(plan.cantidadSemanas, 'semana', 'semanas')} · {plural(cantidadSesiones(plan), 'sesión', 'sesiones')} · {plural(cantidadEjercicios(plan), 'ejercicio', 'ejercicios')}
           </p>
         </div>
-        <TarjetasSesiones sesiones={plan.sesiones} />
+        <VistaSemanas key={plan.id} semanas={plan.semanas} inicio={plan.fechaAsignacion} semanaEnCurso={plan.semanaEnCurso} />
       </Panel>
 
       {confirmando && (

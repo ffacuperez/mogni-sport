@@ -32,10 +32,20 @@ public interface ReservaRepository extends JpaRepository<Reserva, Long> {
     /** Lugares ocupados de un turno (solo cuentan las reservas con ese estado). */
     long countByTurnoIdAndEstado(Long turnoId, EstadoReserva estado);
 
-    /** Reservas del alumno con ese estado en turnos entre dos fechas (para el contador semanal). */
+    /** Reservas del alumno con alguno de esos estados en turnos entre dos fechas (para el contador semanal). */
     @EntityGraph(attributePaths = {"turno"})
-    List<Reserva> findByAlumnoIdAndEstadoAndTurnoFechaBetween(Long alumnoId, EstadoReserva estado,
-                                                               LocalDate desde, LocalDate hasta);
+    List<Reserva> findByAlumnoIdAndEstadoInAndTurnoFechaBetween(Long alumnoId, Collection<EstadoReserva> estados,
+                                                                 LocalDate desde, LocalDate hasta);
+
+    /** Clases del alumno con esa asistencia en turnos entre dos fechas (el inicio cuenta a cuántas fue en su cuota). */
+    long countByAlumnoIdAndEstadoAndAsistenciaAndTurnoFechaBetween(Long alumnoId, EstadoReserva estado,
+                                                                  Asistencia asistencia, LocalDate desde,
+                                                                  LocalDate hasta);
+
+    /** La última clase del alumno con esa asistencia (la "Última clase" del inicio). */
+    @EntityGraph(attributePaths = {"turno"})
+    Optional<Reserva> findFirstByAlumnoIdAndEstadoAndAsistenciaOrderByTurnoFechaDescTurnoHoraInicioDesc(
+            Long alumnoId, EstadoReserva estado, Asistencia asistencia);
 
     /** Reservas del alumno con ese estado en turnos de esa fecha en adelante (HU-256, sin ordenar). */
     @EntityGraph(attributePaths = {"turno"})

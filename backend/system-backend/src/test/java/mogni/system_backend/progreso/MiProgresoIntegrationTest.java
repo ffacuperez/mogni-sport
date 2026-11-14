@@ -48,8 +48,8 @@ import mogni.system_backend.config.ZonaHoraria;
 import mogni.system_backend.ejercicio.entity.Ejercicio;
 import mogni.system_backend.ejercicio.repository.EjercicioRepository;
 import mogni.system_backend.plan.entity.EjercicioSesionPlan;
-import mogni.system_backend.plan.entity.MetodoPlan;
 import mogni.system_backend.plan.entity.PlanAsignado;
+import mogni.system_backend.plan.entity.SemanaPlan;
 import mogni.system_backend.plan.entity.SesionPlan;
 import mogni.system_backend.plan.repository.PlanAsignadoRepository;
 import mogni.system_backend.plantilla.entity.NivelPlantilla;
@@ -155,25 +155,46 @@ class MiProgresoIntegrationTest {
         return sesion;
     }
 
-    /** Plan de dos sesiones, sin los datos de HU-270 cargados. */
-    private PlanAsignado planBasico(Alumno alumno, LocalDate inicio) {
+    private static SemanaPlan semana(String nota, SesionPlan... sesiones) {
+        SemanaPlan semana = new SemanaPlan(nota);
+        semana.agregarSesiones(List.of(sesiones));
+        return semana;
+    }
+
+    /** La semana de siempre: dos sesiones, la primera con todos los datos de un ejercicio. */
+    private SemanaPlan semanaBasica() {
+        return semana(null,
+                sesion(ejercicio("Sentadilla", 4, 15, 18, "1.25", 3, "Tempo 2-1-3"), ejercicio("Prensa", 4, 12, null, null, null, null)),
+                sesion(ejercicio("Remo", 3, 10, 12, "1.5", 2, null)));
+    }
+
+    /** Plan sin guardar con esas semanas; la fecha fin queda al final de la última. */
+    private static PlanAsignado plan(Alumno alumno, LocalDate inicio, SemanaPlan... semanas) {
         PlanAsignado plan = new PlanAsignado(alumno, inicio);
         plan.setNombre("Plan de prueba");
         plan.setNivel(NivelPlantilla.INTERMEDIO);
         plan.setObjetivo(ObjetivoPlantilla.HIPERTROFIA);
-        plan.reemplazarSesiones(List.of(
-                sesion(ejercicio("Sentadilla", 4, 15, 18, "1.25", 3, "Tempo 2-1-3"), ejercicio("Prensa", 4, 12, null, null, null, null)),
-                sesion(ejercicio("Remo", 3, 10, 12, "1.5", 2, null))));
+        plan.agregarSemanas(List.of(semanas));
         return plan;
     }
 
+    /** Plan de una semana básica, sin guardar. */
+    private PlanAsignado planBasico(Alumno alumno, LocalDate inicio) {
+        return plan(alumno, inicio, semanaBasica());
+    }
+
+    /** Plan guardado con esa cantidad de semanas básicas, todas iguales. */
     private PlanAsignado planDeSemanas(Alumno alumno, LocalDate inicio, int semanas) {
-        PlanAsignado plan = planBasico(alumno, inicio);
-        plan.setMetodo(MetodoPlan.ULTRA_MASS);
-        plan.setMesociclo("Hipertrofia");
-        plan.setObjetivoMesociclo("Aumentar masa muscular");
-        plan.setCantidadSemanas(semanas);
-        return planRepository.save(plan);
+        SemanaPlan[] todas = new SemanaPlan[semanas];
+        for (int i = 0; i < semanas; i++) {
+            todas[i] = semanaBasica();
+        }
+        return planRepository.save(plan(alumno, inicio, todas));
+    }
+
+    /** Las sesiones de la semana 1 del plan. */
+    private static List<SesionPlan> semana1(PlanAsignado plan) {
+        return plan.getSemanas().get(0).getSesiones();
     }
 
     /** Una sesión ya finalizada. */
@@ -234,9 +255,10 @@ class MiProgresoIntegrationTest {
         assertEquals(200, respuesta.status());
         JsonNode cuerpo = respuesta.cuerpo();
         assertEquals(plan.getId(), cuerpo.path("id").asLong());
-        assertEquals("ULTRA_MASS", cuerpo.path("metodo").asString());
-        assertEquals("Hipertrofia", cuerpo.path("mesociclo").asString());
-        assertEquals("Aumentar masa muscular", cuerpo.path("objetivoMesociclo").asString());
+        assertEquals("Plan de prueba", cuerpo.path("nombre").asString());
+        // Método y mesociclo ya no existen
+        assertTrue(cuerpo.path("metodo").isMissingNode());
+        assertTrue(cuerpo.path("mesociclo").isMissingNode());
         assertEquals("ACTIVO", cuerpo.path("estado").asString());
         assertEquals(inicio.toString(), cuerpo.path("fechaInicio").asString());
         assertEquals(inicio.plusDays(34).toString(), cuerpo.path("fechaFin").asString());
@@ -245,7 +267,7 @@ class MiProgresoIntegrationTest {
     }
 
     @Test
-    void las_semanas_son_de_siete_dias_desde_la_asignacion_y_repiten_las_sesiones() throws Exception {
+    void las_semanas_son_de_siete_dias_desde_la_asignacion() throws Exception {
         Alumno alumno = alumno();
         LocalDate inicio = ZonaHoraria.hoy().minusDays(1);
         planDeSemanas(alumno, inicio, 3);
@@ -261,6 +283,49 @@ class MiProgresoIntegrationTest {
     }
 
     @Test
+    void cada_semana_muestra_sus_propias_sesiones_y_su_nota_y_los_totales_las_suman() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate inicio = ZonaHoraria.hoy().minusDays(8);
+        SesionPlan liviana = new SesionPlan("Full body liviano");
+        liviana.agregarEjercicios(List.of(ejercicio("Sentadilla", 2, 10, null, null, 4, null)));
+        PlanAsignado plan = planRepository.save(plan(alumno, inicio, semanaBasica(), semana("Semana de descarga", liviana)));
+        registrar(plan, 1, 1, inicio);
+        // La semana 2 no tiene sesión 2: ese registro no cuenta
+        registrar(plan, 2, 2, ZonaHoraria.hoy());
+
+        JsonNode cuerpo = planActivoDe(alumno).cuerpo();
+
+        assertEquals(2, cuerpo.path("cantidadSemanas").asInt());
+        assertEquals(3, cuerpo.path("sesionesTotales").asInt());
+        assertEquals(1, cuerpo.path("sesionesRegistradas").asInt());
+        JsonNode primera = cuerpo.path("semanas").get(0);
+        assertTrue(primera.path("nota").isNull());
+        assertEquals(2, primera.path("sesiones").size());
+        JsonNode segunda = cuerpo.path("semanas").get(1);
+        assertEquals("Semana de descarga", segunda.path("nota").asString());
+        assertEquals(1, segunda.path("sesiones").size());
+        assertEquals("Full body liviano", segunda.path("sesiones").get(0).path("nombre").asString());
+        assertEquals(2, segunda.path("sesiones").get(0).path("ejercicios").get(0).path("series").asInt());
+        assertEquals(4, segunda.path("sesiones").get(0).path("ejercicios").get(0).path("rirObjetivo").asInt());
+    }
+
+    @Test
+    void las_semanas_futuras_se_ven_con_su_contenido_pero_no_se_pueden_registrar() throws Exception {
+        Alumno alumno = alumno();
+        SesionPlan distinta = new SesionPlan("Semana 2");
+        distinta.agregarEjercicios(List.of(ejercicio("Peso muerto", 5, 5, null, null, 1, null)));
+        planRepository.save(plan(alumno, ZonaHoraria.hoy(), semanaBasica(), semana(null, distinta)));
+
+        JsonNode semanas = planActivoDe(alumno).cuerpo().path("semanas");
+
+        assertTrue(semanas.get(0).path("sesiones").get(0).path("registrable").asBoolean());
+        JsonNode futura = semanas.get(1).path("sesiones").get(0);
+        assertEquals("PENDIENTE", futura.path("estado").asString());
+        assertFalse(futura.path("registrable").asBoolean());
+        assertTrue(futura.path("ejercicios").get(0).path("nombre").asString().startsWith("Peso muerto"));
+    }
+
+    @Test
     void la_semana_actual_sale_de_la_fecha_de_hoy() throws Exception {
         LocalDate hoy = ZonaHoraria.hoy();
         Alumno primerDia = alumno();
@@ -273,14 +338,6 @@ class MiProgresoIntegrationTest {
         assertEquals(1, planActivoDe(primerDia).cuerpo().path("semanaActual").asInt());
         assertEquals(1, planActivoDe(ultimoDiaDeLaPrimera).cuerpo().path("semanaActual").asInt());
         assertEquals(2, planActivoDe(primerDiaDeLaSegunda).cuerpo().path("semanaActual").asInt());
-    }
-
-    @Test
-    void pasado_el_fin_previsto_la_semana_actual_es_la_ultima() throws Exception {
-        Alumno alumno = alumno();
-        planDeSemanas(alumno, ZonaHoraria.hoy().minusWeeks(9), 5);
-
-        assertEquals(5, planActivoDe(alumno).cuerpo().path("semanaActual").asInt());
     }
 
     @Test
@@ -338,51 +395,6 @@ class MiProgresoIntegrationTest {
     }
 
     @Test
-    void un_plan_sin_los_datos_nuevos_se_toma_como_de_una_semana() throws Exception {
-        Alumno alumno = alumno();
-        planRepository.save(planBasico(alumno, ZonaHoraria.hoy().minusDays(20)));
-
-        JsonNode cuerpo = planActivoDe(alumno).cuerpo();
-
-        assertEquals("Plan de prueba", cuerpo.path("nombre").asString());
-        assertTrue(cuerpo.path("metodo").isNull());
-        assertTrue(cuerpo.path("mesociclo").isNull());
-        assertEquals(1, cuerpo.path("cantidadSemanas").asInt());
-        assertEquals(1, cuerpo.path("semanaActual").asInt());
-        assertEquals(2, cuerpo.path("sesionesTotales").asInt());
-    }
-
-    @Test
-    void con_fecha_fin_las_semanas_salen_del_rango_de_fechas() throws Exception {
-        Alumno alumno = alumno();
-        LocalDate inicio = ZonaHoraria.hoy();
-        PlanAsignado plan = planBasico(alumno, inicio);
-        plan.setFechaFin(inicio.plusDays(20));
-        planRepository.save(plan);
-
-        JsonNode cuerpo = planActivoDe(alumno).cuerpo();
-
-        assertEquals(3, cuerpo.path("cantidadSemanas").asInt());
-        assertEquals(3, cuerpo.path("semanas").size());
-        assertEquals(6, cuerpo.path("sesionesTotales").asInt());
-    }
-
-    @Test
-    void si_la_fecha_fin_no_cierra_una_semana_la_ultima_queda_incompleta() throws Exception {
-        Alumno alumno = alumno();
-        LocalDate inicio = ZonaHoraria.hoy();
-        PlanAsignado plan = planBasico(alumno, inicio);
-        plan.setFechaFin(inicio.plusDays(21));
-        planRepository.save(plan);
-
-        JsonNode semanas = planActivoDe(alumno).cuerpo().path("semanas");
-
-        assertEquals(4, semanas.size());
-        assertEquals(inicio.plusDays(21).toString(), semanas.get(3).path("desde").asString());
-        assertEquals(inicio.plusDays(21).toString(), semanas.get(3).path("hasta").asString());
-    }
-
-    @Test
     void cada_alumno_ve_solo_su_plan() throws Exception {
         Alumno conPlan = alumno();
         planDeSemanas(conPlan, ZonaHoraria.hoy(), 5);
@@ -423,8 +435,6 @@ class MiProgresoIntegrationTest {
         JsonNode activo = planesDe(alumno).cuerpo().path("activo");
 
         assertEquals(plan.getId(), activo.path("id").asLong());
-        assertEquals("ULTRA_MASS", activo.path("metodo").asString());
-        assertEquals("Hipertrofia", activo.path("mesociclo").asString());
         assertEquals("ACTIVO", activo.path("estado").asString());
         assertEquals(inicio.toString(), activo.path("fechaInicio").asString());
         assertEquals(inicio.plusDays(34).toString(), activo.path("fechaFin").asString());
@@ -542,7 +552,7 @@ class MiProgresoIntegrationTest {
             String kg, Integer rirReal, String notas) {
         RegistroSesion registro = new RegistroSesion(plan, semana, numeroSesion, fecha);
         registro.setCompletada(true);
-        registro.agregarEjercicios(plan.getSesiones().get(numeroSesion - 1).getEjercicios().stream()
+        registro.agregarEjercicios(plan.buscarSesion(semana, numeroSesion).orElseThrow().getEjercicios().stream()
                 .map(indicado -> new RegistroEjercicio(indicado, kg == null ? null : new BigDecimal(kg), rirReal, notas))
                 .toList());
         return registroRepository.save(registro);
@@ -596,7 +606,7 @@ class MiProgresoIntegrationTest {
     void cada_sesion_informa_cuantos_ejercicios_tenia_indicados_segun_la_copia_del_registro() throws Exception {
         Alumno alumno = alumno();
         PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
-        List<EjercicioSesionPlan> indicados = plan.getSesiones().get(0).getEjercicios();
+        List<EjercicioSesionPlan> indicados = semana1(plan).get(0).getEjercicios();
         RegistroSesion registro = new RegistroSesion(plan, 1, 1, ZonaHoraria.hoy());
         registro.setCompletada(true);
         registro.agregarEjercicios(List.of(
@@ -604,7 +614,7 @@ class MiProgresoIntegrationTest {
                 new RegistroEjercicio(indicados.get(1))));
         registroRepository.save(registro);
         // El profe le saca un ejercicio al plan después: el total sigue saliendo de lo que se copió al empezar
-        plan.getSesiones().get(0).getEjercicios().remove(1);
+        semana1(plan).get(0).getEjercicios().remove(1);
         planRepository.save(plan);
 
         JsonNode sesion = sesionesDe(alumno, plan.getId()).cuerpo().get(0);
@@ -616,17 +626,34 @@ class MiProgresoIntegrationTest {
     @Test
     void cada_sesion_de_la_semana_trae_su_nombre_en_el_plan() throws Exception {
         Alumno alumno = alumno();
-        PlanAsignado plan = planBasico(alumno, ZonaHoraria.hoy());
         SesionPlan conNombre = new SesionPlan("Tren inferior A");
         conNombre.agregarEjercicios(List.of(ejercicio("Sentadilla", 4, 15, 18, null, 3, null)));
-        plan.reemplazarSesiones(List.of(conNombre, sesion(ejercicio("Remo", 3, 10, 12, null, 2, null))));
-        plan.setCantidadSemanas(2);
-        planRepository.save(plan);
+        planRepository.save(plan(alumno, ZonaHoraria.hoy(),
+                semana(null, conNombre, sesion(ejercicio("Remo", 3, 10, 12, null, 2, null))), semanaBasica()));
 
         JsonNode sesiones = planActivoDe(alumno).cuerpo().path("semanas").get(0).path("sesiones");
 
         assertEquals("Tren inferior A", sesiones.get(0).path("nombre").asString());
         assertTrue(sesiones.get(1).path("nombre").isNull());
+    }
+
+    @Test
+    void las_sesiones_registradas_traen_el_nombre_de_la_sesion() throws Exception {
+        Alumno alumno = alumno();
+        LocalDate inicio = ZonaHoraria.hoy().minusDays(8);
+        SesionPlan conNombre = new SesionPlan("Tren inferior A");
+        conNombre.agregarEjercicios(List.of(ejercicio("Sentadilla", 4, 15, 18, null, 3, null)));
+        PlanAsignado plan = planRepository.save(plan(alumno, inicio,
+                semana(null, conNombre, sesion(ejercicio("Remo", 3, 10, 12, null, 2, null))), semanaBasica()));
+        RegistroSesion conNombreRegistrada = registrarConEjercicios(plan, 1, 1, inicio, "40", 2, null);
+        registrarConEjercicios(plan, 1, 2, inicio.plusDays(1), "40", 2, null);
+
+        JsonNode sesiones = sesionesDe(alumno, plan.getId()).cuerpo();
+
+        // De la más reciente a la más antigua: primero la sesión 2, que no tiene nombre
+        assertTrue(sesiones.get(0).path("nombreSesion").isNull());
+        assertEquals("Tren inferior A", sesiones.get(1).path("nombreSesion").asString());
+        assertEquals("Tren inferior A", sesionDe(alumno, conNombreRegistrada.getId()).cuerpo().path("nombreSesion").asString());
     }
 
     @Test
@@ -666,8 +693,7 @@ class MiProgresoIntegrationTest {
         assertEquals(2, cuerpo.path("semana").asInt());
         assertEquals(1, cuerpo.path("numeroSesion").asInt());
         assertEquals(fecha.toString(), cuerpo.path("fecha").asString());
-        assertEquals("ULTRA_MASS", cuerpo.path("metodo").asString());
-        assertEquals("Hipertrofia", cuerpo.path("mesociclo").asString());
+        assertEquals("Plan de prueba", cuerpo.path("nombrePlan").asString());
         JsonNode ejercicio = cuerpo.path("ejercicios").get(0);
         assertTrue(ejercicio.path("nombre").asString().startsWith("Sentadilla"));
         assertEquals(4, ejercicio.path("series").asInt());
@@ -725,7 +751,10 @@ class MiProgresoIntegrationTest {
         PlanAsignado plan = planDeSemanas(alumno, ZonaHoraria.hoy(), 5);
         RegistroSesion registro = registrarConEjercicios(plan, 1, 1, ZonaHoraria.hoy(), "40", 3, null);
 
-        plan.reemplazarSesiones(List.of(sesion(ejercicio("Otro", 2, 5, null, null, 1, null))));
+        // El profe cambia la sesión: menos series y otra indicación
+        EjercicioSesionPlan indicado = semana1(plan).get(0).getEjercicios().get(0);
+        indicado.setSeries(2);
+        indicado.setIndicaciones("Otra cosa");
         planRepository.save(plan);
 
         JsonNode ejercicios = sesionDe(alumno, registro.getId()).cuerpo().path("ejercicios");
@@ -777,17 +806,6 @@ class MiProgresoIntegrationTest {
         PlanAsignado plan = planDeSemanas(alumno, inicio, semanas);
         plan.setFechaFin(fechaFin);
         return planRepository.save(plan);
-    }
-
-    @Test
-    void con_fecha_fin_real_el_plan_activo_informa_esa_y_no_la_calculada_por_semanas() throws Exception {
-        Alumno alumno = alumno();
-        LocalDate inicio = ZonaHoraria.hoy().minusDays(8);
-        // Por semanas terminaría el día 34; la fecha fin real manda
-        planConFin(alumno, inicio, 5, inicio.plusDays(50));
-
-        assertEquals(inicio.plusDays(50).toString(), planActivoDe(alumno).cuerpo().path("fechaFin").asString());
-        assertEquals(inicio.plusDays(50).toString(), planesDe(alumno).cuerpo().path("activo").path("fechaFin").asString());
     }
 
     @Test
@@ -909,6 +927,27 @@ class MiProgresoIntegrationTest {
         assertFalse(ejercicios.get(0).path("completo").asBoolean());
         assertEquals(2, ejercicios.get(1).path("orden").asInt());
         assertEquals(4, ejercicios.get(1).path("series").asInt());
+    }
+
+    @Test
+    void iniciar_una_sesion_copia_los_ejercicios_indicados_para_esa_semana() throws Exception {
+        Alumno alumno = alumno();
+        SesionPlan descarga = new SesionPlan("Descarga");
+        descarga.agregarEjercicios(List.of(ejercicio("Peso muerto", 2, 8, null, null, 4, "Liviano")));
+        PlanAsignado plan = planRepository.save(plan(alumno, ZonaHoraria.hoy().minusDays(7),
+                semanaBasica(), semana("Semana de descarga", descarga)));
+
+        Respuesta iniciada = iniciar(alumno, plan.getId(), 2, 1);
+
+        assertEquals(200, iniciada.status(), iniciada.cuerpo().toString());
+        assertEquals("Descarga", iniciada.cuerpo().path("nombre").asString());
+        JsonNode ejercicios = iniciada.cuerpo().path("ejercicios");
+        assertEquals(1, ejercicios.size());
+        assertTrue(ejercicios.get(0).path("nombre").asString().startsWith("Peso muerto"));
+        assertEquals(2, ejercicios.get(0).path("series").asInt());
+        assertEquals("Liviano", ejercicios.get(0).path("indicaciones").asString());
+        // La semana 2 no tiene sesión 2
+        assertEquals(400, iniciar(alumno, plan.getId(), 2, 2).status());
     }
 
     @Test

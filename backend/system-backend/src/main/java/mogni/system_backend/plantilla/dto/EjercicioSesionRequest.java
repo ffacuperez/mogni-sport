@@ -9,6 +9,7 @@ import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -58,6 +59,10 @@ public class EjercicioSesionRequest {
     @Min(value = 0, message = "El RIR objetivo no puede ser negativo")
     @Max(value = 10, message = "El RIR objetivo no puede ser más de 10")
     private Integer rirObjetivo;
+
+    /** Opcional: aclaración del profe, por ejemplo "Tempo 2-1-3" o "Superserie con gemelos". */
+    @Size(max = 200, message = "Las indicaciones no pueden superar los 200 caracteres")
+    private String indicaciones;
 
     @JsonIgnore
     @AssertTrue(message = "En el rango de repeticiones, el mínimo no puede ser mayor al máximo")

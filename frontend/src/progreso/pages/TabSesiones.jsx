@@ -9,7 +9,7 @@ import FiltroPlan from '../components/FiltroPlan';
 import ItemSesion from '../components/ItemSesion';
 import TituloSeccion from '../components/TituloSeccion';
 import { useProgreso } from '../services/ProgresoContext';
-import { agruparPorSemana, nombreCortoPlan } from '../services/progresoService';
+import { agruparPorSemana } from '../services/progresoService';
 
 function SinSesiones() {
   return <EstadoVacio icono={History} {...useProgreso().textos.sinSesiones} />;
@@ -64,7 +64,7 @@ export default function TabSesiones() {
       {sesiones && agruparPorSemana(sesiones).map(({ semana, sesiones: deLaSemana }) => (
         <Fragment key={semana}>
           <div className="pt-1">
-            <TituloSeccion>{nombreCortoPlan(plan)} · Semana {semana}</TituloSeccion>
+            <TituloSeccion>{plan.nombre} · Semana {semana}</TituloSeccion>
           </div>
           {deLaSemana.map((sesion) => <ItemSesion key={sesion.id} sesion={sesion} />)}
         </Fragment>

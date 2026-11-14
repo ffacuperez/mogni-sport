@@ -28,6 +28,9 @@ import org.springframework.context.ApplicationEventPublisher;
 import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.exception.ConflictoException;
+import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
+import mogni.system_backend.inscripcion.entity.Inscripcion;
+import mogni.system_backend.membresia.entity.Membresia;
 import mogni.system_backend.notificacion.entity.AvisoTurno;
 import mogni.system_backend.notificacion.repository.AvisoTurnoRepository;
 import mogni.system_backend.turno.entity.ClaseExtra;
@@ -112,6 +115,60 @@ class CancelacionGimnasioServiceTest {
 
     private void reservar(Alumno alumno, Turno turno) {
         reservas.add(new Reserva(siguienteId++, alumno, turno, AHORA.minusDays(1), EstadoReserva.RESERVADA));
+    }
+
+    /** Alumno con una cuota paga que empieza ese día (vence el mismo día del mes siguiente). */
+    private static Alumno alumnoConCuotaDesde(Long id, LocalDate inicio) {
+        Alumno alumno = new Alumno();
+        alumno.setId(id);
+        Membresia membresia = new Membresia(1L, "x3", 18000.0, 3, null);
+        Inscripcion inscripcion = new Inscripcion(id, inicio, null, EstadoInscripcion.ACTIVA, alumno, membresia);
+        alumno.agregarInscripcion(inscripcion);
+        inscripcion.agregarCuota(inicio);
+        return alumno;
+    }
+
+    @Test
+    void laClaseExtraValeHastaElVencimientoDeLaCuotaPaga() {
+        Turno turno = turno(HOY, "11:30");
+        // La cuota va del 01/10 al 01/11
+        reservar(alumnoConCuotaDesde(1L, LocalDate.of(2026, 10, 1)), turno);
+        when(generacionTurnosService.obtenerOGenerarTurnos(HOY)).thenReturn(List.of(turno));
+
+        service.cancelarTurno(HOY, "11:30", AHORA);
+
+        assertEquals(LocalDate.of(2026, 11, 1), clasesExtra.get(0).getVigenteHasta());
+        assertEquals(LocalDate.of(2026, 10, 12), clasesExtra.get(0).getVigenteDesde());
+        assertEquals("Se canceló tu turno del 13/10 a las 11:30. Podés recuperar la clase cualquier día hasta que venza tu cuota.",
+                avisos.get(0).getMensaje());
+    }
+
+    @Test
+    void conElPeriodoSiguienteYaPagoLaClaseValeHastaElFinDeLaCuotaDelTurno() {
+        Turno turno = turno(HOY, "11:30");
+        // La cuota va del 01/10 al 01/11 y ya pagó la siguiente (01/11 al 01/12)
+        Alumno alumno = alumnoConCuotaDesde(1L, LocalDate.of(2026, 10, 1));
+        alumno.buscarInscripcionActiva().orElseThrow().agregarCuota(LocalDate.of(2026, 11, 1));
+        reservar(alumno, turno);
+        when(generacionTurnosService.obtenerOGenerarTurnos(HOY)).thenReturn(List.of(turno));
+
+        service.cancelarTurno(HOY, "11:30", AHORA);
+
+        assertEquals(LocalDate.of(2026, 11, 1), clasesExtra.get(0).getVigenteHasta());
+    }
+
+    @Test
+    void conLaCuotaVencidaLaClaseExtraNoTerminaAntesDelDiaDelTurno() {
+        Turno turno = turno(HOY, "11:30");
+        // La cuota venció ayer (12/10): hoy está vencida y todavía podía reservar
+        reservar(alumnoConCuotaDesde(1L, LocalDate.of(2026, 9, 12)), turno);
+        when(generacionTurnosService.obtenerOGenerarTurnos(HOY)).thenReturn(List.of(turno));
+
+        service.cancelarTurno(HOY, "11:30", AHORA);
+
+        assertEquals(HOY, clasesExtra.get(0).getVigenteHasta());
+        assertEquals("Se canceló tu turno del 13/10 a las 11:30. Podés recuperar la clase en otro horario de ese día.",
+                avisos.get(0).getMensaje());
     }
 
     @Test
@@ -228,7 +285,7 @@ class CancelacionGimnasioServiceTest {
         TurnoCanceladoPorGimnasioEvent evento = eventos.getAllValues().get(0);
         assertEquals("Turno cancelado por el gimnasio", evento.titulo());
         // La push muestra fecha, hora y la clase extra, igual que el aviso de la app
-        assertEquals("Se canceló tu turno del 15/10 a las 18:00. Recibiste una clase extra, válida hasta el 25/10.",
+        assertEquals("Se canceló tu turno del 15/10 a las 18:00. Podés recuperar la clase cualquier día hasta que venza tu cuota.",
                 evento.mensaje());
         assertEquals(evento.mensaje(), avisos.get(0).getMensaje());
     }

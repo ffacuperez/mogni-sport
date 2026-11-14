@@ -11,8 +11,11 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import mogni.system_backend.alumno.entity.Alumno;
 import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.config.ZonaHoraria;
+import mogni.system_backend.cuota.dto.PeriodoCuota;
+import mogni.system_backend.cuota.service.CuotaService;
 import mogni.system_backend.exception.ConflictoException;
 import mogni.system_backend.exception.RecursoNoEncontradoException;
 import mogni.system_backend.notificacion.entity.AvisoTurno;
@@ -140,7 +143,8 @@ public class CancelacionGimnasioService {
 
     /**
      * Cancela el turno (que ya tiene que venir bloqueado), pasa sus reservas a CANCELADA_POR_GIMNASIO y les da a los
-     * alumnos una clase extra y un aviso. Lo usa la cancelación manual y la reconciliación de franjas.
+     * alumnos una clase extra y un aviso. Lo usa la cancelación manual y la reconciliación de franjas. La clase extra es
+     * la única compensación: la reserva cancelada sigue contando para el límite semanal (ver ReglasReserva).
      * Si la canceló el propietario, el aviso también sale por push (al confirmarse la cancelación, ver
      * PushTurnoCanceladoListener). Por cambio de franja, por ahora, solo queda en la app.
      */
@@ -155,8 +159,8 @@ public class CancelacionGimnasioService {
         turno.cancelar(motivo);
         turnoRepository.save(turno);
         LocalDate desde = turno.getFecha().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-        LocalDate hasta = desde.plusDays(13);
         for (Reserva reserva : reservas) {
+            LocalDate hasta = vigenciaClaseExtra(reserva.getAlumno(), turno.getFecha());
             reserva.setEstado(EstadoReserva.CANCELADA_POR_GIMNASIO);
             claseExtraRepository.save(new ClaseExtra(reserva.getAlumno(), reserva.getId(), desde, hasta));
             AvisoTurno aviso = avisoTurnoRepository.save(new AvisoTurno(
@@ -168,7 +172,7 @@ public class CancelacionGimnasioService {
                     "Turno cancelado por el gimnasio",
                     "Se canceló tu turno del " + turno.getFecha().format(FECHA)
                             + " a las " + FranjaHorariaService.formatearHora(turno.getHoraInicio())
-                            + ". Recibiste una clase extra, válida hasta el " + hasta.format(FECHA) + "."));
+                            + ". " + textoRecuperacion(hasta, turno.getFecha())));
             Cuenta cuenta = reserva.getAlumno().getCuenta();
             if (motivo == MotivoCancelacionTurno.MANUAL && cuenta != null) {
                 eventPublisher.publishEvent(new TurnoCanceladoPorGimnasioEvent(
@@ -177,6 +181,29 @@ public class CancelacionGimnasioService {
         }
         reservaRepository.saveAll(reservas);
         return new CancelacionGimnasioResponse(1, reservas.size(), reservas.size());
+    }
+
+    /**
+     * La clase a recuperar vale desde el lunes de la semana del turno hasta el fin de la cuota en la que estaba el turno
+     * cancelado: es la clase de ese período que no pudo hacer. Aunque ya haya pagado el período siguiente, no pasa a
+     * ese período. Si ninguna cuota cubre el día del turno (la cuota ya había vencido), vale solo ese día. Sin cuotas
+     * (datos viejos), la semana del turno y la siguiente.
+     */
+    static LocalDate vigenciaClaseExtra(Alumno alumno, LocalDate fechaTurno) {
+        if (alumno.buscarUltimaCuotaPagada().isEmpty()) {
+            return fechaTurno.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusDays(13);
+        }
+        return CuotaService.periodoQueCubre(alumno, fechaTurno).map(PeriodoCuota::hasta).orElse(fechaTurno);
+    }
+
+    /**
+     * Cómo se le cuenta al alumno que puede recuperar la clase. Si la cuota ya venció antes del turno, la recuperación
+     * vale solo ese día (ver vigenciaClaseExtra): decirle "hasta que venza tu cuota" lo confundiría.
+     */
+    static String textoRecuperacion(LocalDate hasta, LocalDate fechaTurno) {
+        return hasta.equals(fechaTurno)
+                ? "Podés recuperar la clase en otro horario de ese día."
+                : "Podés recuperar la clase cualquier día hasta que venza tu cuota.";
     }
 
     private static void validarFecha(LocalDate fecha, LocalDateTime ahora) {

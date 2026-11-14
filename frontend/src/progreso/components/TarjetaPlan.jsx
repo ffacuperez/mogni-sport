@@ -4,7 +4,7 @@ import { Calendar, Check, ChevronRight, Layers, Target } from 'lucide-react';
 import { textoNivel, textoObjetivo } from '../../plantilla/services/plantillasService';
 import { cx, FOCUS } from '../../shared/components/clases';
 import { Panel } from '../../shared/components/ui';
-import { textoRangoPlan, textoSemanas, tituloPlan } from '../services/progresoService';
+import { textoRangoPlan, textoSemanas } from '../services/progresoService';
 import { useProgreso } from '../services/ProgresoContext';
 import BadgeEstadoPlan from './BadgeEstadoPlan';
 
@@ -29,7 +29,7 @@ export default function TarjetaPlan({ plan }) {
     >
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-sm font-bold text-ink">{tituloPlan(plan)}</h3>
+          <h3 className="text-sm font-bold text-ink">{plan.nombre}</h3>
           <BadgeEstadoPlan estado={plan.estado} />
         </div>
         <Dato icono={Calendar}>{textoRangoPlan(plan)}</Dato>

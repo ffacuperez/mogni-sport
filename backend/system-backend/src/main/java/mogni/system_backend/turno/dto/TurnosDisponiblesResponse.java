@@ -32,4 +32,15 @@ public class TurnosDisponiblesResponse {
      * (los turnos vienen seleccionables), como lo permite la reserva.
      */
     private boolean tieneClaseExtra;
+    /**
+     * Día de gracia: la cuota venció ayer y fechaSeleccionada es mañana, cuando ya va a estar en mora. Ve los turnos
+     * pero no puede elegir ninguno hasta que regularice el pago. Los de hoy los puede reservar.
+     */
+    private boolean bloqueadoPorCuotaVencida;
+    /**
+     * Clases que le quedan por recuperar de turnos que el gimnasio le canceló en semanas anteriores (las de esta
+     * semana ya suman en turnosRestantesSemana). No se muestran (se las avisó la notificación), pero mientras tenga
+     * alguna puede reservar aunque haya usado los turnos de la semana.
+     */
+    private int clasesParaRecuperar;
 }

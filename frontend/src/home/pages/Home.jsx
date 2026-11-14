@@ -38,7 +38,7 @@ const FEATURES = [
   { icon: Users, title: 'Alumnos', text: 'Alta, datos personales, objetivo y antecedentes de salud en un solo perfil.' },
   { icon: BadgeCheck, title: 'Membresías', text: 'Planes con duración, clases semanales y precio, asignados a cada alumno.' },
   { icon: CalendarDays, title: 'Turnos', text: 'Turnero automático, reservas, cancelaciones y reprogramaciones con ventana de 2 horas.' },
-  { icon: Dumbbell, title: 'Rutinas', text: 'Plantillas reutilizables, mesociclos y cálculo del 1RM a partir del ejercicio guía.' },
+  { icon: Dumbbell, title: 'Rutinas', text: 'Plantillas reutilizables por semanas y cálculo del 1RM a partir del ejercicio guía.' },
   { icon: Apple, title: 'Alimentación', text: 'El plan de alimentación vigente de cada alumno, siempre a mano.' },
   { icon: TrendingUp, title: 'Progreso físico', text: 'Peso levantado, RIR, mediciones corporales y gráficas de evolución.' },
   { icon: Award, title: 'Hábitos y asistencia', text: 'Seguimiento mensual con porcentaje de cumplimiento y medallas.' },

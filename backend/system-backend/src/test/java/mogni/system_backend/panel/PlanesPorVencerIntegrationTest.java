@@ -20,7 +20,6 @@ import mogni.system_backend.auth.entity.Cuenta;
 import mogni.system_backend.auth.entity.Rol;
 import mogni.system_backend.panel.dto.PlanesPorVencerResponse;
 import mogni.system_backend.panel.service.PlanesPorVencerService;
-import mogni.system_backend.plan.entity.MetodoPlan;
 import mogni.system_backend.plan.entity.PlanAsignado;
 import mogni.system_backend.plan.repository.PlanAsignadoRepository;
 import mogni.system_backend.plantilla.entity.NivelPlantilla;
@@ -77,8 +76,6 @@ class PlanesPorVencerIntegrationTest {
         plan.setNombre("Plan de " + alumno.getApellido());
         plan.setNivel(NivelPlantilla.INTERMEDIO);
         plan.setObjetivo(ObjetivoPlantilla.HIPERTROFIA);
-        plan.setMetodo(MetodoPlan.ULTRA_MASS);
-        plan.setMesociclo("Hipertrofia");
         plan.setFechaFin(HOY.plusDays(diasHastaFin));
         return planRepository.save(plan);
     }

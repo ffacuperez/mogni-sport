@@ -3,11 +3,13 @@ package mogni.system_backend.plan;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -46,15 +48,21 @@ import mogni.system_backend.plan.dto.PlanRequest;
 import mogni.system_backend.plan.entity.EjercicioSesionPlan;
 import mogni.system_backend.plan.entity.EstadoPlanAsignado;
 import mogni.system_backend.plan.entity.PlanAsignado;
+import mogni.system_backend.plan.entity.SemanaPlan;
+import mogni.system_backend.plan.entity.SesionPlan;
 import mogni.system_backend.plan.repository.PlanAsignadoRepository;
 import mogni.system_backend.plan.service.PlanAsignadoService;
 import mogni.system_backend.plantilla.dto.EjercicioSesionRequest;
+import mogni.system_backend.plantilla.dto.SemanaRequest;
 import mogni.system_backend.plantilla.dto.SesionRequest;
 import mogni.system_backend.plantilla.entity.EjercicioSesion;
 import mogni.system_backend.plantilla.entity.NivelPlantilla;
 import mogni.system_backend.plantilla.entity.ObjetivoPlantilla;
 import mogni.system_backend.plantilla.entity.PlantillaPlan;
+import mogni.system_backend.plantilla.entity.SemanaPlantilla;
 import mogni.system_backend.plantilla.entity.SesionPlantilla;
+import mogni.system_backend.progreso.entity.RegistroSesion;
+import mogni.system_backend.progreso.repository.RegistroSesionRepository;
 import mogni.system_backend.plantilla.repository.PlantillaPlanRepository;
 
 /** HU-266: pruebas de aceptación de "Asignar plan de entrenamiento a alumno" a nivel servicio. */
@@ -72,6 +80,9 @@ class PlanAsignadoServiceTest {
 
     @Mock
     private EjercicioRepository ejercicioRepository;
+
+    @Mock
+    private RegistroSesionRepository registroRepository;
 
     @InjectMocks
     private PlanAsignadoService planService;
@@ -108,7 +119,7 @@ class PlanAsignadoServiceTest {
         return a;
     }
 
-    /** Plantilla con dos sesiones: press de banca 4x8-10 y remo 3x12. */
+    /** Plantilla de una semana con dos sesiones: press de banca 4x8-10 y remo 3x12. */
     private PlantillaPlan plantilla(Long id) {
         PlantillaPlan p = new PlantillaPlan();
         p.setId(id);
@@ -121,7 +132,22 @@ class PlanAsignadoServiceTest {
                 new BigDecimal("60"), 2)));
         SesionPlantilla tiron = new SesionPlantilla(null);
         tiron.agregarEjercicios(List.of(new EjercicioSesion(catalogo.get(2L), 3, 12, null, null, null, null)));
-        p.reemplazarSesiones(new ArrayList<>(List.of(empuje, tiron)));
+        SemanaPlantilla semana = new SemanaPlantilla(null);
+        semana.agregarSesiones(List.of(empuje, tiron));
+        p.agregarSemanas(List.of(semana));
+        return p;
+    }
+
+    /** Plantilla con esa cantidad de semanas; desde la 2, cada una con una sesión de remo con su nota. */
+    private PlantillaPlan plantillaDeSemanas(Long id, int semanas) {
+        PlantillaPlan p = plantilla(id);
+        for (int numero = 2; numero <= semanas; numero++) {
+            SesionPlantilla remo = new SesionPlantilla("Remo semana " + numero);
+            remo.agregarEjercicios(List.of(new EjercicioSesion(catalogo.get(2L), 2, 10, null, null, null, 4)));
+            SemanaPlantilla semana = new SemanaPlantilla("Nota " + numero);
+            semana.agregarSesiones(List.of(remo));
+            p.agregarSemanas(List.of(semana));
+        }
         return p;
     }
 
@@ -140,14 +166,25 @@ class PlanAsignadoServiceTest {
         return s;
     }
 
+    private static SemanaRequest semana(String nota, SesionRequest... sesiones) {
+        SemanaRequest s = new SemanaRequest();
+        s.setNota(nota);
+        s.setSesiones(new ArrayList<>(List.of(sesiones)));
+        return s;
+    }
+
+    /** Plan de una semana con esas sesiones. */
     private static AsignarPlanDesdeCeroRequest desdeCero(Long alumnoId, SesionRequest... sesiones) {
+        return desdeCeroConSemanas(alumnoId, semana(null, sesiones));
+    }
+
+    private static AsignarPlanDesdeCeroRequest desdeCeroConSemanas(Long alumnoId, SemanaRequest... semanas) {
         AsignarPlanDesdeCeroRequest r = new AsignarPlanDesdeCeroRequest();
         r.setAlumnoId(alumnoId);
         r.setNombre("  Plan de Juan  ");
         r.setNivel(NivelPlantilla.PRINCIPIANTE);
         r.setObjetivo(ObjetivoPlantilla.FUERZA);
-        r.setSesiones(new ArrayList<>(List.of(sesiones)));
-        r.setCantidadSemanas(SEMANAS);
+        r.setSemanas(new ArrayList<>(List.of(semanas)));
         return r;
     }
 
@@ -155,12 +192,21 @@ class PlanAsignadoServiceTest {
         AsignarPlanDesdePlantillaRequest r = new AsignarPlanDesdePlantillaRequest();
         r.setAlumnoId(alumnoId);
         r.setPlantillaId(plantillaId);
-        r.setCantidadSemanas(SEMANAS);
         return r;
     }
 
-    /** HU-266: la vigencia en semanas es obligatoria. Los tests que no tratan de la vigencia usan esta. */
-    private static final int SEMANAS = 8;
+    /** Sesión de plan con un ejercicio del catálogo. */
+    private SesionPlan sesionPlan(String nombre, Long ejercicioId, int series) {
+        SesionPlan sesion = new SesionPlan(nombre);
+        sesion.agregarEjercicios(List.of(new EjercicioSesionPlan(catalogo.get(ejercicioId), series, 10, null, null, null, null)));
+        return sesion;
+    }
+
+    private static SemanaPlan semanaPlan(String nota, SesionPlan... sesiones) {
+        SemanaPlan semana = new SemanaPlan(nota);
+        semana.agregarSesiones(List.of(sesiones));
+        return semana;
+    }
 
     private PlanAsignado planGuardado() {
         ArgumentCaptor<PlanAsignado> captor = ArgumentCaptor.forClass(PlanAsignado.class);
@@ -168,12 +214,14 @@ class PlanAsignadoServiceTest {
         return captor.getValue();
     }
 
+    /** Plan de una semana asignado hoy. */
     private PlanAsignado planActivoDe(Alumno alumno, String nombre) {
-        PlanAsignado plan = new PlanAsignado(alumno, LocalDate.of(2026, 10, 12));
+        PlanAsignado plan = new PlanAsignado(alumno, ZonaHoraria.hoy());
         plan.setId(30L);
         plan.setNombre(nombre);
         plan.setNivel(NivelPlantilla.INTERMEDIO);
         plan.setObjetivo(ObjetivoPlantilla.HIPERTROFIA);
+        plan.agregarSemanas(List.of(semanaPlan(null, sesionPlan("Pecho", 1L, 4))));
         return plan;
     }
 
@@ -193,9 +241,11 @@ class PlanAsignadoServiceTest {
         assertEquals(7L, asignado.getAlumnoId());
         assertEquals("Juan Pérez", asignado.getAlumnoNombre());
         assertEquals(5L, asignado.getPlantillaOrigenId());
-        assertEquals(2, asignado.getSesiones().size());
-        var press = asignado.getSesiones().get(0).getEjercicios().get(0);
-        assertEquals("Pecho", asignado.getSesiones().get(0).getNombre());
+        assertEquals(1, asignado.getSemanas().size());
+        var sesiones = asignado.getSemanas().get(0).getSesiones();
+        assertEquals(2, sesiones.size());
+        var press = sesiones.get(0).getEjercicios().get(0);
+        assertEquals("Pecho", sesiones.get(0).getNombre());
         assertEquals(4, press.getSeries());
         assertEquals(8, press.getRepeticiones());
         assertEquals(10, press.getRepeticionesMax());
@@ -204,8 +254,9 @@ class PlanAsignadoServiceTest {
         assertEquals(2, press.getRirObjetivo());
         // Copia profunda: sesiones y ejercicios son objetos nuevos, no los de la plantilla
         PlanAsignado plan = planGuardado();
-        assertNotSame(plantilla.getSesiones().get(0), plan.getSesiones().get(0));
-        assertNotSame(plantilla.getSesiones().get(0).getEjercicios().get(0), plan.getSesiones().get(0).getEjercicios().get(0));
+        var sesionDelPlan = plan.getSemanas().get(0).getSesiones().get(0);
+        assertNotSame(plantilla.getSemanas().get(0).getSesiones().get(0), sesionDelPlan);
+        assertNotSame(plantilla.getSemanas().get(0).getSesiones().get(0).getEjercicios().get(0), sesionDelPlan.getEjercicios().get(0));
         // La plantilla suma una asignación activa
         verify(plantillaRepository).sumarAsignacion(5L);
     }
@@ -219,15 +270,16 @@ class PlanAsignadoServiceTest {
 
         plantilla.setNombre("Otro nombre");
         plantilla.setNivel(NivelPlantilla.AVANZADO);
-        plantilla.getSesiones().get(0).setNombre("Cambiada");
-        plantilla.getSesiones().get(0).getEjercicios().get(0).setSeries(10);
-        plantilla.reemplazarSesiones(new ArrayList<>(List.of(plantilla.getSesiones().get(1))));
+        plantilla.getSemanas().get(0).getSesiones().get(0).setNombre("Cambiada");
+        plantilla.getSemanas().get(0).getSesiones().get(0).getEjercicios().get(0).setSeries(10);
+        plantilla.getSemanas().get(0).getSesiones().remove(0);
 
         assertEquals("Hipertrofia - Buenardo", plan.getNombre());
         assertEquals(NivelPlantilla.INTERMEDIO, plan.getNivel());
-        assertEquals(2, plan.getSesiones().size());
-        assertEquals("Pecho", plan.getSesiones().get(0).getNombre());
-        assertEquals(4, plan.getSesiones().get(0).getEjercicios().get(0).getSeries());
+        var sesiones = plan.getSemanas().get(0).getSesiones();
+        assertEquals(2, sesiones.size());
+        assertEquals("Pecho", sesiones.get(0).getNombre());
+        assertEquals(4, sesiones.get(0).getEjercicios().get(0).getSeries());
     }
 
     @Test
@@ -242,12 +294,12 @@ class PlanAsignadoServiceTest {
         PlanAsignadoResponse modificado = planService.actualizarPlan(30L, cambios);
 
         assertEquals("Plan de Juan", modificado.getNombre());
-        assertEquals(1, modificado.getSesiones().size());
+        assertEquals(1, modificado.getSemanas().get(0).getSesiones().size());
         assertEquals("Hipertrofia - Buenardo", plantilla.getNombre());
         assertEquals(NivelPlantilla.INTERMEDIO, plantilla.getNivel());
-        assertEquals(2, plantilla.getSesiones().size());
-        assertEquals("Pecho", plantilla.getSesiones().get(0).getNombre());
-        assertEquals(4, plantilla.getSesiones().get(0).getEjercicios().get(0).getSeries());
+        assertEquals(2, plantilla.getSemanas().get(0).getSesiones().size());
+        assertEquals("Pecho", plantilla.getSemanas().get(0).getSesiones().get(0).getNombre());
+        assertEquals(4, plantilla.getSemanas().get(0).getSesiones().get(0).getEjercicios().get(0).getSeries());
     }
 
     @Test
@@ -270,20 +322,21 @@ class PlanAsignadoServiceTest {
         assertEquals(ObjetivoPlantilla.FUERZA, asignado.getObjetivo());
         assertEquals(EstadoPlanAsignado.ACTIVO, asignado.getEstado());
         assertNull(asignado.getPlantillaOrigenId());
-        assertEquals(1, asignado.getSesiones().get(0).getNumero());
-        assertEquals("Full body", asignado.getSesiones().get(0).getNombre());
-        assertEquals("Press de banca con barra", asignado.getSesiones().get(0).getEjercicios().get(0).getNombre());
+        var sesion = asignado.getSemanas().get(0).getSesiones().get(0);
+        assertEquals(1, sesion.getNumero());
+        assertEquals("Full body", sesion.getNombre());
+        assertEquals("Press de banca con barra", sesion.getEjercicios().get(0).getNombre());
         // No se guarda como plantilla reutilizable
         verify(plantillaRepository, never()).save(any());
         verify(plantillaRepository, never()).sumarAsignacion(anyLong());
     }
 
     @Test
-    void asignacion_de_un_plan_armado_desde_cero_sin_ninguna_sesion_falla() {
+    void asignacion_de_un_plan_armado_desde_cero_con_una_semana_sin_sesiones_falla() {
         RegistroInvalidoException error = assertThrows(RegistroInvalidoException.class,
                 () -> planService.asignarDesdeCero(desdeCero(7L)));
 
-        assertEquals("El plan tiene que tener al menos una sesión", error.getMessage());
+        assertEquals("Cada semana tiene que tener al menos una sesión", error.getMessage());
         verify(planRepository, never()).save(any());
     }
 
@@ -404,15 +457,14 @@ class PlanAsignadoServiceTest {
 
     @Test
     void la_modificacion_puede_conservar_un_ejercicio_que_se_dio_de_baja_despues_de_asignarlo() {
-        PlanAsignado plan = planActivoDe(juan, "Plan de Juan");
-        var sesion = new mogni.system_backend.plan.entity.SesionPlan(null);
-        sesion.agregarEjercicios(List.of(new EjercicioSesionPlan(catalogo.get(9L), 3, 8, null, null, null, null)));
-        plan.reemplazarSesiones(new ArrayList<>(List.of(sesion)));
+        PlanAsignado plan = new PlanAsignado(juan, ZonaHoraria.hoy());
+        plan.setId(30L);
+        plan.agregarSemanas(List.of(semanaPlan(null, sesionPlan(null, 9L, 3))));
         when(planRepository.findById(30L)).thenReturn(Optional.of(plan));
 
         PlanAsignadoResponse modificado = planService.actualizarPlan(30L, desdeCero(7L, sesion(null, ejercicio(9L, 4, 8))));
 
-        assertEquals(4, modificado.getSesiones().get(0).getEjercicios().get(0).getSeries());
+        assertEquals(4, modificado.getSemanas().get(0).getSesiones().get(0).getEjercicios().get(0).getSeries());
     }
 
     // --- Consulta del plan activo ---
@@ -433,7 +485,7 @@ class PlanAsignadoServiceTest {
         PlanAsignadoResponse activo = planService.obtenerPlanActivo(7L).orElseThrow();
 
         assertEquals("Hipertrofia - Buenardo", activo.getNombre());
-        assertEquals(LocalDate.of(2026, 10, 12), activo.getFechaAsignacion());
+        assertEquals(ZonaHoraria.hoy(), activo.getFechaAsignacion());
     }
 
     @Test
@@ -447,7 +499,7 @@ class PlanAsignadoServiceTest {
 
     private static final LocalDate HOY = LocalDate.of(2026, 11, 3);
 
-    /** Plan ACTIVO en la base, asignado hace un mes y con la fecha fin indicada (null = plan viejo, sin fecha fin). */
+    /** Plan ACTIVO en la base, asignado hace un mes y con la fecha fin indicada (sin semanas: solo importa la vigencia). */
     private PlanAsignado planActivoConFin(LocalDate fechaFin) {
         PlanAsignado plan = new PlanAsignado(juan, HOY.minusMonths(1));
         plan.setId(30L);
@@ -465,30 +517,34 @@ class PlanAsignadoServiceTest {
         lenient().when(alumnoRepository.existsById(7L)).thenReturn(true);
     }
 
-    private AsignarPlanDesdeCeroRequest desdeCeroPorSemanas(Integer semanas) {
-        AsignarPlanDesdeCeroRequest r = desdeCero(7L, sesion(null, ejercicio(1L, 4, 10)));
-        r.setCantidadSemanas(semanas);
-        return r;
-    }
-
-    private AsignarPlanDesdePlantillaRequest desdePlantillaPorSemanas(Integer semanas) {
-        AsignarPlanDesdePlantillaRequest r = desdePlantilla(7L, 5L);
-        r.setCantidadSemanas(semanas);
-        return r;
+    /** Plan desde cero con esa cantidad de semanas, todas con la misma sesión. */
+    private static AsignarPlanDesdeCeroRequest desdeCeroPorSemanas(int semanas) {
+        SemanaRequest[] todas = new SemanaRequest[semanas];
+        for (int i = 0; i < semanas; i++) {
+            todas[i] = semana(null, sesion(null, ejercicio(1L, 4, 10)));
+        }
+        return desdeCeroConSemanas(7L, todas);
     }
 
     @Test
     void asignar_desde_plantilla_por_semanas_pasa_y_la_fecha_fin_es_el_ultimo_dia_de_la_ultima_semana() {
-        when(plantillaRepository.findByIdAndActivaTrue(5L)).thenReturn(Optional.of(plantilla(5L)));
+        when(plantillaRepository.findByIdAndActivaTrue(5L)).thenReturn(Optional.of(plantillaDeSemanas(5L, 3)));
 
-        PlanAsignadoResponse asignado = planService.asignarDesdePlantilla(desdePlantillaPorSemanas(3), HOY);
+        PlanAsignadoResponse asignado = planService.asignarDesdePlantilla(desdePlantilla(7L, 5L), HOY);
 
-        // Martes 03/11 + 3 semanas: termina el lunes 23/11 inclusive
+        // La plantilla tiene 3 semanas. Martes 03/11 + 3 semanas: termina el lunes 23/11 inclusive
         assertEquals(HOY, asignado.getFechaAsignacion());
         assertEquals(LocalDate.of(2026, 11, 23), asignado.getFechaFin());
         assertEquals(3, asignado.getCantidadSemanas());
         assertEquals(EstadoPlanAsignado.ACTIVO, asignado.getEstado());
         assertEquals(LocalDate.of(2026, 11, 23), planGuardado().getFechaFin());
+        // Se copian todas las semanas, cada una con su contenido y su nota
+        assertEquals(3, asignado.getSemanas().size());
+        assertEquals(2, asignado.getSemanas().get(0).getSesiones().size());
+        assertEquals("Nota 3", asignado.getSemanas().get(2).getNota());
+        assertEquals("Remo semana 3", asignado.getSemanas().get(2).getSesiones().get(0).getNombre());
+        assertEquals(4, asignado.getSemanas().get(2).getSesiones().get(0).getEjercicios().get(0).getRirObjetivo());
+        assertEquals(1, asignado.getSemanaEnCurso());
     }
 
     @Test
@@ -501,37 +557,22 @@ class PlanAsignadoServiceTest {
     }
 
     @Test
-    void asignar_un_plan_sin_semanas_falla() {
-        RegistroInvalidoException desdePlantilla = assertThrows(RegistroInvalidoException.class,
-                () -> planService.asignarDesdePlantilla(desdePlantillaPorSemanas(null), HOY));
-        RegistroInvalidoException desdeCero = assertThrows(RegistroInvalidoException.class,
-                () -> planService.asignarDesdeCero(desdeCeroPorSemanas(null), HOY));
-
-        assertEquals("La cantidad de semanas es obligatoria", desdePlantilla.getMessage());
-        assertEquals("La cantidad de semanas es obligatoria", desdeCero.getMessage());
-        verify(planRepository, never()).save(any());
-        verify(plantillaRepository, never()).sumarAsignacion(anyLong());
-    }
-
-    @Test
-    void asignar_un_plan_de_cero_semanas_falla() {
-        RegistroInvalidoException desdePlantilla = assertThrows(RegistroInvalidoException.class,
-                () -> planService.asignarDesdePlantilla(desdePlantillaPorSemanas(0), HOY));
-        RegistroInvalidoException desdeCero = assertThrows(RegistroInvalidoException.class,
+    void asignar_un_plan_desde_cero_sin_semanas_falla() {
+        RegistroInvalidoException error = assertThrows(RegistroInvalidoException.class,
                 () -> planService.asignarDesdeCero(desdeCeroPorSemanas(0), HOY));
 
-        assertEquals("El plan tiene que durar al menos una semana", desdePlantilla.getMessage());
-        assertEquals(desdePlantilla.getMessage(), desdeCero.getMessage());
+        assertEquals("El plan tiene que tener al menos una semana", error.getMessage());
         verify(planRepository, never()).save(any());
     }
 
     @Test
-    void asignar_un_plan_de_mas_de_un_anio_falla() {
-        RegistroInvalidoException error = assertThrows(RegistroInvalidoException.class,
-                () -> planService.asignarDesdeCero(desdeCeroPorSemanas(53), HOY));
+    void asignar_un_plan_de_24_semanas_pasa_y_de_25_falla() {
+        assertEquals(24, planService.asignarDesdeCero(desdeCeroPorSemanas(24), HOY).getCantidadSemanas());
 
-        assertEquals("El plan no puede durar más de 52 semanas", error.getMessage());
-        verify(planRepository, never()).save(any());
+        RegistroInvalidoException error = assertThrows(RegistroInvalidoException.class,
+                () -> planService.asignarDesdeCero(desdeCeroPorSemanas(25), HOY));
+
+        assertEquals("El plan puede tener como máximo 24 semanas", error.getMessage());
     }
 
     @Test
@@ -584,73 +625,165 @@ class PlanAsignadoServiceTest {
         verify(plantillaRepository).restarAsignacion(5L);
     }
 
-    @Test
-    void un_plan_viejo_sin_fecha_fin_sigue_vigente_hasta_que_se_finalice_a_mano() {
-        PlanAsignado viejo = planActivoConFin(null);
-        tieneEnLaBase(viejo);
-        LocalDate dentroDeUnAnio = HOY.plusYears(1);
+    // --- HU-267 y refactor por semanas: modificar el plan y planes vencidos ---
 
-        assertTrue(planService.obtenerPlanActivo(7L, dentroDeUnAnio).isPresent());
-        assertThrows(ConflictoException.class,
-                () -> planService.asignarDesdeCero(desdeCeroPorSemanas(4), dentroDeUnAnio));
-        assertEquals(0, planService.cerrarVencidos(dentroDeUnAnio));
-
-        planService.finalizarPlan(30L, HOY);
-
-        assertEquals(EstadoPlanAsignado.FINALIZADO, viejo.getEstado());
-        assertEquals(HOY, viejo.getFechaFinalizacion());
+    /** Cambios con esa cantidad de semanas, todas con una sesión de remo 5x5. */
+    private static PlanRequest cambiosPorSemanas(int semanas) {
+        SemanaRequest[] todas = new SemanaRequest[semanas];
+        for (int i = 0; i < semanas; i++) {
+            todas[i] = semana("Cambiada " + (i + 1), sesion("Solo remo", ejercicio(2L, 5, 5)));
+        }
+        return desdeCeroConSemanas(7L, todas);
     }
 
-    // --- HU-267: modificar la fecha fin y planes vencidos ---
-
-    private PlanRequest cambiosPorSemanas(Integer semanas) {
-        PlanRequest cambios = desdeCero(7L, sesion("Solo remo", ejercicio(2L, 5, 5)));
-        cambios.setCantidadSemanas(semanas);
-        return cambios;
-    }
-
-    // planActivoConFin se asignó el 03/10: el 03/11 va por la semana 5 (del 31/10 al 06/11)
-
-    @Test
-    void modificar_las_semanas_de_un_plan_activo_pasa_y_recalcula_la_fecha_fin() {
-        PlanAsignado plan = planActivoConFin(HOY.plusDays(5));
+    /**
+     * Plan de 5 semanas asignado el 03/10: el 03/11 va por la semana 5 (del 31/10 al 06/11). Cada semana tiene dos
+     * sesiones de press: la 1 de 4 series y la 2 de 3.
+     */
+    private PlanAsignado planEnLaSemana5() {
+        PlanAsignado plan = new PlanAsignado(juan, HOY.minusMonths(1));
+        plan.setId(30L);
+        plan.setNombre("Hipertrofia - Buenardo");
+        plan.setNivel(NivelPlantilla.INTERMEDIO);
+        plan.setObjetivo(ObjetivoPlantilla.HIPERTROFIA);
+        for (int numero = 1; numero <= 5; numero++) {
+            plan.agregarSemanas(List.of(semanaPlan("Original " + numero,
+                    sesionPlan("A" + numero, 1L, 4), sesionPlan("B" + numero, 1L, 3))));
+        }
         tieneEnLaBase(plan);
+        return plan;
+    }
+
+    /** El alumno ya empezó (o registró) esas sesiones de la semana 5. */
+    private void conRegistrosEnLaSemana5(PlanAsignado plan, boolean completadas, int... sesiones) {
+        List<RegistroSesion> registros = new ArrayList<>();
+        for (int numero : sesiones) {
+            RegistroSesion registro = new RegistroSesion(plan, 5, numero, HOY.minusDays(1));
+            registro.setCompletada(completadas);
+            registros.add(registro);
+        }
+        when(registroRepository.findByPlanIdAndSemana(30L, 5)).thenReturn(registros);
+    }
+
+    @Test
+    void agregar_semanas_a_un_plan_activo_pasa_y_recalcula_la_fecha_fin() {
+        PlanAsignado plan = planEnLaSemana5();
 
         PlanAsignadoResponse modificado = planService.actualizarPlan(30L, cambiosPorSemanas(10), HOY);
 
         assertEquals(LocalDate.of(2026, 12, 11), modificado.getFechaFin());
         assertEquals(10, modificado.getCantidadSemanas());
         assertEquals(LocalDate.of(2026, 12, 11), plan.getFechaFin());
+        assertEquals(10, plan.getSemanas().size());
+        assertEquals(10, plan.getSemanas().get(9).getNumero());
+        assertEquals("Cambiada 10", plan.getSemanas().get(9).getNota());
     }
 
     @Test
-    void modificar_las_semanas_hasta_la_semana_en_curso_pasa() {
-        tieneEnLaBase(planActivoConFin(HOY.plusDays(5)));
+    void sacar_semanas_futuras_adelanta_la_fecha_fin_hasta_la_semana_en_curso() {
+        PlanAsignado plan = planEnLaSemana5();
+        plan.agregarSemanas(List.of(semanaPlan(null, sesionPlan("Futura", 1L, 4))));
 
         assertEquals(LocalDate.of(2026, 11, 6), planService.actualizarPlan(30L, cambiosPorSemanas(5), HOY).getFechaFin());
+        assertEquals(5, plan.getSemanas().size());
     }
 
     @Test
-    void modificar_a_menos_semanas_que_la_semana_en_curso_falla() {
-        PlanAsignado plan = planActivoConFin(HOY.plusDays(5));
-        tieneEnLaBase(plan);
+    void las_semanas_que_ya_pasaron_no_cambian_aunque_vengan_distintas() {
+        PlanAsignado plan = planEnLaSemana5();
+        SemanaPlan primera = plan.getSemanas().get(0);
+        SesionPlan sesionDeLaPrimera = primera.getSesiones().get(0);
+
+        planService.actualizarPlan(30L, cambiosPorSemanas(5), HOY);
+
+        // Las semanas 1 a 4 son las mismas, con su contenido original; la 5 tiene lo nuevo
+        assertSame(primera, plan.getSemanas().get(0));
+        assertSame(sesionDeLaPrimera, plan.getSemanas().get(0).getSesiones().get(0));
+        assertEquals("Original 4", plan.getSemanas().get(3).getNota());
+        assertEquals(2, plan.getSemanas().get(3).getSesiones().size());
+        assertEquals("Cambiada 5", plan.getSemanas().get(4).getNota());
+        assertEquals("Solo remo", plan.getSemanas().get(4).getSesiones().get(0).getNombre());
+    }
+
+    @Test
+    void no_se_puede_eliminar_la_semana_en_curso_ni_las_anteriores() {
+        PlanAsignado plan = planEnLaSemana5();
+        LocalDate fin = plan.getFechaFin();
 
         RegistroInvalidoException error = assertThrows(RegistroInvalidoException.class,
                 () -> planService.actualizarPlan(30L, cambiosPorSemanas(4), HOY));
 
-        assertEquals("El plan ya va por la semana 5: no puede durar menos de 5 semanas", error.getMessage());
-        assertEquals(HOY.plusDays(5), plan.getFechaFin());
+        assertEquals("El plan ya va por la semana 5: no se pueden eliminar la semana en curso ni las anteriores",
+                error.getMessage());
+        assertEquals(fin, plan.getFechaFin());
+        assertEquals(5, plan.getSemanas().size());
         verify(planRepository, never()).save(any());
     }
 
     @Test
-    void modificar_sin_semanas_falla() {
-        tieneEnLaBase(planActivoConFin(HOY.plusDays(5)));
+    void las_sesiones_con_registro_de_la_semana_en_curso_se_conservan_y_las_demas_se_reemplazan() {
+        PlanAsignado plan = planEnLaSemana5();
+        conRegistrosEnLaSemana5(plan, true, 1);
+        PlanRequest cambios = cambiosPorSemanas(5);
+        cambios.getSemanas().get(4).setSesiones(new ArrayList<>(List.of(
+                sesion("Distinta", ejercicio(2L, 1, 1)), sesion("Solo remo", ejercicio(2L, 5, 5)))));
+
+        PlanAsignadoResponse modificado = planService.actualizarPlan(30L, cambios, HOY);
+
+        var semana5 = plan.getSemanas().get(4);
+        assertEquals(2, semana5.getSesiones().size());
+        // La sesión 1 ya la registró: queda como estaba aunque el request traiga otra cosa
+        assertEquals("A5", semana5.getSesiones().get(0).getNombre());
+        assertEquals(4, semana5.getSesiones().get(0).getEjercicios().get(0).getSeries());
+        // La sesión 2 todavía no la empezó: se reemplaza
+        assertEquals("Solo remo", semana5.getSesiones().get(1).getNombre());
+        // El editor sabe cuáles quedan en solo lectura
+        assertEquals(5, modificado.getSemanaEnCurso());
+        assertEquals(1, modificado.getSesionesConRegistro().size());
+        assertEquals(1, modificado.getSesionesConRegistro().get(0).numeroSesion());
+        assertTrue(modificado.getSesionesConRegistro().get(0).completada());
+    }
+
+    @Test
+    void en_la_semana_en_curso_no_se_puede_quitar_una_sesion_que_el_alumno_ya_empezo() {
+        PlanAsignado plan = planEnLaSemana5();
+        conRegistrosEnLaSemana5(plan, false, 2);
+        PlanRequest cambios = cambiosPorSemanas(5);
+        // La semana en curso queda con una sola sesión, pero la 2 está en curso
+        cambios.getSemanas().get(4).setSesiones(new ArrayList<>(List.of(sesion(null, ejercicio(1L, 3, 8)))));
 
         RegistroInvalidoException error = assertThrows(RegistroInvalidoException.class,
-                () -> planService.actualizarPlan(30L, cambiosPorSemanas(null), HOY));
+                () -> planService.actualizarPlan(30L, cambios, HOY));
 
-        assertEquals("La cantidad de semanas es obligatoria", error.getMessage());
+        assertEquals("En la semana 5 no se pueden quitar las sesiones que Juan ya empezó o registró", error.getMessage());
+        assertEquals(2, plan.getSemanas().get(4).getSesiones().size());
+        verify(planRepository, never()).save(any());
+    }
+
+    @Test
+    void las_semanas_que_se_reemplazan_se_borran_con_un_flush_antes_de_agregar_las_nuevas() {
+        PlanAsignado plan = planEnLaSemana5();
+        // Al hacer flush, el plan ya no tiene la semana 5 vieja ni las nuevas: los DELETE salen antes que los INSERT
+        List<Integer> semanasAlHacerFlush = new ArrayList<>();
+        doAnswer(inv -> {
+            semanasAlHacerFlush.add(plan.getSemanas().size());
+            return null;
+        }).when(planRepository).flush();
+
+        planService.actualizarPlan(30L, cambiosPorSemanas(7), HOY);
+
+        assertEquals(List.of(4), semanasAlHacerFlush);
+        assertEquals(7, plan.getSemanas().size());
+    }
+
+    @Test
+    void modificar_sin_semanas_falla() {
+        planEnLaSemana5();
+
+        RegistroInvalidoException error = assertThrows(RegistroInvalidoException.class,
+                () -> planService.actualizarPlan(30L, cambiosPorSemanas(0), HOY));
+
+        assertEquals("El plan tiene que tener al menos una semana", error.getMessage());
     }
 
     @Test
@@ -683,15 +816,13 @@ class PlanAsignadoServiceTest {
         PlanAsignado vencido = planActivoConFin(HOY.minusDays(2));
         vencido.setPlantillaOrigen(plantilla(5L));
         PlanAsignado venceHoy = planActivoConFin(HOY);
-        PlanAsignado viejo = planActivoConFin(null);
-        when(planRepository.findByEstado(EstadoPlanAsignado.ACTIVO)).thenReturn(List.of(vencido, venceHoy, viejo));
+        when(planRepository.findByEstado(EstadoPlanAsignado.ACTIVO)).thenReturn(List.of(vencido, venceHoy));
 
         assertEquals(1, planService.cerrarVencidos(HOY));
 
         assertEquals(EstadoPlanAsignado.FINALIZADO, vencido.getEstado());
         assertEquals(HOY.minusDays(2), vencido.getFechaFinalizacion());
         assertEquals(EstadoPlanAsignado.ACTIVO, venceHoy.getEstado());
-        assertEquals(EstadoPlanAsignado.ACTIVO, viejo.getEstado());
         verify(plantillaRepository).restarAsignacion(5L);
     }
 

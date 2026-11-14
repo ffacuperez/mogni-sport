@@ -6,7 +6,6 @@ import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import mogni.system_backend.plan.entity.EstadoPlanAsignado;
-import mogni.system_backend.plan.entity.MetodoPlan;
 import mogni.system_backend.plantilla.entity.NivelPlantilla;
 import mogni.system_backend.plantilla.entity.ObjetivoPlantilla;
 
@@ -19,10 +18,6 @@ public class PlanDetalleResponse {
     /** MOGNI-268: lo que muestra el historial de planes al entrenador. */
     private NivelPlantilla nivel;
     private ObjetivoPlantilla objetivo;
-    /** Null en los planes que no lo tienen cargado, igual que mesociclo y objetivoMesociclo. */
-    private MetodoPlan metodo;
-    private String mesociclo;
-    private String objetivoMesociclo;
     private EstadoPlanAsignado estado;
     private LocalDate fechaInicio;
     /** Activo: el fin previsto. Finalizado: el día en que terminó. */
@@ -31,6 +26,7 @@ public class PlanDetalleResponse {
     /** La semana en curso según la fecha de hoy; en un plan finalizado, la última. */
     private int semanaActual;
     private int sesionesRegistradas;
+    /** La suma de las sesiones de cada semana. */
     private int sesionesTotales;
     private List<SemanaPlanResponse> semanas;
 }

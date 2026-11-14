@@ -61,7 +61,6 @@ import mogni.system_backend.pago.entity.MedioDePago;
 import mogni.system_backend.pago.entity.Pago;
 import mogni.system_backend.pago.repository.PagoRepository;
 import mogni.system_backend.plan.entity.EstadoPlanAsignado;
-import mogni.system_backend.plan.entity.MetodoPlan;
 import mogni.system_backend.plan.entity.PlanAsignado;
 import mogni.system_backend.plan.repository.PlanAsignadoRepository;
 import mogni.system_backend.turno.service.CancelacionPorSistemaService;
@@ -707,6 +706,7 @@ class AlumnoServiceTest {
         PlanAsignado plan = new PlanAsignado(alumno, hoy);
         plan.setId(id);
         plan.setNombre(nombre);
+        plan.setFechaFin(hoy.plusWeeks(4).minusDays(1));
         return plan;
     }
 
@@ -1197,7 +1197,7 @@ class AlumnoServiceTest {
         Alumno alumno = alumnoConId(10L);
         PlanAsignado plan = planActivo(5L, alumno, "Fuerza");
         plan.setFechaAsignacion(hoy.minusDays(15));
-        plan.definirDuracion(4);
+        plan.setFechaFin(plan.getFechaAsignacion().plusWeeks(4).minusDays(1));
 
         PlanActivoResumen resumen = resumenDelPlan(plan, alumno);
 
@@ -1206,20 +1206,7 @@ class AlumnoServiceTest {
     }
 
     @Test
-    void listarAlumnos_planIncluyeLoQueArmaSuTitulo() {
-        Alumno alumno = alumnoConId(10L);
-        PlanAsignado plan = planActivo(5L, alumno, "Fuerza");
-        plan.setMetodo(MetodoPlan.values()[0]);
-        plan.setMesociclo("Hipertrofia");
-
-        PlanActivoResumen resumen = resumenDelPlan(plan, alumno);
-
-        assertEquals(MetodoPlan.values()[0], resumen.getMetodo());
-        assertEquals("Hipertrofia", resumen.getMesociclo());
-    }
-
-    @Test
-    void listarAlumnos_planViejoSinCantidadLaCalculaDeLaFechaFin() {
+    void listarAlumnos_laCantidadDeSemanasSaleDeLaFechaFin() {
         Alumno alumno = alumnoConId(10L);
         PlanAsignado plan = planActivo(5L, alumno, "Fuerza");
         plan.setFechaAsignacion(hoy.minusDays(10));
@@ -1229,18 +1216,6 @@ class AlumnoServiceTest {
 
         assertEquals(2, resumen.getSemanaActual());
         assertEquals(3, resumen.getCantidadSemanas());
-    }
-
-    @Test
-    void listarAlumnos_planViejoSinCantidadNiFechaFinCuentaUnaSemana() {
-        Alumno alumno = alumnoConId(10L);
-        PlanAsignado plan = planActivo(5L, alumno, "Fuerza");
-        plan.setFechaAsignacion(hoy.minusDays(30));
-
-        PlanActivoResumen resumen = resumenDelPlan(plan, alumno);
-
-        assertEquals(1, resumen.getSemanaActual());
-        assertEquals(1, resumen.getCantidadSemanas());
     }
 
     @Test

@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, CircleCheck, Clock, His
 import TarjetasAlumnos, { BarraAcciones, SelectorOrden } from '../components/TarjetasAlumnos';
 import { COLUMNAS_ACTIVOS, COLUMNAS_INACTIVOS, filtrarAlumnos, ordenarAlumnos, siguienteOrden } from '../services/listaAlumnos';
 import { avisoVencimiento, formatearFecha, formatearMonto, motivoSinRenovacion, tonoEstadoCuota } from '../../cuota/services/cuotasService';
-import { tituloPlan } from '../../progreso/services/progresoService';
+
 import { cx, FOCUS } from '../../shared/components/clases';
 import { Badge, Button, EmptyRow, PageHeader, Panel, Row, SearchInput, SelectDot, StatFiltro, Table } from '../../shared/components/ui';
 import { usePantallaChica } from '../../shared/hooks/usePantallaChica';
@@ -57,7 +57,7 @@ function CeldasActivo({ alumno }) {
   const aviso = cuota && avisoVencimiento(cuota);
   return (
     <>
-      <td className={cx('px-3 py-2 text-center whitespace-normal', !plan && 'text-ink-soft')}>{plan ? tituloPlan(plan) : 'Sin plan'}</td>
+      <td className={cx('px-3 py-2 text-center whitespace-normal', !plan && 'text-ink-soft')}>{plan ? plan.nombre : 'Sin plan'}</td>
       <td className={cx('px-3 text-center tabular-nums', !plan && 'text-ink-soft')}>{plan ? `${plan.semanaActual} de ${plan.cantidadSemanas}` : '—'}</td>
       <td className="px-3 py-2 text-center whitespace-normal">
         {alumno.membresia}

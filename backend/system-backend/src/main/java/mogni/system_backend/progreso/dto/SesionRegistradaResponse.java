@@ -12,6 +12,8 @@ public class SesionRegistradaResponse {
     private Long id;
     private int semana;
     private int numeroSesion;
+    /** El nombre de la sesión en el plan (p. ej. "Tren inferior A"); null si no tiene. */
+    private String nombreSesion;
     private LocalDate fecha;
     /** Los ejercicios hechos de la sesión. */
     private int ejerciciosRegistrados;

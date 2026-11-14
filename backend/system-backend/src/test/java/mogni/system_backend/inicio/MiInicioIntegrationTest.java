@@ -12,7 +12,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,11 +38,13 @@ import mogni.system_backend.inscripcion.entity.EstadoInscripcion;
 import mogni.system_backend.inscripcion.entity.Inscripcion;
 import mogni.system_backend.membresia.entity.Membresia;
 import mogni.system_backend.membresia.repository.MembresiaRepository;
-import mogni.system_backend.plan.entity.MetodoPlan;
 import mogni.system_backend.plan.entity.PlanAsignado;
 import mogni.system_backend.plan.repository.PlanAsignadoRepository;
 import mogni.system_backend.plantilla.entity.NivelPlantilla;
 import mogni.system_backend.plantilla.entity.ObjetivoPlantilla;
+import mogni.system_backend.cuota.entity.Cuota;
+import mogni.system_backend.cuota.entity.ReglasCuota;
+import mogni.system_backend.turno.entity.Asistencia;
 import mogni.system_backend.turno.entity.ClaseExtra;
 import mogni.system_backend.turno.entity.EstadoReserva;
 import mogni.system_backend.turno.entity.EstadoTurno;
@@ -185,9 +189,8 @@ class MiInicioIntegrationTest {
         plan.setNombre("Hipertrofia - Progresivo");
         plan.setNivel(NivelPlantilla.INTERMEDIO);
         plan.setObjetivo(ObjetivoPlantilla.HIPERTROFIA);
-        plan.setMetodo(MetodoPlan.ULTRA_MASS);
-        plan.setMesociclo("Hipertrofia");
-        plan.setCantidadSemanas(5);
+        // Cinco semanas: la cantidad sale de la fecha fin
+        plan.setFechaFin(plan.getFechaAsignacion().plusWeeks(5).minusDays(1));
         return planRepository.save(plan);
     }
 
@@ -281,6 +284,76 @@ class MiInicioIntegrationTest {
     @Test
     void sin_plan_activo_el_plan_es_null() throws Exception {
         assertTrue(inicioDe(alumnoAlDia(3)).cuerpo().path("planActivo").isNull());
+    }
+
+    // --- Clases de la cuota ---
+
+    private void asistio(Alumno alumno, LocalDate fecha, Asistencia asistencia) {
+        Reserva reserva = reservar(alumno, fecha);
+        reserva.setAsistencia(asistencia);
+        reservaRepository.save(reserva);
+    }
+
+    @Test
+    void cuenta_las_clases_presentes_del_periodo_de_la_cuota() throws Exception {
+        Alumno alumno = alumnoAlDia(3);
+        Cuota cuota = alumno.buscarUltimaCuotaPagada().orElseThrow();
+        asistio(alumno, cuota.getFechaInicio(), Asistencia.PRESENTE);
+        asistio(alumno, hoy().minusDays(2), Asistencia.PRESENTE);
+        // No suman: una ausencia, una sin marcar, una cancelada y una de antes del período
+        asistio(alumno, hoy().minusDays(3), Asistencia.AUSENTE);
+        reservar(alumno, hoy().plusDays(1));
+        Reserva cancelada = reservar(alumno, hoy().minusDays(4));
+        cancelada.setEstado(EstadoReserva.CANCELADA);
+        cancelada.setAsistencia(Asistencia.PRESENTE);
+        reservaRepository.save(cancelada);
+        asistio(alumno, cuota.getFechaInicio().minusDays(1), Asistencia.PRESENTE);
+
+        JsonNode clases = inicioDe(alumno).cuerpo().path("clasesCuota");
+
+        assertEquals(2, clases.path("presentes").asInt());
+        // La última con «Presente», aunque sea de antes del período
+        assertEquals(hoy().minusDays(2).toString(), clases.path("ultima").path("fecha").asString());
+    }
+
+    @Test
+    void el_total_es_de_cuantas_clases_podia_ir_en_el_periodo() throws Exception {
+        Alumno alumno = alumnoAlDia(3);
+        Cuota cuota = alumno.buscarUltimaCuotaPagada().orElseThrow();
+        // Sin franjas cargadas se cuentan todos los días: una por día y hasta 3 por semana
+        Map<LocalDate, Long> diasPorSemana = cuota.getFechaInicio().datesUntil(cuota.getFechaVencimiento())
+                .collect(Collectors.groupingBy(ReglasReserva::lunesDe, Collectors.counting()));
+        long esperado = diasPorSemana.values().stream().mapToLong(dias -> Math.min(dias, 3)).sum();
+
+        JsonNode clases = inicioDe(alumno).cuerpo().path("clasesCuota");
+
+        assertEquals(esperado, clases.path("total").asLong());
+        assertEquals(0, clases.path("presentes").asInt());
+        assertTrue(clases.path("ultima").isNull());
+    }
+
+    @Test
+    void con_la_cuota_siguiente_ya_paga_cuenta_desde_que_empieza_la_que_cubre_hoy() throws Exception {
+        Alumno alumno = alumnoAlDia(3);
+        Inscripcion inscripcion = alumno.buscarInscripcionActiva().orElseThrow();
+        Cuota actual = inscripcion.buscarUltimaCuota().orElseThrow();
+        inscripcion.agregarCuota(actual.getFechaVencimiento());
+        alumnoRepository.save(alumno);
+        asistio(alumno, hoy().minusDays(1), Asistencia.PRESENTE);
+
+        assertEquals(1, inicioDe(alumno).cuerpo().path("clasesCuota").path("presentes").asInt());
+
+        // En el perfil, la vigencia va del inicio del período de hoy al último vencimiento pago
+        JsonNode cuota = ejecutar(get("/alumnos/me").with(user(alumno.getEmail()).roles("ALUMNO")))
+                .cuerpo().path("cuotaActual");
+        assertEquals(actual.getFechaInicio().toString(), cuota.path("vigenteDesde").asString());
+        assertEquals(ReglasCuota.vencimientoDesde(actual.getFechaVencimiento()).toString(),
+                cuota.path("fechaVencimiento").asString());
+    }
+
+    @Test
+    void sin_una_cuota_que_cubra_hoy_no_hay_contador() throws Exception {
+        assertTrue(inicioDe(alumno(3, -3)).cuerpo().path("clasesCuota").isNull());
     }
 
     // --- Mismas reglas que la reserva ---

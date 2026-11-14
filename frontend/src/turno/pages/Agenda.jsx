@@ -202,9 +202,8 @@ export default function Agenda({ esPropietario, alumnos, alumnosCargados }) {
     if (!reactivacion || reactivando) return;
     setReactivando(true);
     try {
-      const resultado = await reactivarTurno(reactivacion.turnoId);
-      const avisados = resultado.alumnosAvisados === 1 ? '1 alumno' : `${resultado.alumnosAvisados} alumnos`;
-      setMensajeExito(`Se reactivó el turno de las ${reactivacion.horaInicio}.${resultado.alumnosAvisados > 0 ? ` Se avisó a ${avisados} con reserva cancelada.` : ''}`);
+      await reactivarTurno(reactivacion.turnoId);
+      setMensajeExito(`Se reactivó el turno de las ${reactivacion.horaInicio}.`);
       setReactivacion(null);
       setError(null);
       setVersion(actual => actual + 1);
@@ -367,7 +366,7 @@ export default function Agenda({ esPropietario, alumnos, alumnosCargados }) {
                     ? `Se cancelarán ${confirmacion.turnosAfectados} turnos futuros y ${confirmacion.reservasAfectadas} reservas activas del ${textoFechaLarga(confirmacion.fecha)}.`
                     : `Se cancelará el turno de las ${confirmacion.horaInicio} del ${textoFechaLarga(confirmacion.fecha)} y ${confirmacion.reservasAfectadas} reservas activas.`}
                 {!confirmacion.cargando && (
-                  <> Cada alumno afectado recibirá una clase extra válida durante esta semana o la siguiente, además de una notificación en la app.</>
+                  <> Cada alumno afectado va a poder recuperar la clase hasta que venza su cuota y recibe una notificación en la app.</>
                 )}
               </p>
             )}
@@ -412,7 +411,7 @@ export default function Agenda({ esPropietario, alumnos, alumnosCargados }) {
             <h2 id="confirmar-reactivacion-titulo" className="text-lg font-bold text-ink">Reactivar turno</h2>
             <p className="mt-3 text-sm leading-relaxed text-ink-soft">
               {`El turno de las ${reactivacion.horaInicio} del ${textoFechaLarga(reactivacion.fecha)} volverá a estar disponible para reservar.`}
-              {' '}Las reservas canceladas no se restauran: los alumnos conservan su clase extra, reciben un aviso en la app y tienen que reservar de nuevo si quieren.
+              {' '}Las reservas canceladas no se restauran: los alumnos conservan su clase a recuperar y pueden volver a reservarlo si quieren.
             </p>
             {reactivacion.error && (
               <div role="alert" className="mt-3 rounded-lg border border-line bg-error-bg p-3 text-sm text-error">

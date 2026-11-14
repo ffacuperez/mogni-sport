@@ -5,7 +5,7 @@ import { formatearFecha } from '../../shared/services/texto';
 import { textoNivel, textoObjetivo, tonoNivel } from '../../plantilla/services/plantillasService';
 import BadgeEstadoPlan from '../components/BadgeEstadoPlan';
 import BarraSemanas from '../components/BarraSemanas';
-import { sesionesEsperadasHastaEstaSemana, sesionesPorSemana, tituloPlan } from '../services/progresoService';
+import { sesionesEsperadasHastaEstaSemana } from '../services/progresoService';
 
 function Dato({ label, children }) {
   return (
@@ -17,7 +17,7 @@ function Dato({ label, children }) {
 }
 
 /**
- * Resumen del plan en el panel: método y mesociclo, nivel, objetivo, inicio, sesiones por semana y el avance por
+ * Resumen del plan en el panel: nombre, nivel, objetivo, fechas, sesiones del plan y el avance por
  * semanas. onModificar y onFinalizar: solo en el plan activo. El estado se muestra solo si ya terminó: "Activo" al lado
  * del plan actual no suma nada, pero este resumen también lo usa el detalle de un plan anterior.
  */
@@ -25,23 +25,22 @@ export default function ResumenPlanPanel({ plan, onModificar, onFinalizar }) {
   const activo = plan.estado === 'ACTIVO';
   const semana = activo ? plan.semanaActual : plan.cantidadSemanas;
   const esperadas = sesionesEsperadasHastaEstaSemana(plan);
-  const objetivo = plan.objetivo ? textoObjetivo(plan.objetivo) : plan.objetivoMesociclo;
 
   return (
     <Panel aria-label="Resumen del plan" className="flex flex-col gap-13 px-6 py-5">
       <div className="flex flex-col items-start justify-between gap-x-10 gap-y-4 lg:flex-row">
         <div className="grid w-full flex-1 grid-cols-1 gap-x-10 gap-y-4 sm:grid-cols-2 md:grid-cols-3 lg:w-auto">
-          <Dato label="Método · Mesociclo">
+          <Dato label="Plan">
             <span className="flex flex-wrap items-center gap-2">
-              {tituloPlan(plan)}
+              {plan.nombre}
               {!activo && <BadgeEstadoPlan estado={plan.estado} />}
             </span>
           </Dato>
           {plan.nivel && <Dato label="Nivel"><Badge tone={tonoNivel(plan.nivel)} className="font-semibold">{textoNivel(plan.nivel)}</Badge></Dato>}
-          <Dato label="Sesiones por semana"><span className="tabular-nums">{sesionesPorSemana(plan)}</span></Dato>
-          {objetivo && <Dato label="Objetivo">{objetivo}</Dato>}
+          <Dato label="Sesiones del plan"><span className="tabular-nums">{plan.sesionesTotales}</span></Dato>
+          {plan.objetivo && <Dato label="Objetivo">{textoObjetivo(plan.objetivo)}</Dato>}
           <Dato label="Fecha de inicio"><span className="tabular-nums">{formatearFecha(plan.fechaInicio)}</span></Dato>
-          {plan.fechaFin && <Dato label="Fecha de fin"><span className="tabular-nums">{formatearFecha(plan.fechaFin)}</span></Dato>}
+          <Dato label="Fecha de fin"><span className="tabular-nums">{formatearFecha(plan.fechaFin)}</span></Dato>
         </div>
         {activo && onModificar && onFinalizar && (
           <div className="order-first grid w-full shrink-0 grid-cols-2 gap-2 lg:order-none lg:flex lg:w-auto">

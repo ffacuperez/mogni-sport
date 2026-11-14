@@ -3,10 +3,11 @@ import { Link, useNavigate } from 'react-router';
 import { CalendarDays, ChevronRight, CircleAlert, Clock, Dumbbell, Plus, TriangleAlert } from 'lucide-react';
 
 import { cx, FOCUS } from '../../shared/components/clases';
-import { Badge, Button, Cargando, Panel } from '../../shared/components/ui';
+import { Button, Cargando, Panel } from '../../shared/components/ui';
 import BarraSemanas from '../../progreso/components/BarraSemanas';
-import { tituloPlan } from '../../progreso/services/progresoService';
+
 import AccesoBloqueado from '../../turno/components/AccesoBloqueado';
+import { formatearFecha } from '../../shared/services/texto';
 import { partesFecha } from '../../turno/services/turnosService';
 import { avisoCuota, consultarMiInicio, TEXTO_MOTIVO_NO_RESERVA, textoTurnosQueQuedan } from '../services/inicioService';
 
@@ -96,6 +97,37 @@ function TurnosDeLaSemana({ usados, total }) {
   );
 }
 
+/** A cuántas clases fue en el período de su cuota, de cuántas podía ir, y cuál fue la última. */
+function ClasesDeLaCuota({ clases }) {
+  if (!clases) return null;
+  const { presentes, total, ultima } = clases;
+  const porcentaje = total > 0 ? Math.min(100, (presentes / total) * 100) : 0;
+  return (
+    <Panel className="rounded-xl p-4">
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <p className="text-sm text-ink-soft">Clases de tu cuota</p>
+        <p className="text-lg font-bold tabular-nums text-ink">{presentes}/{total}</p>
+      </div>
+      <div
+        role="progressbar"
+        aria-label="Clases de tu cuota"
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={presentes}
+        className="h-2 overflow-hidden rounded-full bg-line"
+      >
+        <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${porcentaje}%` }} />
+      </div>
+      <p className="mt-3 flex items-center gap-2 rounded-lg bg-row-hover px-3 py-2.5 text-sm text-ink-soft">
+        <Clock className="h-4 w-4 shrink-0" />
+        {ultima
+          ? <span>Última clase: <span className="font-semibold tabular-nums text-ink">{formatearFecha(ultima.fecha)} {ultima.horaInicio} hs</span></span>
+          : 'Todavía no fuiste a ninguna clase'}
+      </p>
+    </Panel>
+  );
+}
+
 /** Lleva a la reserva. Si no puede reservar queda deshabilitado y debajo se explica por qué. */
 function ReservarTurno({ puedeReservar, motivo }) {
   const navigate = useNavigate();
@@ -130,7 +162,7 @@ function TusRutinas({ plan }) {
       <div className="min-w-0 flex-1">
         <p className="text-base font-bold text-ink">Tus rutinas</p>
         <p className="truncate text-sm text-ink-soft">
-          {plan ? `${tituloPlan(plan)} · Semana ${plan.semanaActual} de ${plan.cantidadSemanas}` : 'Todavía no tenés rutinas asignadas'}
+          {plan ? `${plan.nombre} · Semana ${plan.semanaActual} de ${plan.cantidadSemanas}` : 'Todavía no tenés rutinas asignadas'}
         </p>
       </div>
       <ChevronRight className="h-5 w-5 shrink-0 text-ink-muted" />
@@ -165,21 +197,21 @@ export default function MiInicio() {
 
   if (!inicio) return <Cargando texto="Cargando tu inicio" />;
 
-  const { hoy, nombre, membresia, diasPorSemana, activo, cuota, proximoTurno, turnosSemana, puedeReservar, motivoNoReserva, planActivo } = inicio;
+  const { hoy, nombre, membresia, diasPorSemana, cuota, proximoTurno, turnosSemana, clasesCuota, puedeReservar, motivoNoReserva, planActivo } = inicio;
 
   return (
     <div className="flex flex-col gap-4 animate-fade-in">
       <header>
         <h1 className="text-2xl font-bold text-ink">¡Hola, {nombre}!</h1>
-        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-ink-soft">
-          <span>{membresia ? `${membresia} · ${diasPorSemana} ${diasPorSemana === 1 ? 'día' : 'días'} por semana` : 'Sin membresía activa'}</span>
-          <Badge tone={activo ? 'success' : 'error'}>{activo ? 'Activo' : 'Inactivo'}</Badge>
-        </div>
+        <p className="mt-1 text-sm text-ink-soft">
+          {membresia ? `${membresia} · ${diasPorSemana} ${diasPorSemana === 1 ? 'día' : 'días'} por semana` : 'Sin membresía activa'}
+        </p>
       </header>
 
       <AvisoCuota cuota={cuota} />
       <ProximoTurno turno={proximoTurno} hoy={hoy} />
       <TurnosDeLaSemana usados={turnosSemana.usados} total={turnosSemana.total} />
+      <ClasesDeLaCuota clases={clasesCuota} />
       <ReservarTurno puedeReservar={puedeReservar} motivo={motivoNoReserva} />
       <TusRutinas plan={planActivo} />
     </div>

@@ -7,11 +7,11 @@ import { textoNivel, textoObjetivo, tonoNivel } from '../../plantilla/services/p
 import BadgeEstadoPlan from '../components/BadgeEstadoPlan';
 import ErrorConsulta from '../components/ErrorConsulta';
 import { useProgreso } from '../services/ProgresoContext';
-import { textoRangoPlan, textoSemanas, tituloPlan } from '../services/progresoService';
+import { textoRangoPlan, textoSemanas } from '../services/progresoService';
 import EstadoVacioPanel, { ContenidoVacio } from './EstadoVacioPanel';
 
 const COLUMNAS = [
-  { label: 'Método · Mesociclo', className: 'pl-4' },
+  { label: 'Plan', className: 'pl-4' },
   { label: 'Nivel' },
   { label: 'Objetivo' },
   { label: 'Inicio – fin' },
@@ -61,7 +61,7 @@ export default function HistorialPlanes() {
               onActivate={() => navigate(activo ? rutaBase : `${rutaBase}/planes/${plan.id}`)}
               title={activo ? 'Ver el plan actual' : 'Ver el detalle del plan'}
             >
-              <td className="py-3 pl-4 pr-3 font-semibold">{tituloPlan(plan)}</td>
+              <td className="py-3 pl-4 pr-3 font-semibold">{plan.nombre}</td>
               <td className="px-3">{plan.nivel && <Badge tone={tonoNivel(plan.nivel)} className="font-semibold">{textoNivel(plan.nivel)}</Badge>}</td>
               <td className="max-w-56 truncate px-3">{plan.objetivo ? textoObjetivo(plan.objetivo) : '—'}</td>
               <td className="px-3 tabular-nums">{textoRangoPlan(plan)}</td>

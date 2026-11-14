@@ -3,10 +3,10 @@ import { Check, ChevronDown } from 'lucide-react';
 
 import { cx, FOCUS } from '../../shared/components/clases';
 import BottomSheet from '../../turno/components/BottomSheet';
-import { nombreCortoPlan, tituloPlan } from '../services/progresoService';
+import { textoRangoPlan } from '../services/progresoService';
 
-/** El activo se distingue con "(actual)"; los anteriores llevan el método porque pueden repetir mesociclo. */
-const etiquetaPlan = (plan) => (plan.estado === 'ACTIVO' ? `${nombreCortoPlan(plan)} (actual)` : tituloPlan(plan));
+/** El activo se distingue con "(actual)"; los anteriores, por sus fechas, porque pueden repetir nombre. */
+const etiquetaPlan = (plan) => `${plan.nombre} (${plan.estado === 'ACTIVO' ? 'actual' : textoRangoPlan(plan)})`;
 
 /** Filtro "Plan:". Las opciones se eligen en un panel que sube desde abajo, como en Turnos. */
 export default function FiltroPlan({ planes, valor, onCambiar }) {

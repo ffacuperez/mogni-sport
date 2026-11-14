@@ -7,8 +7,6 @@ import { partesFecha } from '../../turno/services/turnosService';
 
 const BASE_PATH = '/mi-progreso';
 
-const METODOS = { DEFICIT: 'Déficit', ULTRA_MASS: 'Ultra Mass', VITALITY: 'Vitality' };
-
 const ejercicioFromApi = (e) => ({
   nombre: e.nombre,
   series: e.series,
@@ -51,6 +49,8 @@ const semanaFromApi = (s) => ({
   numero: s.numero,
   desde: s.desde,
   hasta: s.hasta,
+  // "Semana de descarga"; null si el entrenador no le puso nota
+  nota: s.nota ?? null,
   sesiones: s.sesiones.map(sesionFromApi),
 });
 
@@ -59,9 +59,6 @@ const planFromApi = (p) => ({
   nombre: p.nombre,
   nivel: p.nivel ?? null,
   objetivo: p.objetivo ?? null,
-  metodo: p.metodo ?? null,
-  mesociclo: p.mesociclo ?? null,
-  objetivoMesociclo: p.objetivoMesociclo ?? null,
   estado: p.estado,
   fechaInicio: p.fechaInicio,
   fechaFin: p.fechaFin,
@@ -77,8 +74,6 @@ const resumenFromApi = (p) => ({
   nombre: p.nombre,
   nivel: p.nivel ?? null,
   objetivo: p.objetivo ?? null,
-  metodo: p.metodo ?? null,
-  mesociclo: p.mesociclo ?? null,
   estado: p.estado,
   fechaInicio: p.fechaInicio,
   fechaFin: p.fechaFin,
@@ -92,7 +87,7 @@ const sesionDetalleFromApi = (s) => ({
   numeroSesion: s.numeroSesion,
   nombreSesion: s.nombreSesion ?? null,
   fecha: s.fecha,
-  plan: { nombre: s.nombrePlan, metodo: s.metodo ?? null, mesociclo: s.mesociclo ?? null },
+  plan: { nombre: s.nombrePlan },
   ejercicios: s.ejercicios.map((e) => ({
     ...ejercicioFromApi(e),
     kgUsados: e.kgUsados ?? null,
@@ -175,9 +170,6 @@ export function serieDeReferencia(series) {
   ));
 }
 
-/** Las sesiones de cada semana del plan (todas las semanas repiten las mismas). */
-export const sesionesPorSemana = (plan) => plan.semanas[0]?.sesiones.length ?? 0;
-
 /**
  * Las sesiones que el alumno ya podría haber hecho: todas las de las semanas hasta la actual, incluida. Un plan
  * finalizado ya las tuvo todas.
@@ -196,14 +188,6 @@ export function agruparPorSemana(sesiones) {
     else grupos.push({ semana: sesion.semana, sesiones: [sesion] });
   });
   return grupos;
-}
-
-/** "Hipertrofia": el mesociclo o, en los planes que no lo tienen cargado, el título. */
-export const nombreCortoPlan = (plan) => plan.mesociclo ?? tituloPlan(plan);
-
-/** "Ultra Mass · Hipertrofia". Los planes sin método ni mesociclo cargados muestran su nombre. */
-export function tituloPlan(plan) {
-  return [METODOS[plan.metodo], plan.mesociclo].filter(Boolean).join(' · ') || plan.nombre;
 }
 
 /** "2026-10-26" -> "26/10" */

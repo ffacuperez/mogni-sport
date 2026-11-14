@@ -21,7 +21,10 @@ function Flecha({ label, icono: Icono, disabled, onClick }) {
   );
 }
 
-/** "‹ Semana 2 ›" con su rango de fechas. La flecha izquierda se deshabilita en la primera semana y la derecha en la última. */
+/**
+ * "‹ Semana 2 ›" con su rango de fechas y la nota del entrenador, si tiene ("Semana de descarga"). La flecha izquierda
+ * se deshabilita en la primera semana y la derecha en la última.
+ */
 export default function SelectorSemana({ semana, cantidadSemanas, onCambiar }) {
   return (
     <div className="flex items-center justify-between">
@@ -29,6 +32,7 @@ export default function SelectorSemana({ semana, cantidadSemanas, onCambiar }) {
       <div className="flex flex-col items-center" aria-live="polite">
         <p className="text-base font-bold text-ink">Semana {semana.numero}</p>
         <p className="text-xs text-ink-soft">{textoDiaMes(semana.desde)} – {textoDiaMes(semana.hasta)}</p>
+        {semana.nota && <p className="mt-0.5 text-center text-xs font-semibold text-info">{semana.nota}</p>}
       </div>
       <Flecha label="Semana siguiente" icono={ChevronRight} disabled={semana.numero >= cantidadSemanas} onClick={() => onCambiar(semana.numero + 1)} />
     </div>

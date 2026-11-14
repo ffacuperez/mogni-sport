@@ -49,6 +49,12 @@ export default function SesionesDeLaSemana({ plan, semanaInicial, onVerRegistro 
         </div>
       </div>
 
+      {semana.nota && (
+        <p className="-mt-1 rounded-lg bg-info-bg px-3 py-2 text-sm text-info">
+          <span className="font-semibold">Nota de la semana:</span> {semana.nota}
+        </p>
+      )}
+
       <div className={cx('grid grid-cols-1 items-stretch gap-4 md:grid-cols-2', columnas)}>
         {semana.sesiones.map((sesion) => (
           <TarjetaSesionPanel key={`${semana.numero}-${sesion.numero}`} sesion={sesion} onVerRegistro={onVerRegistro} />

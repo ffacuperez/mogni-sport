@@ -5,7 +5,7 @@ import { CalendarDays, ChevronRight, CircleAlert, Clock, Dumbbell, Plus, Triangl
 import { cx, FOCUS } from '../../shared/components/clases';
 import { Button, Cargando, Panel } from '../../shared/components/ui';
 import BarraSemanas from '../../progreso/components/BarraSemanas';
-import { tituloPlan } from '../../progreso/services/progresoService';
+
 import AccesoBloqueado from '../../turno/components/AccesoBloqueado';
 import { formatearFecha } from '../../shared/services/texto';
 import { partesFecha } from '../../turno/services/turnosService';
@@ -162,7 +162,7 @@ function TusRutinas({ plan }) {
       <div className="min-w-0 flex-1">
         <p className="text-base font-bold text-ink">Tus rutinas</p>
         <p className="truncate text-sm text-ink-soft">
-          {plan ? `${tituloPlan(plan)} · Semana ${plan.semanaActual} de ${plan.cantidadSemanas}` : 'Todavía no tenés rutinas asignadas'}
+          {plan ? `${plan.nombre} · Semana ${plan.semanaActual} de ${plan.cantidadSemanas}` : 'Todavía no tenés rutinas asignadas'}
         </p>
       </div>
       <ChevronRight className="h-5 w-5 shrink-0 text-ink-muted" />

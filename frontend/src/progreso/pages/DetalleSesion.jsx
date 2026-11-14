@@ -6,7 +6,7 @@ import ComparativaEjercicio from '../components/ComparativaEjercicio';
 import EncabezadoDetalle from '../components/EncabezadoDetalle';
 import ErrorConsulta from '../components/ErrorConsulta';
 import { useProgreso } from '../services/ProgresoContext';
-import { textoFechaCompleta, tituloPlan, tituloSesion } from '../services/progresoService';
+import { textoFechaCompleta, tituloSesion } from '../services/progresoService';
 
 /** Detalle de una sesión registrada: lo indicado y lo realizado en cada ejercicio. */
 export default function DetalleSesion() {
@@ -36,7 +36,7 @@ export default function DetalleSesion() {
     <div className="animate-fade-in">
       <EncabezadoDetalle
         titulo={`${tituloSesion(sesion.nombreSesion, sesion.numeroSesion)} · Semana ${sesion.semana}`}
-        subtitulo={`${textoFechaCompleta(sesion.fecha)} · ${tituloPlan(sesion.plan)}`}
+        subtitulo={`${textoFechaCompleta(sesion.fecha)} · ${sesion.plan.nombre}`}
         onVolver={volver}
       />
       <div className="flex flex-col gap-3">

@@ -3,7 +3,7 @@ import { CalendarClock, ChevronRight } from 'lucide-react';
 import { cx, FOCUS } from '../../shared/components/clases';
 import { Badge } from '../../shared/components/ui';
 import { formatearFecha } from '../../shared/services/texto';
-import { tituloPlan } from '../../progreso/services/progresoService';
+
 import { textoVencePlan } from '../services/panelService';
 import { CLASE_TARJETA, TONOS_ICONO } from './estilos';
 import { ErrorSeccion } from './SeccionSegura';
@@ -65,7 +65,7 @@ export default function PlanesPorVencer({ resultado, onVerAlumno }) {
                 <span className="block truncate text-sm font-semibold text-ink">
                   {plan.nombreAlumno} {plan.apellidoAlumno}
                 </span>
-                <span className="block truncate text-xs text-ink-soft">{tituloPlan(plan)}</span>
+                <span className="block truncate text-xs text-ink-soft">{plan.nombre}</span>
               </span>
               <span className="shrink-0 text-right">
                 <Badge tone={tonoVence(plan.diasParaVencer)}>{textoVencePlan(plan.diasParaVencer)}</Badge>

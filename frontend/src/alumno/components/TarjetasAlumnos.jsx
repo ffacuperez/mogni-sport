@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
 
 import { COLUMNAS_ACTIVOS } from '../services/listaAlumnos';
 import { avisoVencimiento, formatearFecha, formatearMonto, tonoEstadoCuota } from '../../cuota/services/cuotasService';
-import { tituloPlan } from '../../progreso/services/progresoService';
+
 import { cx, FOCUS, inputClass } from '../../shared/components/clases';
 import { Badge, Button } from '../../shared/components/ui';
 
@@ -20,7 +20,7 @@ function DatosActivo({ alumno }) {
   const { planActivo: plan, cuota } = alumno;
   return (
     <>
-      <Dato label="Plan">{plan ? tituloPlan(plan) : 'Sin plan'}</Dato>
+      <Dato label="Plan">{plan ? plan.nombre : 'Sin plan'}</Dato>
       <Dato label="Semana">{plan ? `${plan.semanaActual} de ${plan.cantidadSemanas}` : '—'}</Dato>
       <Dato label="Membresía">
         {alumno.membresia}

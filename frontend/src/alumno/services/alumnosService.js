@@ -53,7 +53,7 @@ const fromApi = (a) => ({
   membresiaId: a.membresiaId ?? '',
   membresia: a.membresiaNombre ?? 'Sin membresía',
   estado: a.activo ? 'Activo' : 'Inactivo',
-  // Plan de entrenamiento ACTIVO ({ id, nombre, metodo, mesociclo, semanaActual, cantidadSemanas }) o null si no tiene
+  // Plan de entrenamiento ACTIVO ({ id, nombre, semanaActual, cantidadSemanas }) o null si no tiene
   planActivo: a.planActivo ?? null,
   cuota: cuotaFromApi(a.cuotaActual),
   fechaBaja: a.fechaBaja ?? '',

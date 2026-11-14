@@ -7,7 +7,7 @@ import { Badge, Cargando } from '../../shared/components/ui';
 import BadgeEstadoPlan from '../components/BadgeEstadoPlan';
 import ErrorConsulta from '../components/ErrorConsulta';
 import { useProgreso } from '../services/ProgresoContext';
-import { tituloPlan } from '../services/progresoService';
+
 import DrawerSesionRuta from './DrawerSesion';
 import ResumenPlanPanel from './ResumenPlanPanel';
 import SesionesDeLaSemana from './SesionesDeLaSemana';
@@ -57,7 +57,7 @@ export default function DetallePlanPanel({ alumno }) {
         <div className="min-w-0">
           <p className="text-sm text-ink-soft">Historial de planes · {alumno.nombre} {alumno.apellido}</p>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h1 className="text-2xl font-bold text-ink md:text-[28px]">{tituloPlan(plan)}</h1>
+            <h1 className="text-2xl font-bold text-ink md:text-[28px]">{plan.nombre}</h1>
             <BadgeEstadoPlan estado={plan.estado} />
             <Badge>Solo lectura</Badge>
           </div>

@@ -2,7 +2,8 @@ import { Calendar, Target } from 'lucide-react';
 
 import { Panel } from '../../shared/components/ui';
 import { formatearFecha } from '../../shared/services/texto';
-import { textoRangoPlan, tituloPlan } from '../services/progresoService';
+import { textoObjetivo } from '../../plantilla/services/plantillasService';
+import { textoRangoPlan } from '../services/progresoService';
 import BadgeEstadoPlan from './BadgeEstadoPlan';
 import BarraSemanas from './BarraSemanas';
 
@@ -15,7 +16,7 @@ function Dato({ icono: Icono, children }) {
   );
 }
 
-/** Resumen del plan: método y mesociclo, objetivo, fechas y avance por semanas (completo si ya finalizó). */
+/** Resumen del plan: nombre, objetivo, fechas y avance por semanas (completo si ya finalizó). */
 export default function TarjetaResumenPlan({ plan }) {
   const activo = plan.estado === 'ACTIVO';
   return (
@@ -23,17 +24,15 @@ export default function TarjetaResumenPlan({ plan }) {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Método Mogni Sport</p>
-          <h2 className="text-lg font-bold text-ink">{tituloPlan(plan)}</h2>
+          <h2 className="text-lg font-bold text-ink">{plan.nombre}</h2>
         </div>
         <BadgeEstadoPlan estado={plan.estado} />
       </div>
 
-      {plan.objetivoMesociclo && <Dato icono={Target}>Objetivo: {plan.objetivoMesociclo}</Dato>}
-      {/* HU-266: el alumno ve hasta cuándo dura su plan (la fecha fin real, o la prevista por semanas en los planes viejos) */}
+      {plan.objetivo && <Dato icono={Target}>Objetivo: {textoObjetivo(plan.objetivo)}</Dato>}
+      {/* HU-266: el alumno ve hasta cuándo dura su plan */}
       <Dato icono={Calendar}>
-        {activo
-          ? `Inicio: ${formatearFecha(plan.fechaInicio)}${plan.fechaFin ? ` · Fin: ${formatearFecha(plan.fechaFin)}` : ''}`
-          : textoRangoPlan(plan)}
+        {activo ? `Inicio: ${formatearFecha(plan.fechaInicio)} · Fin: ${formatearFecha(plan.fechaFin)}` : textoRangoPlan(plan)}
       </Dato>
 
       <div className="flex items-center justify-between gap-2 border-t border-line pt-2.5">
